@@ -69,7 +69,7 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
     }
 
     local rightSpikeAng = hasAngledSpikes and Angle( 80.00, 0.00, 0.00) or Angle(90.00, 0.00, 0.00)
-    local leftSpikeAng  = hasAngledSpikes and Angle(-80.00, 0.00, 0.00) or Angle(90.00, 0.00, 0.00)
+    local leftSpikeAng  = hasAngledSpikes and Angle(100.00, 0.00, 0.00) or Angle(90.00, 0.00, 0.00)
 
     if string.find(vehicleModel, "jalopy", 1, true) then
         config.components = {

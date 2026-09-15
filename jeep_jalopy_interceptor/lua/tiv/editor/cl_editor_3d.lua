@@ -48,7 +48,7 @@ function TIV.Editor3D.LoadConfigFromFile(defaultModel)
                             if c.pos and c.pos.x > 0 then
                                 c.ang = Angle(80, 0, 0)
                             elseif c.pos and c.pos.x < 0 then
-                                c.ang = Angle(-80, 0, 0)
+                                c.ang = Angle(100, 0, 0)
                             end
                         end
                     end
@@ -394,7 +394,11 @@ function TIV.Editor3D.Open()
             mirror.id    = mirror.id .. "_mirror"
             mirror.name  = mirror.name .. " (Mirrored)"
             mirror.pos   = Vector(-mirror.pos.x, mirror.pos.y, mirror.pos.z)
-            mirror.ang   = Angle(mirror.ang.p, -mirror.ang.y, -mirror.ang.r)
+            if curComp.type == "spike" and math.abs(mirror.ang.p - 90) < 45 then
+                mirror.ang = Angle(180 - mirror.ang.p, -mirror.ang.y, -mirror.ang.r)
+            else
+                mirror.ang = Angle(mirror.ang.p, mirror.ang.y, mirror.ang.r)
+            end
             table.insert(components, mirror)
             TIV.Editor3D.SelectedIndex = #components
             RefreshEditor()
