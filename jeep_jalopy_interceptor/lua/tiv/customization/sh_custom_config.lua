@@ -93,16 +93,16 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel)
     else
         -- Standard Buggy (jeep)
         config.components = {
-            { id = "spike_fr", type = "spike", name = "Front Right Spike", group = "front", model = "models/props_junk/harpoon002a.mdl", pos = Vector( 25,  50, 0), ang = Angle(90, 0, 0), scale = Vector(1, 1, 1) },
-            { id = "spike_fl", type = "spike", name = "Front Left Spike",  group = "front", model = "models/props_junk/harpoon002a.mdl", pos = Vector(-25,  50, 0), ang = Angle(90, 0, 0), scale = Vector(1, 1, 1) },
-            { id = "spike_mr", type = "spike", name = "Mid Right Spike",    group = "mid",   model = "models/props_junk/harpoon002a.mdl", pos = Vector( 30, -20, 0), ang = Angle(90, 0, 0), scale = Vector(1, 1, 1) },
-            { id = "spike_ml", type = "spike", name = "Mid Left Spike",     group = "mid",   model = "models/props_junk/harpoon002a.mdl", pos = Vector(-30, -20, 0), ang = Angle(90, 0, 0), scale = Vector(1, 1, 1) },
-            { id = "spike_rr", type = "spike", name = "Rear Right Spike",   group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector( 20,-100, 0), ang = Angle(90, 0, 0), scale = Vector(1, 1, 1) },
-            { id = "spike_rl", type = "spike", name = "Rear Left Spike",    group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector(-20,-100, 0), ang = Angle(90, 0, 0), scale = Vector(1, 1, 1) },
+            { id = "spike_fr", type = "spike", name = "Front Right Spike", group = "front", model = "models/props_junk/harpoon002a.mdl", pos = Vector( 25.00,  50.00, 0.00), ang = Angle(90.00, 0.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_fl", type = "spike", name = "Front Left Spike",  group = "front", model = "models/props_junk/harpoon002a.mdl", pos = Vector(-25.00,  50.00, 0.00), ang = Angle(90.00, 0.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_mr", type = "spike", name = "Mid Right Spike",    group = "mid",   model = "models/props_junk/harpoon002a.mdl", pos = Vector( 30.00, -20.00, 0.00), ang = Angle(90.00, 0.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_ml", type = "spike", name = "Mid Left Spike",     group = "mid",   model = "models/props_junk/harpoon002a.mdl", pos = Vector(-30.00, -20.00, 0.00), ang = Angle(90.00, 0.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_rr", type = "spike", name = "Rear Right Spike",   group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector( 20.00,-100.00, 0.00), ang = Angle(90.00, 0.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_rl", type = "spike", name = "Rear Left Spike",    group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector(-20.00,-100.00, 0.00), ang = Angle(90.00, 0.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
 
-            { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-38, -15, 0), ang = Angle(0, 0, 90), scale = Vector(1, 1, 1) },
-            { id = "armor_sr", type = "armor_side",  name = "Right Metal Plate", group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector( 38, -15, 0), ang = Angle(0, 0, -90), scale = Vector(1, 1, 1) },
-            { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(0, 68, 6), ang = Angle(-20, 90, 0), scale = Vector(1, 1, 1) },
+            { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-43.50, -24.50, 31.80), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "armor_sr", type = "armor_side",  name = "Right Metal Plate", group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector( 43.50, -24.50, 31.80), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  64.00, 31.80), ang = Angle(-95.30, 90.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
         }
     end
 
