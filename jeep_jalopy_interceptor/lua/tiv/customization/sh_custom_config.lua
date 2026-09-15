@@ -24,6 +24,9 @@ TIV.CustomConfig.CuratedModels = {
         { name = "Ladder Rail Penetrators",  model = "models/props_c17/metalladder001.mdl" },
     },
     side_armor = {
+        { name = "PHX Metal Plate 1x2",      model = "models/props_phx/construct/metal_plate1x2.mdl" },
+        { name = "PHX Metal Plate 2x2",      model = "models/props_phx/construct/metal_plate2x2.mdl" },
+        { name = "PHX Metal Plate 1x1",      model = "models/props_phx/construct/metal_plate1x1.mdl" },
         { name = "Corrugated Steel Sheet",   model = "models/props_c17/fence01a.mdl" },
         { name = "Combine Heavy Blast Plate",model = "models/props_combine/combine_fence01b.mdl" },
         { name = "Heavy Steel Ballast Plate",model = "models/props_c17/furnituredrawer001a_chunk01.mdl" },
@@ -31,12 +34,17 @@ TIV.CustomConfig.CuratedModels = {
         { name = "Ribbed Alloy Plate",       model = "models/props_debris/metal_panel02a.mdl" },
     },
     front_armor = {
+        { name = "PHX Metal Plate 1x2",      model = "models/props_phx/construct/metal_plate1x2.mdl" },
+        { name = "PHX Metal Plate 2x2",      model = "models/props_phx/construct/metal_plate2x2.mdl" },
+        { name = "PHX Metal Plate 1x1",      model = "models/props_phx/construct/metal_plate1x1.mdl" },
         { name = "Combine Front Cowl",       model = "models/props_combine/combine_fence01b.mdl" },
         { name = "Angled Wedge Plate",       model = "models/props_debris/metal_panel01a.mdl" },
         { name = "Heavy Vault Shutter",      model = "models/props_lab/blastdoor001c.mdl" },
         { name = "Grille Cowling Plate",     model = "models/props_trainstation/traincar_rack001.mdl" },
     },
     roof_armor = {
+        { name = "PHX Metal Plate 1x2",      model = "models/props_phx/construct/metal_plate1x2.mdl" },
+        { name = "PHX Metal Plate 2x2",      model = "models/props_phx/construct/metal_plate2x2.mdl" },
         { name = "Combine Roof Shield",      model = "models/props_combine/combine_fence01b.mdl" },
         { name = "Corrugated Air Deflector", model = "models/props_c17/fence01a.mdl" },
         { name = "Slag Roof Plate",          model = "models/props_debris/metal_panel02a.mdl" },
@@ -64,10 +72,10 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel)
             { id = "spike_rr", type = "spike", name = "Rear Right Spike",   group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector( 25,-100, 0), ang = Angle(90, 0, 0), scale = Vector(1, 1, 1) },
             { id = "spike_rl", type = "spike", name = "Rear Left Spike",    group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector(-25,-100, 0), ang = Angle(90, 0, 0), scale = Vector(1, 1, 1) },
 
-            -- Armor Panels
-            { id = "armor_sl", type = "armor_side",  name = "Left Side Skirt",   group = "side",  model = "models/props_c17/fence01a.mdl", pos = Vector(-36, -20, -5), ang = Angle(0, 0, 0), scale = Vector(1, 1, 1) },
-            { id = "armor_sr", type = "armor_side",  name = "Right Side Skirt",  group = "side",  model = "models/props_c17/fence01a.mdl", pos = Vector( 36, -20, -5), ang = Angle(0, 0, 0), scale = Vector(1, 1, 1) },
-            { id = "armor_fa", type = "armor_front", name = "Front Wedge Cowl",  group = "front", model = "models/props_combine/combine_fence01b.mdl", pos = Vector(0, 62, 5), ang = Angle(-15, 0, 0), scale = Vector(1, 1, 1) },
+            -- Armor Panels (Metal Plates 1x2)
+            { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-36, -20, 0), ang = Angle(0, 0, 90), scale = Vector(1, 1, 1) },
+            { id = "armor_sr", type = "armor_side",  name = "Right Metal Plate", group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector( 36, -20, 0), ang = Angle(0, 0, -90), scale = Vector(1, 1, 1) },
+            { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(0, 62, 6), ang = Angle(-20, 90, 0), scale = Vector(1, 1, 1) },
         }
     elseif string.find(vehicleModel, "apc", 1, true) then
         config.components = {
@@ -78,9 +86,9 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel)
             { id = "spike_rr", type = "spike", name = "Rear Right Spike",   group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector( 35,-110, 0), ang = Angle(90, 0, 0), scale = Vector(1, 1, 1) },
             { id = "spike_rl", type = "spike", name = "Rear Left Spike",    group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector(-35,-110, 0), ang = Angle(90, 0, 0), scale = Vector(1, 1, 1) },
 
-            { id = "armor_sl", type = "armor_side",  name = "Left Side Skirt",   group = "side",  model = "models/props_combine/combine_fence01b.mdl", pos = Vector(-46, -10, 5), ang = Angle(0, 0, 0), scale = Vector(1, 1, 1) },
-            { id = "armor_sr", type = "armor_side",  name = "Right Side Skirt",  group = "side",  model = "models/props_combine/combine_fence01b.mdl", pos = Vector( 46, -10, 5), ang = Angle(0, 0, 0), scale = Vector(1, 1, 1) },
-            { id = "armor_fa", type = "armor_front", name = "Front Wedge Cowl",  group = "front", model = "models/props_combine/combine_fence01b.mdl", pos = Vector(0, 115, 10), ang = Angle(-20, 0, 0), scale = Vector(1, 1, 1) },
+            { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-46, -10, 6), ang = Angle(0, 0, 90), scale = Vector(1, 1, 1) },
+            { id = "armor_sr", type = "armor_side",  name = "Right Metal Plate", group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector( 46, -10, 6), ang = Angle(0, 0, -90), scale = Vector(1, 1, 1) },
+            { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(0, 115, 10), ang = Angle(-25, 90, 0), scale = Vector(1, 1, 1) },
         }
     else
         -- Standard Buggy (jeep)
@@ -92,9 +100,9 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel)
             { id = "spike_rr", type = "spike", name = "Rear Right Spike",   group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector( 20,-100, 0), ang = Angle(90, 0, 0), scale = Vector(1, 1, 1) },
             { id = "spike_rl", type = "spike", name = "Rear Left Spike",    group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector(-20,-100, 0), ang = Angle(90, 0, 0), scale = Vector(1, 1, 1) },
 
-            { id = "armor_sl", type = "armor_side",  name = "Left Flank Shield", group = "side",  model = "models/props_c17/fence01a.mdl", pos = Vector(-38, -15, -4), ang = Angle(0, 0, 0), scale = Vector(1, 1, 1) },
-            { id = "armor_sr", type = "armor_side",  name = "Right Flank Shield",group = "side",  model = "models/props_c17/fence01a.mdl", pos = Vector( 38, -15, -4), ang = Angle(0, 0, 0), scale = Vector(1, 1, 1) },
-            { id = "armor_fa", type = "armor_front", name = "Front Deflector Cowl", group = "front", model = "models/props_combine/combine_fence01b.mdl", pos = Vector(0, 68, 5), ang = Angle(-18, 0, 0), scale = Vector(1, 1, 1) },
+            { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-38, -15, 0), ang = Angle(0, 0, 90), scale = Vector(1, 1, 1) },
+            { id = "armor_sr", type = "armor_side",  name = "Right Metal Plate", group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector( 38, -15, 0), ang = Angle(0, 0, -90), scale = Vector(1, 1, 1) },
+            { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(0, 68, 6), ang = Angle(-20, 90, 0), scale = Vector(1, 1, 1) },
         }
     end
 

@@ -57,9 +57,9 @@ function TIV.CustomComponents.SpawnArmorProps(veh, config, unlockedUpgrades)
             if ctype == "armor_front" and not hasFrontUpgrade then allowed = false end
 
             if allowed then
-                local model = comp.model or "models/props_combine/combine_fence01b.mdl"
+                local model = comp.model or "models/props_phx/construct/metal_plate1x2.mdl"
                 if not util.IsValidModel(model) then
-                    model = "models/props_combine/combine_fence01b.mdl"
+                    model = "models/props_phx/construct/metal_plate1x2.mdl"
                 end
 
                 local localPos = comp.pos or Vector(0, 0, 0)

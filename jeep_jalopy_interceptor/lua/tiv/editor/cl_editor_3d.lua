@@ -33,6 +33,13 @@ function TIV.Editor3D.LoadConfigFromFile(defaultModel)
         if raw and raw ~= "" then
             local decoded, err = TIV.CustomConfig.DeserializeFromLua(raw)
             if decoded and istable(decoded.components) then
+                for _, c in ipairs(decoded.components) do
+                    if c.type == "armor_side" or c.type == "armor_front" or c.type == "armor_roof" then
+                        if c.model == "models/props_c17/fence01a.mdl" or c.model == "models/props_combine/combine_fence01b.mdl" then
+                            c.model = "models/props_phx/construct/metal_plate1x2.mdl"
+                        end
+                    end
+                end
                 return decoded
             end
         end
@@ -132,6 +139,14 @@ function TIV.Editor3D.Open()
     modelPanel:SetCamPos(Vector(150, 150, 110))
     modelPanel:SetLookAt(Vector(0, 0, 10))
     modelPanel:SetFOV(42)
+
+    -- Disable default auto-rotation / spinning of the entity or camera
+    modelPanel.LayoutEntity = function(self, ent)
+        if IsValid(ent) then
+            ent:SetAngles(Angle(0, 0, 0))
+            ent:SetPos(Vector(0, 0, 0))
+        end
+    end
 
     -- Viewport top bar with camera presets
     local camBar = vgui.Create("DPanel", viewportPanel)
@@ -337,11 +352,11 @@ function TIV.Editor3D.Open()
             table.insert(components, {
                 id    = "armor_" .. (#components + 1),
                 type  = "armor_side",
-                name  = "Side Armor " .. (#components + 1),
+                name  = "Metal Plate " .. (#components + 1),
                 group = "side",
-                model = "models/props_combine/combine_fence01b.mdl",
-                pos   = Vector(38, -10, -5),
-                ang   = Angle(0, 0, 0),
+                model = "models/props_phx/construct/metal_plate1x2.mdl",
+                pos   = Vector(38, -10, 0),
+                ang   = Angle(0, 0, 90),
                 scale = Vector(1, 1, 1),
             })
             TIV.Editor3D.SelectedIndex = #components
