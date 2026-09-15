@@ -901,7 +901,9 @@ function TIV.Editor3D.Open()
         end
 
         AddSnapBtn("Straight Down", Angle(90, 0, 0))
-        AddSnapBtn("Outward 30°",   Angle(90, 0, curComp.pos.x > 0 and 30 or -30))
+        AddSnapBtn("Angled 10°",    (curComp.pos and curComp.pos.x > 0) and Angle(80, 0, 0) or Angle(100, 0, 0))
+        AddSnapBtn("Angled 20°",    (curComp.pos and curComp.pos.x > 0) and Angle(70, 0, 0) or Angle(110, 0, 0))
+        AddSnapBtn("Angled 30°",    (curComp.pos and curComp.pos.x > 0) and Angle(60, 0, 0) or Angle(120, 0, 0))
         AddSnapBtn("Flat 0°",       Angle(0, 0, 0))
 
         controlsContainer:InvalidateLayout(true)

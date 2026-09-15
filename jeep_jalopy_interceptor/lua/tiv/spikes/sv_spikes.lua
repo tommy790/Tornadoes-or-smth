@@ -44,20 +44,24 @@ function TIV.Spikes.Deploy(veh, data, callback)
     for _, spikeData in ipairs(data.spikes or {}) do
         if IsValid(spikeData.entity) then
             spikeData.entity:SetParent(nil)
-            local worldPos = veh:LocalToWorld(spikeData.localPos or spikeData.offset)
+            local localAng = spikeData.storedLocalAng or spikeData.ang or (TIV.SpikeAnim and TIV.SpikeAnim.GetParentedLocalAngle and TIV.SpikeAnim.GetParentedLocalAngle()) or Angle(90, 0, 0)
+            local localPos = spikeData.storedLocalPos or spikeData.localPos or spikeData.offset or Vector(0, 0, 0)
+            local worldPos = veh:LocalToWorld(localPos)
+            local worldAng = (TIV.SpikeAnim and TIV.SpikeAnim.GetSpikeDownAngle) and TIV.SpikeAnim.GetSpikeDownAngle(veh, localAng) or veh:LocalToWorldAngles(localAng)
+            local worldDir = worldAng:Forward()
+
             local tr = util.TraceLine({
                 start  = worldPos,
-                endpos = worldPos - Vector(0, 0, 300),
+                endpos = worldPos + (worldDir * 350),
                 filter = spikeFilter,
                 mask   = MASK_SOLID,
             })
-            local gp = tr.Hit and tr.HitPos or (worldPos - Vector(0, 0, 60))
-            spikeData.entity:SetPos(gp - Vector(0, 0, TIV.Config.SpikeDriveDepth))
-            local downAng = (TIV.SpikeAnim and TIV.SpikeAnim.GetSpikeDownAngle)
-                and TIV.SpikeAnim.GetSpikeDownAngle(veh) or Angle(90, veh:GetAngles().y, 0)
-            spikeData.entity:SetAngles(downAng)
+            local gp = tr.Hit and tr.HitPos or (worldPos + (worldDir * 60))
+            local driveDepth = TIV.Config.SpikeDriveDepth or 18
+            spikeData.entity:SetPos(gp + (worldDir * driveDepth))
+            spikeData.entity:SetAngles(worldAng)
             spikeData.groundPos   = gp
-            spikeData.deployAngle = downAng
+            spikeData.deployAngle = worldAng
             spikeData.phase       = "deployed"
             data.spikeAnims[spikeData.index] = "deployed"
         end

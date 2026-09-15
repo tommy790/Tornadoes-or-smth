@@ -40,16 +40,21 @@ local function GetParentedLocalAngle()
     return Angle(90, 0, 0)
 end
 
--- World angle pointing downward perpendicular to the vehicle's chassis plane
-local function GetSpikeDownAngle(veh)
-    if not IsValid(veh) then return Angle(90, 0, 0) end
-    return veh:LocalToWorldAngles(GetParentedLocalAngle())
+-- World angle pointing downward along the spike's local angle vector
+local function GetSpikeDownAngle(veh, localAng)
+    if not IsValid(veh) then return localAng or Angle(90, 0, 0) end
+    return veh:LocalToWorldAngles(localAng or GetParentedLocalAngle())
 end
 
--- Local position for a spike when stored in the vehicle's hydraulic ram cylinder
-local function GetStoredLocalPos(offsetPos)
-    local hoverOffset = TIV.Config.SpikeHoverOffset or 5
-    return Vector(offsetPos.x, offsetPos.y, offsetPos.z + hoverOffset)
+-- Local position for a spike when stored in the vehicle's hydraulic ram cylinder.
+-- Follows the spike's directional vector so angled spikes retract and extend
+-- strictly along their cylinder axis, rather than moving straight vertically.
+local function GetStoredLocalPos(offsetPos, offsetAng)
+    local pos = isvector(offsetPos) and offsetPos or Vector(0, 0, 0)
+    local hoverOffset = TIV.Config.SpikeHoverOffset or 60
+    local ang = isangle(offsetAng) and offsetAng or GetParentedLocalAngle()
+    local dir = ang:Forward()
+    return pos - (dir * hoverOffset)
 end
 
 TIV.SpikeAnim.GetSpikeDownAngle     = GetSpikeDownAngle
@@ -59,14 +64,12 @@ TIV.SpikeAnim.GetStoredLocalPos     = GetStoredLocalPos
 -- ============================================================================
 -- TERRAIN RAYCASTING
 -- Traces downward beneath the actual mounting position along the spike's
--- penetration vector or vehicle down vector, adapting to slopes and terrain.
+-- penetration vector, adapting to slopes, terrain, and angled hydraulic rams.
 -- ============================================================================
 local function TraceGroundForSpike(veh, mountWorldPos, spikeAng, data)
-    local downDir = -veh:GetUp()
-    if isangle(spikeAng) then
-        local worldAng = veh:LocalToWorldAngles(spikeAng)
-        downDir = worldAng:Forward()
-    end
+    local localAng = isangle(spikeAng) and spikeAng or GetParentedLocalAngle()
+    local worldAng = veh:LocalToWorldAngles(localAng)
+    local downDir  = worldAng:Forward()
 
     local function traceFilter(ent)
         if ent == veh or ent:GetParent() == veh or ent.TIV_OwnerVehicle == veh or ent.IsTIVArmor or ent.IsTIVSpike then
@@ -80,29 +83,29 @@ local function TraceGroundForSpike(veh, mountWorldPos, spikeAng, data)
         return true
     end
 
+    -- Primary: trace along the spike's angled drive vector (350 units reach)
     local tr = util.TraceLine({
         start  = mountWorldPos,
-        endpos = mountWorldPos + (downDir * 240),
+        endpos = mountWorldPos + (downDir * 350),
         filter = traceFilter,
         mask   = MASK_SOLID,
     })
 
-    -- Fallback 1: trace along vehicle down vector
+    -- Fallback 1: trace further along the angled drive vector if vehicle is lifted (500 units reach)
     if not tr.Hit then
         tr = util.TraceLine({
             start  = mountWorldPos,
-            endpos = mountWorldPos + (-veh:GetUp() * 240),
+            endpos = mountWorldPos + (downDir * 500),
             filter = traceFilter,
             mask   = MASK_SOLID,
         })
     end
 
-    -- Fallback 2: if vehicle is perched on a steep slope or ledge, trace world down
+    -- Fallback 2: if on a cliff or steep drop-off, trace down relative to vehicle
     if not tr.Hit then
-        local worldDown = Vector(0, 0, -1)
         tr = util.TraceLine({
             start  = mountWorldPos,
-            endpos = mountWorldPos + (worldDown * 240),
+            endpos = mountWorldPos + (-veh:GetUp() * 400),
             filter = traceFilter,
             mask   = MASK_SOLID,
         })
@@ -255,11 +258,14 @@ function TIV.SpikeAnim.CreateSpikes(veh, data)
                     adjPos.y = adjPos.y + lengthOff
                 end
 
-                local storedLocalPos = GetStoredLocalPos(adjPos)
                 local storedLocalAng = GetParentedLocalAngle()
-                if hasAngledUpg and offsetData.ang then
+                if (hasAngledUpg or customSpikes) and offsetData.ang then
+                    storedLocalAng = offsetData.ang
+                elseif hasAngledUpg and offsetData.ang then
                     storedLocalAng = offsetData.ang
                 end
+
+                local storedLocalPos = GetStoredLocalPos(adjPos, storedLocalAng)
 
                 local model = offsetData.model or TIV.Config.SpikeModel or "models/props_junk/harpoon002a.mdl"
                 if not util.IsValidModel(model) then
@@ -436,11 +442,12 @@ function TIV.SpikeAnim.DeployToGround(veh, data, callback)
                 local localDriveDir = localAng:Forward()
 
                 -- Raycast downward from the spike's actual mounting position along its drive angle
-                local mountWorldPos = veh:LocalToWorld(spikeData.storedLocalPos)
-                local groundTrace   = TraceGroundForSpike(veh, mountWorldPos, localAng, data)
+                local mountWorldPos  = veh:LocalToWorld(spikeData.storedLocalPos)
+                local groundTrace    = TraceGroundForSpike(veh, mountWorldPos, localAng, data)
+                local worldDriveDir  = veh:LocalToWorldAngles(localAng):Forward()
 
                 local groundWorldPos = groundTrace.Hit and groundTrace.HitPos
-                    or (mountWorldPos + (veh:LocalToWorldAngles(localAng):Forward() * 50))
+                    or (mountWorldPos + (worldDriveDir * 60))
                 local groundNormal   = groundTrace.HitNormal or veh:GetUp()
 
                 -- Calculate exact ground contact and anchoring depth in vehicle's local frame
@@ -835,11 +842,12 @@ function TIV.SpikeAnim.InterruptAndDeploy(veh, data, callback)
             local localAng = spikeData.storedLocalAng or GetParentedLocalAngle()
             local localDriveDir = localAng:Forward()
 
-            local mountWorldPos = veh:LocalToWorld(spikeData.storedLocalPos)
-            local groundTrace   = TraceGroundForSpike(veh, mountWorldPos, localAng, data)
+            local mountWorldPos  = veh:LocalToWorld(spikeData.storedLocalPos)
+            local groundTrace    = TraceGroundForSpike(veh, mountWorldPos, localAng, data)
+            local worldDriveDir  = veh:LocalToWorldAngles(localAng):Forward()
 
             local groundWorldPos = groundTrace.Hit and groundTrace.HitPos
-                or (mountWorldPos + (veh:LocalToWorldAngles(localAng):Forward() * 50))
+                or (mountWorldPos + (worldDriveDir * 60))
             local groundNormal   = groundTrace.HitNormal or veh:GetUp()
             local groundLocalPos = veh:WorldToLocal(groundWorldPos)
             local targetLocalPos = groundLocalPos + (localDriveDir * driveDepth)
