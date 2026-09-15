@@ -439,9 +439,6 @@ hook.Add("PlayerEnteredVehicle", "TIV_FirstEnter", function(ply, veh)
     if not IsValid(tivVeh) then return end
     local data = TIV.Deploy.GetState(tivVeh)
     TIV.Deploy.EnsureSpikes(tivVeh, data)
-    if TIV.Armor and TIV.Armor.Attach then
-        TIV.Armor.Attach(tivVeh)
-    end
 end)
 
 -- ============================================================================
@@ -475,7 +472,6 @@ hook.Add("EntityRemoved", "TIV_VehicleCleanup", function(ent)
     if not data then return end
 
     if ent.SetHandbrake then ReleaseHandbrake(ent) end
-    if TIV.Armor and TIV.Armor.Detach then TIV.Armor.Detach(ent) end
     TIV.Anchor.DetachAll(ent, data)
     TIV.Spikes.RemoveAll(data, entIdx)
     TIV.Deploy.Vehicles[entIdx] = nil

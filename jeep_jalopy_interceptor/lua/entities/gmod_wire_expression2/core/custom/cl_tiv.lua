@@ -18,4 +18,3 @@ E2Helper.Descriptions["tivRetract(e:)"] = "Starts retraction of the TIV (unancho
 E2Helper.Descriptions["tivToggle(e:)"] = "Toggles deploy/retract of the TIV."
 E2Helper.Descriptions["tivEmergencyStop(e:)"] = "Aborts the active deploy sequence and recovers the TIV to idle."
 E2Helper.Descriptions["tivReset(e:)"] = "Resets the TIV systems, clears failure states, and restores fresh spikes."
-E2Helper.Descriptions["tivHasArmor(e:)"] = "Returns 1 if the TIV has protective armor plating equipped, 0 otherwise."

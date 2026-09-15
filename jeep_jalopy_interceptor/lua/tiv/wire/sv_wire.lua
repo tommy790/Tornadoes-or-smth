@@ -124,7 +124,6 @@ TIV.Wire.Outputs = {
     { name = "SpikeFailure",      type = "NORMAL", desc = "Pulsed to 1 when a spike fails or breaks off" },
     { name = "SystemFailure",     type = "NORMAL", desc = "1 if overall anchor integrity failed or emergency loft in progress" },
     { name = "EmergencyState",    type = "NORMAL", desc = "1 if vehicle is in an emergency state (directional failure or lofted)" },
-    { name = "HasArmor",          type = "NORMAL", desc = "1 if vehicle is equipped with protective TIV armor plating, 0 otherwise" },
 }
 
 -- Pre-build formatted port and desc lists for WireLib
@@ -519,9 +518,6 @@ function TIV.Wire.UpdateOutputs(veh)
         trigger(target, "SpikeFailure", spikeFailure)
         trigger(target, "SystemFailure", systemFailure)
         trigger(target, "EmergencyState", emergencyState)
-
-        local hasArmor = (veh._TIVArmor and next(veh._TIVArmor) ~= nil) and 1 or 0
-        trigger(target, "HasArmor", hasArmor)
     end
 end
 

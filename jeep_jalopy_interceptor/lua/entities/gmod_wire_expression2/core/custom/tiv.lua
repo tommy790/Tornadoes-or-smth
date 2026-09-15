@@ -159,9 +159,3 @@ e2function number entity:tivReset()
     end
     return 0
 end
-
---- Returns 1 if <this> TIV is equipped with protective armor plating, 0 otherwise
-e2function number entity:tivHasArmor()
-    if not IsValid(this) or not TIV or not TIV.IsSupportedVehicle or not TIV.IsSupportedVehicle(this) then return 0 end
-    return (this._TIVArmor and next(this._TIVArmor) ~= nil) and 1 or 0
-end
