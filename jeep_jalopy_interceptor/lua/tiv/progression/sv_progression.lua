@@ -142,7 +142,7 @@ function TIV.Progression.AwardIntercepts(ply, amount, reason)
         amount, ply:Nick(), reason or "Storm Intercept", profile.current_intercepts, profile.total_intercepts))
 
     -- Trigger Wire output update on current vehicle
-    local veh = ply:GetVehicle()
+    local veh = (TIV.ResolveVehicle and TIV.ResolveVehicle(ply)) or ply:GetVehicle()
     if IsValid(veh) and TIV.Wire and TIV.Wire.UpdateOutputs then
         TIV.Wire.UpdateOutputs(veh)
     end
@@ -323,9 +323,12 @@ timer.Create("TIV_StormInterceptTracker", 1.0, 0, function()
             if not IsValid(driver) then
                 -- Check for passengers or parent seat occupants
                 for _, p in ipairs(player.GetAll()) do
-                    if p:GetVehicle() == veh or p:GetVehicle():GetParent() == veh then
-                        driver = p
-                        break
+                    if IsValid(p) then
+                        local pVeh = p:GetVehicle()
+                        if IsValid(pVeh) and (pVeh == veh or (IsValid(pVeh:GetParent()) and pVeh:GetParent() == veh)) then
+                            driver = p
+                            break
+                        end
                     end
                 end
             end

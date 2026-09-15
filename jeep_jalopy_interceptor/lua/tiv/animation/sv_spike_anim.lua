@@ -72,7 +72,8 @@ local function TraceGroundForSpike(veh, mountWorldPos, spikeAng, data)
     local downDir  = worldAng:Forward()
 
     local function traceFilter(ent)
-        if ent == veh or ent:GetParent() == veh or ent.TIV_OwnerVehicle == veh or ent.IsTIVArmor or ent.IsTIVSpike then
+        if not IsValid(ent) then return true end
+        if ent == veh or (IsValid(ent:GetParent()) and ent:GetParent() == veh) or ent.TIV_OwnerVehicle == veh or ent.IsTIVArmor or ent.IsTIVSpike then
             return false
         end
         if data and data.spikes then

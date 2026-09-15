@@ -546,9 +546,12 @@ function TIV.Wire.UpdateOutputs(veh)
         local driver = veh.GetDriver and veh:GetDriver() or nil
         if not IsValid(driver) then
             for _, p in ipairs(player.GetAll()) do
-                if p:GetVehicle() == veh or (IsValid(p:GetVehicle()) and p:GetVehicle():GetParent() == veh) then
-                    driver = p
-                    break
+                if IsValid(p) then
+                    local pVeh = p:GetVehicle()
+                    if IsValid(pVeh) and (pVeh == veh or (IsValid(pVeh:GetParent()) and pVeh:GetParent() == veh)) then
+                        driver = p
+                        break
+                    end
                 end
             end
         end
