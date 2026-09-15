@@ -114,15 +114,20 @@ This major release introduces a full career progression system, an interactive i
 
 ### 5. Advanced Aerodynamic Lofting & Rollover Recovery
 
+#### Rock-Solid Ground Anchoring Physics
+- **Zero Constraint Fighting**: All artificial wind push forces, lateral turbulence impulses, and chassis rocking torques have been eliminated while the vehicle is anchored or deploying (`anchored`, `lowering`, `deploying_spikes`).
+- **Stable Terrain Planting**: Eliminates physics solver conflicts between Source ballsocket constraints and external forces, keeping the interceptor 100% solidly locked to the terrain surface without creeping, sliding, or hovering.
+- **Cockpit Screen Vibration & Strain Audio**: Extreme storm stress is conveyed realistically to occupants via directional metal groaning/creaking sounds and scaled cockpit screen shake (`util.ScreenShake`), providing violent storm atmosphere without physical chassis displacement.
+
 #### Progressive Anchor Failure & Clean Vortex Lofting
 1. **Mechanical Stress Calculation**:
    - Stress evaluates real-time wind speed squared, vehicle angle of attack, vehicle mass, and active armor drag coefficients.
 2. **Sequential Windward Anchor Shear**:
    - In winds exceeding 160-240 MPH (scaled by upgrade perks), extreme crosswinds systematically shear anchor balljoints (windward -> mid -> leeward) with metallic shear audio, pneumatic release, and spark bursts.
-   - The chassis remains firmly planted on the ground throughout anchor failure without artificial upward tipping forces displacing the vehicle.
+   - The chassis remains firmly planted on the ground throughout progressive anchor failure without artificial upward tipping forces displacing the vehicle.
 3. **Instant Constraint Decoupling & Clean Loft**:
    - As the final anchors give way, all constraints between the vehicle, spikes, and the world brush are severed completely.
-   - The vehicle transitions cleanly into full aerodynamic lofting, swept into the tornado's vortex updraft and circulation.
+   - Gravity and physics motion are immediately restored, transitioning the vehicle cleanly into full aerodynamic lofting as it is swept into the tornado's vortex updraft and circulation.
 
 #### Vortex Aerodynamics & Armor Tearing
 - Dynamic lift, lateral drag, and rotational tumbling forces applied directly to the physics object based on wind vectors and vehicle orientation.

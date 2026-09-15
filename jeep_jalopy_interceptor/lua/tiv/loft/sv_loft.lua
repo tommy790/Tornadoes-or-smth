@@ -585,27 +585,14 @@ timer.Create("TIV_LoftThink", 0.05, 0, function()
                         end
                     end
 
-                    -- 2. Base Wind Force & Turbulence (Anchored)
-                    if windMPH > TIV.Config.Stress.TurbulenceMinMPH then
-                        local rawForce = windForceVec
-                            * phys:GetMass()
-                            * (TIV.Config.AnchoredWindForce or 0.8)
-                            * windScale
-
-                        -- While anchored, wind force must be purely lateral (X, Y) with zero upward lift (Z <= 0)
-                        -- to ensure the vehicle remains pinned firmly to the ground and does not float out of place.
-                        local lateralWind = Vector(rawForce.x, rawForce.y, math.min(0, rawForce.z))
-                        local turbulence  = Vector(math.Rand(-1, 1), math.Rand(-1, 1), 0) * phys:GetMass() * (stress * 15)
-                        phys:ApplyForceCenter(lateralWind + turbulence)
-
-                        if stress > TIV.Config.Stress.TorqueMin then
-                            local rockScale = tonumber(TIV.Config.AnchoredRockTorque) or 5.5
-                            if veh._TIVEffectiveStats and veh._TIVEffectiveStats.rock_torque_mult then
-                                rockScale = rockScale * veh._TIVEffectiveStats.rock_torque_mult
-                            end
-                            local rockTorque = VectorRand() * phys:GetMass()
-                                * stress * rockScale * windScale
-                            phys:ApplyTorqueCenter(rockTorque)
+                    -- 2. Anchored Cockpit Rumble (Zero physical displacement)
+                    -- Does NOT apply physical forces or torques to the chassis while anchored,
+                    -- keeping the vehicle 100% solidly planted on the ground without moving out of place.
+                    if stress > 0.40 then
+                        data.nextShakeTime = data.nextShakeTime or 0
+                        if CurTime() > data.nextShakeTime then
+                            data.nextShakeTime = CurTime() + 0.30
+                            util.ScreenShake(veh:GetPos(), math.Clamp(stress * 3.0, 0.5, 3.5), 10, 0.35, 350)
                         end
                     end
 
