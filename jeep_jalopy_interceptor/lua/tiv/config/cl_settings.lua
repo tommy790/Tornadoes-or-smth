@@ -32,10 +32,10 @@ local THEME = {
 -- ============================================================================
 local PRESETS = {
     {
-        id          = "ef5_titan",
-        name        = "EF5 Titan (Heavy Intercept)",
+        id          = "the_tank",
+        name        = "The Tank",
         color       = Color(240, 80, 50),
-        desc        = "Maximum anchor reinforcement for intercepting violent EF4 and EF5 tornadoes. Unbreakable anchor force limit, elevated loft resistance, and automatic wind deployment.",
+        desc        = "Heavy-duty anchors built to sit inside violent EF4 and EF5 tornadoes. Unbreakable force limit, high loft resistance, and auto-deploys when wind hits 130 MPH.",
         cvars = {
             tiv_spike_count                = 6,
             tiv_spike_force                = 0,      -- 0 = unbreakable
@@ -55,10 +55,10 @@ local PRESETS = {
         }
     },
     {
-        id          = "standard",
-        name        = "Standard Interceptor (Balanced)",
+        id          = "daily_driver",
+        name        = "Daily Driver",
         color       = Color(60, 180, 240),
-        desc        = "Authentic storm intercept profile based on the real TIV 2. Features 6 balanced spikes, hydraulic suspension lowering, and realistic wind strain simulation.",
+        desc        = "Balanced everyday setup for normal storm chasing. Uses 6 standard spikes with realistic wind strain and automatic suspension lowering.",
         cvars = {
             tiv_spike_count                = 6,
             tiv_spike_force                = 80000,
@@ -78,10 +78,10 @@ local PRESETS = {
         }
     },
     {
-        id          = "scout",
-        name        = "Scout Chaser (Fast & Agile)",
+        id          = "quick_spotter",
+        name        = "Quick Spotter",
         color       = Color(240, 200, 40),
-        desc        = "Optimized for high-speed chasing and rapid redeployment. Uses 4 corner spikes with doubled hydraulic speed for quick intercepts and fast escapes.",
+        desc        = "Light and nimble for fast chasing and quick escapes. Runs 4 corner spikes with doubled deploy speed so you can get in and out fast.",
         cvars = {
             tiv_spike_count                = 4,
             tiv_spike_force                = 60000,
@@ -101,56 +101,10 @@ local PRESETS = {
         }
     },
     {
-        id          = "stealth",
-        name        = "Stealth Interceptor (Clean Look)",
-        color       = Color(180, 140, 240),
-        desc        = "Hides physical spike models and the Wiremod controller while maintaining full physical ground anchoring. Ideal for vehicle models where props clip through bodywork.",
-        cvars = {
-            tiv_spike_count                = 6,
-            tiv_spike_force                = 80000,
-            tiv_loft_wind_threshold        = 180,
-            tiv_hide_spikes                = 1,
-            tiv_wire_hide_controller       = 1,
-            tiv_compat_mode                = 1,
-            tiv_compat_anchored_wind_scale = 0.65,
-            tiv_auto_deploy_wind           = 0,
-            tiv_deploy_speed               = 1.0,
-            tiv_suspension_limit           = 0,
-            tiv_deploy_handbrake           = 1,
-            tiv_spike_drive_depth          = 18,
-            tiv_spike_group_front          = 1,
-            tiv_spike_group_mid            = 1,
-            tiv_spike_group_rear           = 1,
-        }
-    },
-    {
-        id          = "hardcore",
-        name        = "Hardcore Simulation (Breakable)",
-        color       = Color(220, 50, 80),
-        desc        = "High-stakes realistic simulation. Anchors can snap under lateral EF4/EF5 storm shear. If anchors fail, spikes are violently torn from the vehicle into the tornado.",
-        cvars = {
-            tiv_spike_count                = 6,
-            tiv_spike_force                = 42000,
-            tiv_loft_wind_threshold        = 165,
-            tiv_hide_spikes                = 0,
-            tiv_compat_mode                = 1,
-            tiv_compat_anchored_wind_scale = 0.85,
-            tiv_auto_deploy_wind           = 0,
-            tiv_deploy_speed               = 0.8,
-            tiv_suspension_limit           = 0,
-            tiv_deploy_handbrake           = 1,
-            tiv_spike_drive_depth          = 16,
-            tiv_spike_group_front          = 1,
-            tiv_spike_group_mid            = 1,
-            tiv_spike_group_rear           = 1,
-            tiv_loft_release_spikes        = 1,
-        }
-    },
-    {
         id          = "defaults",
-        name        = "Factory Addon Defaults",
+        name        = "Reset to Default",
         color       = Color(160, 160, 160),
-        desc        = "Restores all TIV configuration settings, tolerances, speeds, and limits back to default vanilla values.",
+        desc        = "Resets all spike counts, forces, timings, and compatibility settings back to standard out-of-the-box defaults.",
         cvars = {
             tiv_spike_count                = 6,
             tiv_spike_force                = 80000,
