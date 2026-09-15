@@ -158,6 +158,7 @@ function TIV.Spikes.ReleaseAll(data)
     if not data or not data.spikes then return end
     for _, spikeData in ipairs(data.spikes) do
         if IsValid(spikeData.entity) then
+            constraint.RemoveAll(spikeData.entity)
             spikeData.entity:SetParent(nil)
             local phys = spikeData.entity:GetPhysicsObject()
             if IsValid(phys) then
@@ -167,8 +168,10 @@ function TIV.Spikes.ReleaseAll(data)
                 phys:ApplyForceCenter(VectorRand() * 3000 + Vector(0, 0, 2000))
                 phys:ApplyTorqueCenter(VectorRand() * 500)
             end
-            spikeData.entity:SetCollisionGroup(COLLISION_GROUP_NONE)
+            spikeData.entity:SetCollisionGroup(COLLISION_GROUP_DEBRIS)
             spikeData.phase = "released"
+            SafeRemoveEntityDelayed(spikeData.entity, 15)
+            spikeData.entity = nil
         end
     end
 end
