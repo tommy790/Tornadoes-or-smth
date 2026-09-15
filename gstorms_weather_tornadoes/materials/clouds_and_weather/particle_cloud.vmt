@@ -1,0 +1,9 @@
+"UnlitGeneric"
+{
+	"$basetexture" "clouds_and_weather/cit_cloud001b"
+	"$vertexalpha" "1"
+                "$vertexcolor"  "1"
+	"$translucent"  "1"
+	"$depthblend"  "1"
+	"$nofog" "1"
+}

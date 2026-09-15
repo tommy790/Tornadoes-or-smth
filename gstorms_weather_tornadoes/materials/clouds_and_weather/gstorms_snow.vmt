@@ -1,0 +1,8 @@
+"UnlitGeneric"
+{
+	"$basetexture" "clouds_and_weather/gstorms_snow"
+	"$translucent" "1"
+	"$vertexcolor" "1"
+	"$vertexalpha" "1"
+	"$additive" "1"
+}

@@ -1,0 +1,7 @@
+"SpriteCard"
+{
+	$basetexture "clouds_and_weather/fas_dust_thick_static"
+	$depthblend 1
+	"$vertexcolor" 1
+	"$vertexalpha" 1
+}

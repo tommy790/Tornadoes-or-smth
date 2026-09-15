@@ -1,0 +1,8 @@
+"UnlitGeneric"
+{
+	"$basetexture" "other/sun_textures/solarflare"
+	"$additive" "1"
+	"$vertexcolor" 1
+	"$vertexalpha" "1"
+	"$nofog" 1
+}

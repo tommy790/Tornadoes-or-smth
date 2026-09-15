@@ -1,0 +1,7 @@
+"UnlitGeneric"
+{
+	$basetexture "clouds_and_weather/gstorms_debris_mat_3"
+	$depthblend 1
+	"$vertexcolor" 1
+	"$vertexalpha" 1
+}

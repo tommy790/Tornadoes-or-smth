@@ -1,0 +1,8 @@
+"UnlitGeneric"
+{
+    "$basetexture" "post_processing/wind"
+    "$translucent" "1"
+    "$vertexalpha" "1"
+	"$vertexcolor" "1"
+
+}

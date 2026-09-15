@@ -1,0 +1,15 @@
+SpriteCard
+{
+$basetexture "clouds_and_weather/smoke1/smoke1l4d"
+$vertexcolor 1
+$vertexalpha 1
+$translucent 1
+$overbrightfactor 1
+$depthblend 0
+$blendframes 0
+
+
+
+
+
+}

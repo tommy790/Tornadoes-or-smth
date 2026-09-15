@@ -1,0 +1,8 @@
+SpriteCard
+{
+$basetexture "clouds_and_weather/smoke1/smoke1l4d"
+$translucent 1
+$maxsize .004
+$minsize .0015
+$blendframes 0
+}
