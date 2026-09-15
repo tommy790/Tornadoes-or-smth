@@ -180,6 +180,20 @@ CreateConVar(
     "Override suspension lowering distance in units (0 = automatic based on vehicle suspension limit)."
 )
 
+CreateConVar(
+    "tiv_armor_enabled",
+    "1",
+    { FCVAR_ARCHIVE, FCVAR_NOTIFY, FCVAR_REPLICATED },
+    "Enable heavy protective armor plating and side skirts on the Jeep and Jalopy."
+)
+
+cvars.AddChangeCallback("tiv_armor_enabled", function(_, _, new)
+    local enabled = tobool(new)
+    if TIV.Armor and TIV.Armor.UpdateAllVehicles then
+        TIV.Armor.UpdateAllVehicles(enabled)
+    end
+end, "TIV_RuntimeArmorEnabled")
+
 -- Real bug fix: callbacks had `*,*` paste artifacts (function(_, _, _) is correct).
 cvars.AddChangeCallback("tiv_spike_count", function(_, old, new)
     applyRuntimeSpikeConfig()

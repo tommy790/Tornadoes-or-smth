@@ -186,3 +186,99 @@ TIV.Config.WireControllerOffsets = {
     },
 }
 
+-- ============================================================================
+-- TIV ARMOR PLATES CONFIGURATION
+-- Strictly applies ONLY to Half-Life 2 Jeep (buggy.mdl) and Jalopy (vehicle.mdl).
+-- Never applied to third-party car mods (TDM, LVS, Simfphys, etc.).
+-- ============================================================================
+TIV.Config.ArmorEnabled = true
+
+TIV.Config.ArmorPlates = {
+    jeep = {
+        {
+            name         = "front_plow",
+            model        = "models/props_c17/TrapPropeller_Blade.mdl",
+            fallback     = "models/props_debris/metal_panel01a.mdl",
+            pos          = Vector(0, 58, 6),
+            ang          = Angle(15, 90, 0),
+            deployOffset = Vector(0, 0, -4),
+            sound        = "tiv2sounds/tiv2frontpanel.wav",
+        },
+        {
+            name         = "left_skirt",
+            model        = "models/props_debris/metal_panel02a.mdl",
+            fallback     = "models/props_wasteland/panel_corrugatediron001a.mdl",
+            pos          = Vector(-33, -20, 6),
+            ang          = Angle(0, 0, 0),
+            deployOffset = Vector(0, 0, -4),
+            sound        = "tiv2sounds/tiv2leftpanel.wav",
+        },
+        {
+            name         = "right_skirt",
+            model        = "models/props_debris/metal_panel02a.mdl",
+            fallback     = "models/props_wasteland/panel_corrugatediron001a.mdl",
+            pos          = Vector(33, -20, 6),
+            ang          = Angle(0, 180, 0),
+            deployOffset = Vector(0, 0, -4),
+            sound        = "tiv2sounds/tiv2rightpanel.wav",
+        },
+        {
+            name         = "windshield_grate",
+            model        = "models/props_c17/metalladder001.mdl",
+            fallback     = "models/props_debris/metal_panel01a.mdl",
+            pos          = Vector(0, 16, 28),
+            ang          = Angle(38, 90, 0),
+        },
+        {
+            name         = "roof_armor",
+            model        = "models/props_debris/metal_panel01a.mdl",
+            fallback     = "models/props_wasteland/panel_corrugatediron001a.mdl",
+            pos          = Vector(0, -15, 43),
+            ang          = Angle(0, 90, 0),
+        },
+    },
+    jalopy = {
+        {
+            name         = "front_plow",
+            model        = "models/props_c17/TrapPropeller_Blade.mdl",
+            fallback     = "models/props_debris/metal_panel01a.mdl",
+            pos          = Vector(0, 68, 6),
+            ang          = Angle(15, 90, 0),
+            deployOffset = Vector(0, 0, -4),
+            sound        = "tiv2sounds/tiv2frontpanel.wav",
+        },
+        {
+            name         = "left_skirt",
+            model        = "models/props_debris/metal_panel02a.mdl",
+            fallback     = "models/props_wasteland/panel_corrugatediron001a.mdl",
+            pos          = Vector(-35, -25, 4),
+            ang          = Angle(0, 0, 0),
+            deployOffset = Vector(0, 0, -4),
+            sound        = "tiv2sounds/tiv2leftpanel.wav",
+        },
+        {
+            name         = "right_skirt",
+            model        = "models/props_debris/metal_panel02a.mdl",
+            fallback     = "models/props_wasteland/panel_corrugatediron001a.mdl",
+            pos          = Vector(35, -25, 4),
+            ang          = Angle(0, 180, 0),
+            deployOffset = Vector(0, 0, -4),
+            sound        = "tiv2sounds/tiv2rightpanel.wav",
+        },
+        {
+            name         = "windshield_grate",
+            model        = "models/props_c17/metalladder001.mdl",
+            fallback     = "models/props_debris/metal_panel01a.mdl",
+            pos          = Vector(0, 14, 25),
+            ang          = Angle(35, 90, 0),
+        },
+        {
+            name         = "rear_armor",
+            model        = "models/props_debris/metal_panel01a.mdl",
+            fallback     = "models/props_wasteland/panel_corrugatediron001a.mdl",
+            pos          = Vector(0, -55, 26),
+            ang          = Angle(-12, 90, 0),
+        },
+    },
+}
+

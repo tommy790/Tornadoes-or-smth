@@ -75,6 +75,10 @@ hook.Add("PopulateToolMenu", "TIV_AddSettingsPanel", function()
             panel:CheckBox("Hide Wire Controller Model", "tiv_wire_hide_controller")
                 :SetTooltip("Hides the physical model of the auto-attached Wire controller.")
 
+            panel:Help("Armor Plating:")
+            panel:CheckBox("Jeep & Jalopy Armor Plating", "tiv_armor_enabled")
+                :SetTooltip("Equips heavy protective armor plates and hydraulic side skirts on the Half-Life 2 Jeep and Jalopy. (Disabled for third-party car mods like TDM or LVS).")
+
             panel:Help("Suspension Lowering:")
             panel:NumSlider(
                 "Suspension Limit (0=Auto)",
