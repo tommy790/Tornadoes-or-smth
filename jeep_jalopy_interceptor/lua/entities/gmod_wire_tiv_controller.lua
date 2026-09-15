@@ -1,31 +1,46 @@
 AddCSLuaFile()
 
-local hasWire = istable(rawget(_G, "WireLib")) and scripted_ents.Get("base_wire_entity") ~= nil
+DEFINE_BASECLASS("base_wire_entity")
 
-if hasWire then
-    DEFINE_BASECLASS("base_wire_entity")
-    ENT.Base = "base_wire_entity"
-else
-    DEFINE_BASECLASS("base_gmodentity")
-    ENT.Base = "base_gmodentity"
-end
-
+ENT.Type            = "anim"
 ENT.PrintName       = "Wire TIV Controller"
 ENT.Author          = "TIV Team"
 ENT.WireDebugName   = "TIV Controller"
+
+local hasWire = istable(rawget(_G, "WireLib")) and scripted_ents.Get("base_wire_entity") ~= nil
+ENT.Base            = hasWire and "base_wire_entity" or "base_gmodentity"
 ENT.Spawnable       = hasWire
 ENT.AdminOnly       = false
-ENT.IsWire          = hasWire
+ENT.IsWire          = true
+
+local function GetBaseClass()
+    if istable(BaseClass) then return BaseClass end
+    if istable(baseclass) and isfunction(baseclass.Get) then
+        local b = baseclass.Get(ENT.Base or "base_wire_entity")
+        if istable(b) then return b end
+        b = baseclass.Get("base_gmodentity")
+        if istable(b) then return b end
+    end
+    return nil
+end
+
+local function CallBase(self, method, ...)
+    local base = GetBaseClass()
+    if base and isfunction(base[method]) then
+        return base[method](self, ...)
+    end
+end
 
 if CLIENT then
     function ENT:Initialize()
+        CallBase(self, "Initialize")
         self.NextRBUpdate = CurTime() + 0.25
     end
 
     -- Wire world-tip overlay formatting
     function ENT:GetOverlayText()
-        local header = "- " .. self.PrintName .. " -"
-        local data = self:GetOverlayData()
+        local header = "- " .. (self.PrintName or "TIV Controller") .. " -"
+        local data = isfunction(self.GetOverlayData) and self:GetOverlayData()
         if data and data.txt then
             return data.txt
         end
@@ -36,18 +51,25 @@ if CLIENT then
 end
 
 function ENT:Initialize()
-    BaseClass.Initialize(self)
+    CallBase(self, "Initialize")
+
+    if not self:GetModel() or self:GetModel() == "" or self:GetModel() == "models/error.mdl" then
+        local sirenModel = "models/jaanus/wiretool/wiretool_siren.mdl"
+        local fallbackModel = "models/props_lab/reciever01a.mdl"
+        if util.IsValidModel(sirenModel) then
+            self:SetModel(sirenModel)
+        else
+            self:SetModel(fallbackModel)
+        end
+    end
 
     self:PhysicsInit(SOLID_VPHYSICS)
     self:SetMoveType(MOVETYPE_VPHYSICS)
     self:SetSolid(SOLID_VPHYSICS)
 
-    local sirenModel = "models/jaanus/wiretool/wiretool_siren.mdl"
-    local fallbackModel = "models/props_lab/reciever01a.mdl"
-    if util.IsValidModel(sirenModel) then
-        self:SetModel(sirenModel)
-    else
-        self:SetModel(fallbackModel)
+    local phys = self:GetPhysicsObject()
+    if IsValid(phys) then
+        phys:Wake()
     end
 
     if TIV and TIV.Wire and TIV.Wire.SetupPorts then
@@ -171,7 +193,7 @@ function ENT:UpdateOverlay()
 end
 
 function ENT:Think()
-    BaseClass.Think(self)
+    CallBase(self, "Think")
 
     if not self.NextOverlayUpdate or CurTime() >= self.NextOverlayUpdate then
         self.NextOverlayUpdate = CurTime() + 0.2
@@ -196,7 +218,7 @@ function ENT:OnRemove()
         self.Vehicle.TIVWireController = nil
     end
 
-    BaseClass.OnRemove(self)
+    CallBase(self, "OnRemove")
 end
 
 function ENT:OnRestore()
@@ -204,11 +226,19 @@ function ENT:OnRestore()
     if istable(wire) and isfunction(wire.Restored) then
         wire.Restored(self)
     end
-    BaseClass.OnRestore(self)
+    CallBase(self, "OnRestore")
 end
 
 function ENT:BuildDupeInfo()
-    local info = BaseClass.BuildDupeInfo(self) or {}
+    local info = CallBase(self, "BuildDupeInfo")
+    if not istable(info) then
+        local wire = rawget(_G, "WireLib")
+        if istable(wire) and isfunction(wire.BuildDupeInfo) then
+            info = wire.BuildDupeInfo(self)
+        end
+    end
+    info = info or {}
+
     if IsValid(self.Vehicle) then
         info.Vehicle = self.Vehicle:EntIndex()
     end
@@ -217,8 +247,8 @@ function ENT:BuildDupeInfo()
 end
 
 function ENT:ApplyDupeInfo(ply, ent, info, GetEntByID)
-    BaseClass.ApplyDupeInfo(self, ply, ent, info, GetEntByID)
-    if info and info.Vehicle then
+    CallBase(self, "ApplyDupeInfo", ply, ent, info, GetEntByID)
+    if info and info.Vehicle and isfunction(GetEntByID) then
         local target = GetEntByID(info.Vehicle)
         if IsValid(target) then
             self:LinkEnt(target)

@@ -625,6 +625,10 @@ function TIV.Wire.EnsureController(veh)
     local controller = ents.Create("gmod_wire_tiv_controller")
     if not IsValid(controller) then return nil end
 
+    local sirenModel = "models/jaanus/wiretool/wiretool_siren.mdl"
+    local fallbackModel = "models/props_lab/reciever01a.mdl"
+    controller:SetModel(util.IsValidModel(sirenModel) and sirenModel or fallbackModel)
+
     local localPos, localAng = TIV.Wire.GetControllerOffset(veh)
     local worldPos = veh:LocalToWorld(localPos)
     local worldAng = veh:LocalToWorldAngles(localAng)
@@ -639,11 +643,15 @@ function TIV.Wire.EnsureController(veh)
     controller:SetLocalAngles(localAng)
 
     -- Prevent interference with physics/movement
-    controller:SetCollisionGroup(COLLISION_GROUP_PASSABLE)
+    local colGroup = COLLISION_GROUP_WORLD or 20
+    controller:SetCollisionGroup(colGroup)
     local phys = controller:GetPhysicsObject()
     if IsValid(phys) then
         phys:EnableCollisions(false)
         phys:EnableMotion(false)
+    end
+    if constraint and constraint.NoCollide then
+        constraint.NoCollide(veh, controller, 0, 0)
     end
 
     -- Apply visibility setting
