@@ -220,34 +220,33 @@ function TIV.CustomComponents.ApplyVehicleBonuses(veh)
 
     veh._TIVEffectiveStats = stats
 
-    -- Apply mass ballast to physics object safely without crushing suspension
+    -- Keep vehicle physics mass at stock factory weight so suspension never sags.
+    -- All armor weight and upgrade ballast are used for wind resistance, loft calculations,
+    -- and telemetry modeling via stats.total_ballast_mass without burdening VPhysics suspension.
     local phys = veh:GetPhysicsObject()
     if IsValid(phys) then
         if not veh._TIVBaseMass then
             veh._TIVBaseMass = phys:GetMass()
         end
-        -- Keep physical VPhysics mass addition gentle (max 60 kg) so suspension springs don't sag to the ground.
-        -- Full calculated ballast remains in stats.total_ballast_mass for aerodynamic/loft/telemetry modeling.
-        local ballastPhys = math.Clamp((stats.total_ballast_mass or 0) * 0.05, 0, 60)
-        local newMass = (veh._TIVBaseMass or 1500) + ballastPhys
-        phys:SetMass(newMass)
+        phys:SetMass(veh._TIVBaseMass)
     end
 
-    -- Compensate suspension spring stiffness if VehicleParams is supported
+    -- Restore stock suspension springs if previously modified
     if isfunction(veh.GetVehicleParams) and isfunction(veh.SetVehicleParams) then
         local params = veh:GetVehicleParams()
         if params and params.wheels then
+            local modified = false
             for i = 0, #params.wheels do
                 local w = params.wheels[i]
-                if w and w.suspension then
-                    if not w.suspension._TIVBaseSpring then
-                        w.suspension._TIVBaseSpring = w.suspension.springConstant
-                    end
-                    -- Stiffen springs by 25% to support armor panels and maintain crisp ride height
-                    w.suspension.springConstant = (w.suspension._TIVBaseSpring or 100) * 1.25
+                if w and w.suspension and w.suspension._TIVBaseSpring then
+                    w.suspension.springConstant = w.suspension._TIVBaseSpring
+                    w.suspension._TIVBaseSpring = nil
+                    modified = true
                 end
             end
-            veh:SetVehicleParams(params)
+            if modified then
+                veh:SetVehicleParams(params)
+            end
         end
     end
 

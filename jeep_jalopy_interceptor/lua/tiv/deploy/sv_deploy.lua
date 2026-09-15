@@ -208,13 +208,10 @@ function TIV.Deploy.HandleInput(ply, veh)
 end
 
 -- ============================================================================
--- SUSPENSION LIMIT
--- Determines the maximum distance the chassis can lower before bottoming out,
--- preventing the wheels from clipping into the terrain.
+-- SUSPENSION LOWERING LIMIT
+-- Determines the distance the chassis lowers during hydraulic deployment.
 -- ============================================================================
 function TIV.Deploy.GetSuspensionLimit(veh)
-    if not IsValid(veh) then return TIV.Config.LowerAmount or 4.8 end
-
     local cvar = GetConVar("tiv_suspension_limit")
     if cvar then
         local override = cvar:GetFloat()
@@ -223,60 +220,20 @@ function TIV.Deploy.GetSuspensionLimit(veh)
         end
     end
 
-    local baseLimit = TIV.Config.LowerAmount or 4.8
-
-    -- Query vehicle engine wheel spring base height if available
-    if isfunction(veh.GetWheelCount) and isfunction(veh.GetWheelBaseHeight) then
-        local count = veh:GetWheelCount()
-        if count and count > 0 then
-            local minHeight = 999
-            for i = 0, count - 1 do
-                local h = veh:GetWheelBaseHeight(i)
-                if isnumber(h) and h > 0.5 and h < minHeight then
-                    minHeight = h
-                end
-            end
-            if minHeight < 999 then
-                baseLimit = math.Clamp(minHeight - 0.4, 1.5, 6.0)
-            end
-        end
-    else
-        -- Model / class specific limits from config
+    if IsValid(veh) and TIV.Config.SuspensionLimits then
         local class = string.lower(veh:GetClass() or "")
         local model = string.lower(veh:GetModel() or "")
-
-        local limits = TIV.Config.SuspensionLimits or {}
-        if class == "prop_vehicle_jalopy" or string.find(model, "jalopy", 1, true) then
-            baseLimit = limits.jalopy or 4.2
+        local limits = TIV.Config.SuspensionLimits
+        if class == "prop_vehicle_jalopy" or string.find(model, "jalopy", 1, true) or string.find(model, "vehicle.mdl", 1, true) then
+            return limits.jalopy or TIV.Config.LowerAmount or 10
         elseif class == "prop_vehicle_apc" or string.find(model, "apc", 1, true) then
-            baseLimit = limits.apc or 5.0
-        else
-            baseLimit = limits.jeep or 4.5
+            return limits.apc or TIV.Config.LowerAmount or 10
+        elseif limits.jeep then
+            return limits.jeep
         end
     end
 
-    -- Real-time ground clearance check beneath chassis: prevents over-lowering into terrain
-    local chassisPos = veh:GetPos()
-    local tr = util.TraceLine({
-        start  = chassisPos,
-        endpos = chassisPos - (veh:GetUp() * 60),
-        filter = function(ent)
-            if ent == veh or ent:GetParent() == veh or ent.TIV_OwnerVehicle == veh or ent.IsTIVArmor or ent.IsTIVSpike then
-                return false
-            end
-            return true
-        end,
-        mask = MASK_SOLID,
-    })
-
-    if tr.Hit then
-        local clearance = tr.Fraction * 60
-        -- Leave a 1.2-unit cushion so the underside sits flush without wheel clipping
-        local maxSafeLower = math.max(0.5, clearance - 1.2)
-        return math.Clamp(math.min(baseLimit, maxSafeLower), 0.5, 4.8)
-    end
-
-    return baseLimit
+    return TIV.Config.LowerAmount or 10
 end
 
 -- ============================================================================

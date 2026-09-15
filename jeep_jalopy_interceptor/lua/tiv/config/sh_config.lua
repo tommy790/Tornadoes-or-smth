@@ -28,15 +28,13 @@ TIV.Config.LoftWindMin = 50
 TIV.Config.DeployKey            = KEY_B
 TIV.Config.LowerTime            = 3
 TIV.Config.SpikeCount           = 6
-TIV.Config.LowerAmount          = 4.8
+TIV.Config.LowerAmount          = 10
 
--- SUSPENSION LIMITS (per vehicle model / class)
--- Maximum distance in units the chassis lowers before reaching suspension compression limit,
--- preventing the wheels from clipping into the terrain.
+-- SUSPENSION LOWERING LIMITS
 TIV.Config.SuspensionLimits = {
-    jeep    = 4.8,
-    jalopy  = 4.2,
-    apc     = 5.0,
+    jeep    = 10,
+    jalopy  = 10,
+    apc     = 10,
 }
 
 -- SPIKES
