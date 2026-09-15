@@ -107,15 +107,39 @@ TIV.SupportedClasses = {
     prop_vehicle_jeep_old  = true,
     prop_vehicle_jalopy    = true,
     prop_vehicle_apc       = true,
+    prop_vehicle_airboat   = true,
 }
 
-TIV.SupportedModelKeywords = { "jeep", "jalopy", "apc" }
+TIV.SupportedModelKeywords = { "jeep", "jalopy", "apc", "airboat", "interceptor" }
+
+function TIV.TagAsInterceptor(ent, isInterceptor)
+    if not IsValid(ent) then return end
+    if isInterceptor == nil then isInterceptor = true end
+    ent.IsTIVVehicle = isInterceptor
+    ent:SetNWBool("TIV_Interceptor", isInterceptor)
+    if isInterceptor then
+        ent.TIV_HasArmor = true
+    end
+    if SERVER then
+        local model = ent:GetModel() or ""
+        print(string.format("[TIV] Entity [%d] (%s) %s as Interceptor",
+            ent:EntIndex(), model, isInterceptor and "registered" or "unregistered"))
+    end
+end
 
 function TIV.IsSupportedVehicle(ent)
     if not IsValid(ent) then return false end
+    if ent.IsTIVVehicle or ent:GetNWBool("TIV_Interceptor", false) or ent:GetNWBool("IsTIVVehicle", false) then
+        return true
+    end
+    if ent._TIVConfig ~= nil or ent.TIV_HasArmor or (ent.TIV_Controller and IsValid(ent.TIV_Controller)) then
+        return true
+    end
     local class = string.lower(ent:GetClass() or "")
     if TIV.SupportedClasses[class] then return true end
+    if ent:IsVehicle() then return true end
     local model = string.lower(ent:GetModel() or "")
+    if string.find(model, "vehicle.mdl", 1, true) then return true end
     for _, kw in ipairs(TIV.SupportedModelKeywords) do
         if string.find(model, kw, 1, true) then return true end
     end
@@ -126,15 +150,60 @@ end
 function TIV.ResolveVehicle(ply)
     if not IsValid(ply) then return nil end
     local seat = ply:GetVehicle()
-    if not IsValid(seat) then return nil end
-    if TIV.IsSupportedVehicle(seat) then return seat end
-    local parent = seat:GetParent()
-    if IsValid(parent) and TIV.IsSupportedVehicle(parent) then return parent end
-    if isfunction(seat.GetBase) then
-        local base = seat:GetBase()
-        if IsValid(base) and TIV.IsSupportedVehicle(base) then return base end
+    if IsValid(seat) then
+        if TIV.IsSupportedVehicle(seat) then return seat end
+        local parent = seat:GetParent()
+        if IsValid(parent) and TIV.IsSupportedVehicle(parent) then return parent end
+        if isfunction(seat.GetBase) then
+            local base = seat:GetBase()
+            if IsValid(base) and TIV.IsSupportedVehicle(base) then return base end
+        end
+    end
+    if isfunction(ply.GetSimfphys) then
+        local simf = ply:GetSimfphys()
+        if IsValid(simf) and TIV.IsSupportedVehicle(simf) then return simf end
     end
     return nil
+end
+
+-- Retrieve all entities and vehicles currently identified as interceptors
+function TIV.GetIdentifiedInterceptors()
+    local list = {}
+    local seenModels = {}
+
+    if CLIENT then
+        local ply = LocalPlayer()
+        local curVeh = TIV.ResolveVehicle and TIV.ResolveVehicle(ply)
+        if IsValid(curVeh) then
+            local mdl = curVeh:GetModel()
+            if mdl and mdl ~= "" then
+                table.insert(list, {
+                    entity    = curVeh,
+                    model     = mdl,
+                    name      = "Current Vehicle (" .. string.GetFileFromFilename(mdl) .. ")",
+                    isCurrent = true,
+                })
+                seenModels[string.lower(mdl)] = true
+            end
+        end
+    end
+
+    for _, ent in ipairs(ents.GetAll()) do
+        if IsValid(ent) and TIV.IsSupportedVehicle(ent) then
+            local mdl = ent:GetModel()
+            if mdl and mdl ~= "" and not seenModels[string.lower(mdl)] then
+                local label = "World " .. (ent:IsVehicle() and "Vehicle" or "Entity") .. " (" .. string.GetFileFromFilename(mdl) .. ")"
+                table.insert(list, {
+                    entity = ent,
+                    model  = mdl,
+                    name   = label,
+                })
+                seenModels[string.lower(mdl)] = true
+            end
+        end
+    end
+
+    return list
 end
 
 -- ============================================================================

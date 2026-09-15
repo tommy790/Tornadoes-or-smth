@@ -152,7 +152,7 @@ local function GetOffsetsForVehicle(veh)
     if class == "prop_vehicle_apc" or string.find(model, "apc", 1, true) then
         return TIV.Config.SpikeOffsets.prop_vehicle_apc or TIV.Config.SpikeOffsets.jeep
     end
-    if class == "prop_vehicle_jalopy" or string.find(model, "jalopy", 1, true) then
+    if class == "prop_vehicle_jalopy" or string.find(model, "jalopy", 1, true) or string.find(model, "vehicle.mdl", 1, true) then
         return TIV.Config.SpikeOffsets.jalopy or TIV.Config.SpikeOffsets.jeep
     end
     return TIV.Config.SpikeOffsets.jeep
@@ -185,6 +185,9 @@ function TIV.SpikeAnim.CreateSpikes(veh, data)
 
     -- Check if vehicle has custom configuration
     local customSpikes = nil
+    if not veh._TIVConfig and TIV.CustomConfig and TIV.CustomConfig.GetSavedConfig then
+        veh._TIVConfig = TIV.CustomConfig.GetSavedConfig(veh:GetModel())
+    end
     local config = veh._TIVConfig or (TIV.CustomConfig and TIV.CustomConfig.GetDefaultConfig and TIV.CustomConfig.GetDefaultConfig(veh:GetModel(), hasAngledUpg))
     if config and istable(config.components) then
         customSpikes = {}

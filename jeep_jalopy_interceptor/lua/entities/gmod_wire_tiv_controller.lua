@@ -86,7 +86,11 @@ end
 function ENT:LinkEnt(veh)
     if not IsValid(veh) then return false, "Invalid vehicle" end
     if not (TIV and TIV.IsSupportedVehicle and TIV.IsSupportedVehicle(veh)) then
-        return false, "Entity is not a supported TIV vehicle"
+        if TIV and TIV.TagAsInterceptor then
+            TIV.TagAsInterceptor(veh, true)
+        else
+            return false, "Entity is not a supported TIV vehicle"
+        end
     end
 
     local ply = self:GetPlayer()

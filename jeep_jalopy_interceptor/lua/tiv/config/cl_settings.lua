@@ -286,6 +286,20 @@ hook.Add("PopulateToolMenu", "TIV_PopulateFullSettingsMenu", function()
         end
         panel:AddItem(copyBtn)
 
+        local tagBtn = vgui.Create("DButton", panel)
+        tagBtn:SetText("TAG AIMED ENTITY AS INTERCEPTOR")
+        tagBtn:SetTall(32)
+        tagBtn:SetTextColor(Color(255, 255, 255))
+        tagBtn.Paint = function(self, w, h)
+            draw.RoundedBox(4, 0, 0, w, h, self:IsHovered() and Color(180, 110, 30) or Color(140, 80, 20))
+        end
+        tagBtn.DoClick = function()
+            net.Start("TIV_TagAimedInterceptor")
+            net.SendToServer()
+        end
+        panel:AddItem(tagBtn)
+
+        panel:Help("Switch models in the 3D editor to create and save distinct configurations for Buggy, Jalopy, APC, Airboat, or custom vehicles/entities.")
         panel:Help("Coordinate Orientation: Forward (+Y), Right (+X), Up (+Z).")
     end)
 

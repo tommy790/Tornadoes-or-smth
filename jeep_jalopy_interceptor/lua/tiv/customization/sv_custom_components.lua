@@ -10,6 +10,7 @@ TIV.CustomComponents = TIV.CustomComponents or {}
 util.AddNetworkString("TIV_ApplyVehicleConfig")
 util.AddNetworkString("TIV_RequestVehicleConfig")
 util.AddNetworkString("TIV_SyncVehicleConfig")
+util.AddNetworkString("TIV_TagAimedInterceptor")
 
 -- Active components mapped per vehicle entity index
 TIV.CustomComponents.VehicleArmor = TIV.CustomComponents.VehicleArmor or {}
@@ -168,6 +169,9 @@ function TIV.CustomComponents.EnsureArmor(veh, ply)
         return
     end
 
+    if not veh._TIVConfig and TIV.CustomConfig and TIV.CustomConfig.GetSavedConfig then
+        veh._TIVConfig = TIV.CustomConfig.GetSavedConfig(veh:GetModel())
+    end
     local config = veh._TIVConfig or TIV.CustomConfig.GetDefaultConfig(veh:GetModel(), unlocked["angled_spikes"] == true)
     local desiredCount = 0
     for _, comp in ipairs(config.components or {}) do
@@ -208,6 +212,9 @@ function TIV.CustomComponents.ApplyVehicleBonuses(veh)
         if prof then unlocked = prof.unlocked_upgrades or {} end
     end
 
+    if not veh._TIVConfig and TIV.CustomConfig and TIV.CustomConfig.GetSavedConfig then
+        veh._TIVConfig = TIV.CustomConfig.GetSavedConfig(veh:GetModel())
+    end
     local config = veh._TIVConfig or TIV.CustomConfig.GetDefaultConfig(veh:GetModel(), unlocked["angled_spikes"] == true)
     local stats  = TIV.CustomConfig.CalculateVehicleStats(config, unlocked)
 
@@ -256,22 +263,6 @@ end
 net.Receive("TIV_ApplyVehicleConfig", function(len, ply)
     if not IsValid(ply) then return end
 
-    local veh = TIV.Deploy and TIV.Deploy.ResolveVehicle and TIV.Deploy.ResolveVehicle(ply)
-    if not IsValid(veh) then
-        -- Find closest TIV vehicle owned by player
-        local plyPos = ply:GetPos()
-        local bestDist = 250 * 250
-        for entIdx, data in pairs(TIV.Deploy.Vehicles or {}) do
-            local candidate = Entity(entIdx)
-            if IsValid(candidate) and candidate:GetPos():DistToSqr(plyPos) < bestDist then
-                veh = candidate
-                bestDist = candidate:GetPos():DistToSqr(plyPos)
-            end
-        end
-    end
-
-    if not IsValid(veh) then return end
-
     local rawLua = net.ReadString()
     local config, err = TIV.CustomConfig.DeserializeFromLua(rawLua)
     if not config then
@@ -279,30 +270,161 @@ net.Receive("TIV_ApplyVehicleConfig", function(len, ply)
         return
     end
 
-    local profile = TIV.Progression.GetPlayerProfile(ply)
-    local unlocked = profile and profile.unlocked_upgrades or {}
+    local model = string.lower(config.vehicle_model or "models/buggy.mdl")
 
-    -- Save active configuration on vehicle
-    veh._TIVConfig = config
+    -- Cache config on server
+    TIV.CustomConfig.VehicleConfigs = TIV.CustomConfig.VehicleConfigs or {}
+    TIV.CustomConfig.VehicleConfigs[model] = config
 
-    -- Spawn physical armor panels
-    TIV.CustomComponents.SpawnArmorProps(veh, config, unlocked)
+    -- Persist config file on server
+    if not file.IsDir("tiv", "DATA") then file.CreateDir("tiv") end
+    if not file.IsDir("tiv/configs", "DATA") then file.CreateDir("tiv/configs") end
+    local sPath = TIV.CustomConfig.GetConfigFileName(model)
+    file.Write(sPath, util.TableToJSON(config, true))
 
-    -- Rebuild vehicle spikes with custom positions and angles
-    local deployData = TIV.Deploy and TIV.Deploy.GetState and TIV.Deploy.GetState(veh)
-    if deployData and deployData.state == "idle" then
-        if TIV.Spikes and TIV.Spikes.RemoveAll then
-            TIV.Anchor.DetachAll(veh, deployData)
-            TIV.Spikes.RemoveAll(deployData, veh:EntIndex())
-            deployData.spikesCreated = false
-            TIV.Deploy.EnsureSpikes(veh, deployData)
+    -- Target vehicle resolution
+    local targetVeh = TIV.Deploy and TIV.Deploy.ResolveVehicle and TIV.Deploy.ResolveVehicle(ply)
+    if IsValid(targetVeh) and string.lower(targetVeh:GetModel() or "") ~= model then
+        targetVeh = nil
+    end
+
+    if not IsValid(targetVeh) then
+        local tr = ply:GetEyeTrace()
+        if tr.Hit and IsValid(tr.Entity) and (TIV.IsSupportedVehicle(tr.Entity) or string.lower(tr.Entity:GetModel() or "") == model) then
+            targetVeh = tr.Entity
         end
     end
 
-    -- Reapply physics bonuses
-    TIV.CustomComponents.ApplyVehicleBonuses(veh)
+    if not IsValid(targetVeh) then
+        local plyPos = ply:GetPos()
+        local bestDist = 600 * 600
+        for _, ent in ipairs(ents.GetAll()) do
+            if IsValid(ent) and TIV.IsSupportedVehicle(ent) and string.lower(ent:GetModel() or "") == model then
+                local dist = ent:GetPos():DistToSqr(plyPos)
+                if dist < bestDist then
+                    targetVeh = ent
+                    bestDist = dist
+                end
+            end
+        end
+    end
 
-    ply:ChatPrint("[TIV] Vehicle configuration applied successfully!")
+    if not IsValid(targetVeh) then
+        local plyPos = ply:GetPos()
+        local bestDist = 250 * 250
+        for entIdx, data in pairs(TIV.Deploy.Vehicles or {}) do
+            local candidate = Entity(entIdx)
+            if IsValid(candidate) and candidate:GetPos():DistToSqr(plyPos) < bestDist then
+                targetVeh = candidate
+                bestDist = candidate:GetPos():DistToSqr(plyPos)
+            end
+        end
+    end
+
+    if IsValid(targetVeh) then
+        TIV.TagAsInterceptor(targetVeh, true)
+        targetVeh._TIVConfig = config
+
+        local profile = TIV.Progression.GetPlayerProfile(ply)
+        local unlocked = profile and profile.unlocked_upgrades or {}
+
+        -- Spawn physical armor panels
+        TIV.CustomComponents.SpawnArmorProps(targetVeh, config, unlocked)
+
+        -- Rebuild vehicle spikes with custom positions and angles
+        local deployData = TIV.Deploy and TIV.Deploy.GetState and TIV.Deploy.GetState(targetVeh)
+        if deployData and deployData.state == "idle" then
+            if TIV.Spikes and TIV.Spikes.RemoveAll then
+                TIV.Anchor.DetachAll(targetVeh, deployData)
+                TIV.Spikes.RemoveAll(deployData, targetVeh:EntIndex())
+                deployData.spikesCreated = false
+                TIV.Deploy.EnsureSpikes(targetVeh, deployData)
+            end
+        end
+
+        -- Reapply physics bonuses
+        TIV.CustomComponents.ApplyVehicleBonuses(targetVeh)
+
+        ply:ChatPrint(string.format("[TIV] Configuration for '%s' applied to interceptor [%d]!", string.GetFileFromFilename(model), targetVeh:EntIndex()))
+    else
+        ply:ChatPrint(string.format("[TIV] Configuration for '%s' saved! It will apply automatically when spawning or entering this interceptor.", string.GetFileFromFilename(model)))
+    end
+end)
+
+-- Tag Aimed Interceptor Network Receiver
+net.Receive("TIV_TagAimedInterceptor", function(len, ply)
+    if not IsValid(ply) then return end
+    local tr = ply:GetEyeTrace()
+    local ent = tr.Entity
+    if not IsValid(ent) or ent:IsWorld() then
+        ply:ChatPrint("[TIV] No entity in your crosshairs to tag as an interceptor.")
+        return
+    end
+
+    local isInterceptor = not (ent.IsTIVVehicle or ent:GetNWBool("TIV_Interceptor", false))
+    TIV.TagAsInterceptor(ent, isInterceptor)
+
+    if isInterceptor then
+        local model = string.lower(ent:GetModel() or "")
+        local cfg = TIV.CustomConfig.GetSavedConfig(model) or TIV.CustomConfig.GetDefaultConfig(model)
+        ent._TIVConfig = cfg
+        local profile = TIV.Progression.GetPlayerProfile(ply)
+        local unlocked = profile and profile.unlocked_upgrades or {}
+        TIV.CustomComponents.SpawnArmorProps(ent, cfg, unlocked)
+        TIV.CustomComponents.ApplyVehicleBonuses(ent)
+        ply:ChatPrint(string.format("[TIV] Entity [%d] (%s) is now identified as an Interceptor!", ent:EntIndex(), string.GetFileFromFilename(model)))
+    else
+        TIV.CustomComponents.RemoveArmorProps(ent)
+        local deployData = TIV.Deploy and TIV.Deploy.GetState and TIV.Deploy.GetState(ent)
+        if deployData then
+            TIV.Anchor.DetachAll(ent, deployData)
+            TIV.Spikes.RemoveAll(deployData, ent:EntIndex())
+            deployData.spikesCreated = false
+        end
+        ply:ChatPrint(string.format("[TIV] Entity [%d] is no longer an Interceptor.", ent:EntIndex()))
+    end
+end)
+
+-- Console Commands for Manual Identification
+concommand.Add("tiv_identify_interceptor", function(ply, cmd, args)
+    if not IsValid(ply) then return end
+    local ent = (TIV.ResolveVehicle and TIV.ResolveVehicle(ply)) or ply:GetEyeTrace().Entity
+    if not IsValid(ent) or ent:IsWorld() then
+        ply:ChatPrint("[TIV] No vehicle or entity targeted. Look at an entity or sit inside one.")
+        return
+    end
+
+    TIV.TagAsInterceptor(ent, true)
+    local model = string.lower(ent:GetModel() or "")
+    local cfg = TIV.CustomConfig.GetSavedConfig(model) or TIV.CustomConfig.GetDefaultConfig(model)
+    ent._TIVConfig = cfg
+
+    local profile = TIV.Progression.GetPlayerProfile(ply)
+    local unlocked = profile and profile.unlocked_upgrades or {}
+    TIV.CustomComponents.SpawnArmorProps(ent, cfg, unlocked)
+    TIV.CustomComponents.ApplyVehicleBonuses(ent)
+
+    ply:ChatPrint(string.format("[TIV] Entity [%d] (%s) is now identified as an Interceptor!", ent:EntIndex(), string.GetFileFromFilename(model)))
+end)
+
+concommand.Add("tiv_unidentify_interceptor", function(ply, cmd, args)
+    if not IsValid(ply) then return end
+    local ent = (TIV.ResolveVehicle and TIV.ResolveVehicle(ply)) or ply:GetEyeTrace().Entity
+    if not IsValid(ent) or ent:IsWorld() then
+        ply:ChatPrint("[TIV] No vehicle or entity targeted.")
+        return
+    end
+
+    TIV.TagAsInterceptor(ent, false)
+    TIV.CustomComponents.RemoveArmorProps(ent)
+    local deployData = TIV.Deploy and TIV.Deploy.GetState and TIV.Deploy.GetState(ent)
+    if deployData then
+        TIV.Anchor.DetachAll(ent, deployData)
+        TIV.Spikes.RemoveAll(deployData, ent:EntIndex())
+        deployData.spikesCreated = false
+    end
+
+    ply:ChatPrint(string.format("[TIV] Entity [%d] is no longer identified as an Interceptor.", ent:EntIndex()))
 end)
 
 -- ============================================================================
@@ -327,6 +449,10 @@ hook.Add("PlayerSpawnedVehicle", "TIV_CustomComponents_Spawn", function(ply, veh
         veh._TIVOwner = ply
         timer.Simple(0.1, function()
             if IsValid(veh) and IsValid(ply) then
+                local model = string.lower(veh:GetModel() or "")
+                if not veh._TIVConfig and TIV.CustomConfig and TIV.CustomConfig.GetSavedConfig then
+                    veh._TIVConfig = TIV.CustomConfig.GetSavedConfig(model)
+                end
                 if TIV.CustomComponents and TIV.CustomComponents.EnsureArmor then
                     TIV.CustomComponents.EnsureArmor(veh, ply)
                 end
@@ -339,6 +465,10 @@ hook.Add("PlayerEnteredVehicle", "TIV_CustomComponents_Enter", function(ply, veh
     local tivVeh = (TIV.Deploy and TIV.Deploy.ResolveVehicle and TIV.Deploy.ResolveVehicle(ply)) or veh
     if IsValid(tivVeh) and TIV.IsSupportedVehicle(tivVeh) then
         tivVeh._TIVOwner = ply
+        local model = string.lower(tivVeh:GetModel() or "")
+        if not tivVeh._TIVConfig and TIV.CustomConfig and TIV.CustomConfig.GetSavedConfig then
+            tivVeh._TIVConfig = TIV.CustomConfig.GetSavedConfig(model)
+        end
         if TIV.CustomComponents and TIV.CustomComponents.EnsureArmor then
             TIV.CustomComponents.EnsureArmor(tivVeh, ply)
         end

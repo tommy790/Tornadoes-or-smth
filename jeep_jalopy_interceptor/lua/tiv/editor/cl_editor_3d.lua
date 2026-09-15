@@ -21,44 +21,66 @@ TIV.Editor3D.ClientsideModels  = {}
 function TIV.Editor3D.SaveConfigToFile(config)
     if not istable(config) then return end
     if not file.IsDir("tiv", "DATA") then file.CreateDir("tiv") end
+    if not file.IsDir("tiv/configs", "DATA") then file.CreateDir("tiv/configs") end
 
-    -- Serialize to JSON for disk persistence
+    local model = string.lower(config.vehicle_model or "models/buggy.mdl")
     local json = util.TableToJSON(config, true)
+
+    -- Save to per-model configuration file
+    local modelPath = TIV.CustomConfig.GetConfigFileName(model)
+    file.Write(modelPath, json)
+
+    -- Keep legacy global path updated as latest
     file.Write(SAVE_FILE_PATH, json)
 end
 
-function TIV.Editor3D.LoadConfigFromFile(defaultModel)
-    if file.Exists(SAVE_FILE_PATH, "DATA") then
-        local raw = file.Read(SAVE_FILE_PATH, "DATA")
-        if raw and raw ~= "" then
-            local decoded, err = TIV.CustomConfig.DeserializeFromLua(raw)
-            if decoded and istable(decoded.components) then
-                for _, c in ipairs(decoded.components) do
-                    if c.type == "armor_side" or c.type == "armor_front" or c.type == "armor_roof" then
-                        if c.model == "models/props_c17/fence01a.mdl" or c.model == "models/props_combine/combine_fence01b.mdl" then
-                            c.model = "models/props_phx/construct/metal_plate1x2.mdl"
-                        end
-                    end
-                end
+function TIV.Editor3D.LoadConfigFromFile(targetModel)
+    targetModel = string.lower(targetModel or "models/buggy.mdl")
+    local modelPath = TIV.CustomConfig.GetConfigFileName(targetModel)
 
-                -- Auto-apply angled spike preset if upgrade is active and spikes are at default 90 degrees
-                if TIV.Progression and TIV.Progression.IsUnlocked and TIV.Progression.IsUnlocked("angled_spikes") then
-                    for _, c in ipairs(decoded.components) do
-                        if c.type == "spike" and c.ang and math.abs(c.ang.p - 90) < 0.1 and math.abs(c.ang.y) < 0.1 and math.abs(c.ang.r) < 0.1 then
-                            if c.pos and c.pos.x > 0 then
-                                c.ang = Angle(80, 0, 0)
-                            elseif c.pos and c.pos.x < 0 then
-                                c.ang = Angle(100, 0, 0)
-                            end
-                        end
-                    end
-                end
-
-                return decoded
+    local raw = nil
+    if file.Exists(modelPath, "DATA") then
+        raw = file.Read(modelPath, "DATA")
+    elseif file.Exists(SAVE_FILE_PATH, "DATA") then
+        local legacyRaw = file.Read(SAVE_FILE_PATH, "DATA")
+        if legacyRaw and legacyRaw ~= "" then
+            local decoded = util.JSONToTable(legacyRaw)
+            if not decoded or (decoded.vehicle_model and string.lower(decoded.vehicle_model) == targetModel) then
+                raw = legacyRaw
             end
         end
     end
-    return TIV.CustomConfig.GetDefaultConfig(defaultModel or "models/buggy.mdl")
+
+    if raw and raw ~= "" then
+        local decoded, err = TIV.CustomConfig.DeserializeFromLua(raw)
+        if decoded and istable(decoded.components) then
+            decoded.vehicle_model = targetModel
+            for _, c in ipairs(decoded.components) do
+                if c.type == "armor_side" or c.type == "armor_front" or c.type == "armor_roof" then
+                    if c.model == "models/props_c17/fence01a.mdl" or c.model == "models/props_combine/combine_fence01b.mdl" then
+                        c.model = "models/props_phx/construct/metal_plate1x2.mdl"
+                    end
+                end
+            end
+
+            -- Auto-apply angled spike preset if upgrade is active and spikes are at default 90 degrees
+            if TIV.Progression and TIV.Progression.IsUnlocked and TIV.Progression.IsUnlocked("angled_spikes") then
+                for _, c in ipairs(decoded.components) do
+                    if c.type == "spike" and c.ang and math.abs(c.ang.p - 90) < 0.1 and math.abs(c.ang.y) < 0.1 and math.abs(c.ang.r) < 0.1 then
+                        if c.pos and c.pos.x > 0 then
+                            c.ang = Angle(80, 0, 0)
+                        elseif c.pos and c.pos.x < 0 then
+                            c.ang = Angle(100, 0, 0)
+                        end
+                    end
+                end
+            end
+
+            return decoded
+        end
+    end
+
+    return TIV.CustomConfig.GetDefaultConfig(targetModel)
 end
 
 -- ============================================================================
@@ -86,11 +108,12 @@ function TIV.Editor3D.Open()
     -- Resolve active vehicle model
     local ply = LocalPlayer()
     local veh = TIV.Deploy and TIV.Deploy.ResolveVehicle and TIV.Deploy.ResolveVehicle(ply)
-    local vehModel = IsValid(veh) and veh:GetModel() or "models/buggy.mdl"
+    local curVehModel = IsValid(veh) and veh:GetModel() or "models/buggy.mdl"
+    curVehModel = string.lower(curVehModel)
 
     -- Load config or default
-    TIV.Editor3D.ActiveConfig  = TIV.Editor3D.LoadConfigFromFile(vehModel)
-    TIV.Editor3D.ActiveConfig.vehicle_model = vehModel
+    TIV.Editor3D.ActiveConfig  = TIV.Editor3D.LoadConfigFromFile(curVehModel)
+    TIV.Editor3D.ActiveConfig.vehicle_model = curVehModel
     TIV.Editor3D.SelectedIndex = 1
 
     local winW = math.Clamp(ScrW() - 60, 1024, 1360)
@@ -130,16 +153,82 @@ function TIV.Editor3D.Open()
         frame:Close()
     end
 
+    -- ========================================================================
+    -- INTERCEPTOR MODEL SWITCHER BAR
+    -- Allows switching the base vehicle model to configure different vehicles
+    -- or entities identified as interceptors.
+    -- ========================================================================
+    local modelBar = vgui.Create("DPanel", frame)
+    modelBar:SetPos(14, 50)
+    modelBar:SetSize(winW - 28, 42)
+    modelBar.Paint = function(s, w, h)
+        draw.RoundedBox(6, 0, 0, w, h, Color(14, 18, 25, 255))
+        draw.RoundedBox(4, 1, 1, w - 2, h - 2, Color(24, 30, 42, 255))
+    end
+
+    local modelLbl = vgui.Create("DLabel", modelBar)
+    modelLbl:SetPos(12, 10)
+    modelLbl:SetSize(140, 22)
+    modelLbl:SetText("TARGET INTERCEPTOR:")
+    modelLbl:SetFont("DermaDefaultBold")
+    modelLbl:SetTextColor(Color(240, 205, 50))
+
+    local modelCombo = vgui.Create("DComboBox", modelBar)
+    modelCombo:SetPos(156, 8)
+    modelCombo:SetSize(210, 26)
+
+    local modelEntry = vgui.Create("DTextEntry", modelBar)
+    modelEntry:SetPos(372, 8)
+    modelEntry:SetSize(180, 26)
+    modelEntry:SetText(curVehModel)
+
+    local switchBtn = vgui.Create("DButton", modelBar)
+    switchBtn:SetPos(558, 8)
+    switchBtn:SetSize(90, 26)
+    switchBtn:SetText("Switch Model")
+    switchBtn:SetTextColor(Color(255, 255, 255))
+    switchBtn.Paint = function(s, w, h)
+        draw.RoundedBox(4, 0, 0, w, h, s:IsHovered() and Color(60, 130, 190) or Color(45, 100, 150))
+    end
+
+    local useVehBtn = vgui.Create("DButton", modelBar)
+    useVehBtn:SetPos(654, 8)
+    useVehBtn:SetSize(105, 26)
+    useVehBtn:SetText("Use My Vehicle")
+    useVehBtn:SetTextColor(Color(255, 255, 255))
+    useVehBtn.Paint = function(s, w, h)
+        draw.RoundedBox(4, 0, 0, w, h, s:IsHovered() and Color(45, 145, 90) or Color(35, 115, 70))
+    end
+
+    local cloneBtn = vgui.Create("DButton", modelBar)
+    cloneBtn:SetPos(765, 8)
+    cloneBtn:SetSize(95, 26)
+    cloneBtn:SetText("Clone From...")
+    cloneBtn:SetTextColor(Color(255, 255, 255))
+    cloneBtn.Paint = function(s, w, h)
+        draw.RoundedBox(4, 0, 0, w, h, s:IsHovered() and Color(110, 80, 150) or Color(85, 60, 115))
+    end
+
+    local tagBtn = vgui.Create("DButton", modelBar)
+    tagBtn:SetPos(866, 8)
+    tagBtn:SetSize(115, 26)
+    tagBtn:SetText("Tag Aimed Entity")
+    tagBtn:SetTextColor(Color(255, 255, 255))
+    tagBtn.Paint = function(s, w, h)
+        draw.RoundedBox(4, 0, 0, w, h, s:IsHovered() and Color(165, 105, 35) or Color(130, 80, 25))
+    end
+
     -- Layout: Left = 3D Viewport, Right = Controls & Component Tree
     local rightWidth = 440
     local viewportW  = winW - rightWidth - 28
-    local mainH      = winH - 110
+    local panelY     = 98
+    local mainH      = winH - 156
 
     -- ========================================================================
     -- 3D MODEL VIEWPORT
     -- ========================================================================
     local viewportPanel = vgui.Create("DPanel", frame)
-    viewportPanel:SetPos(14, 54)
+    viewportPanel:SetPos(14, panelY)
     viewportPanel:SetSize(viewportW, mainH)
     viewportPanel.Paint = function(s, w, h)
         draw.RoundedBox(6, 0, 0, w, h, Color(12, 14, 20, 255))
@@ -149,7 +238,7 @@ function TIV.Editor3D.Open()
     local modelPanel = vgui.Create("DAdjustableModelPanel", viewportPanel)
     modelPanel:Dock(FILL)
     modelPanel:DockMargin(2, 2, 2, 2)
-    modelPanel:SetModel(vehModel)
+    modelPanel:SetModel(curVehModel)
     modelPanel:SetCamPos(Vector(150, 150, 110))
     modelPanel:SetLookAt(Vector(0, 0, 10))
     modelPanel:SetFOV(42)
@@ -251,7 +340,8 @@ function TIV.Editor3D.Open()
         -- 3D VEHICLE COORDINATE AXES GIZMO
         -- Clearly shows Forward (+Y), Right (+X), and Up (+Z)
         -- ====================================================================
-        local gizmoPos = ent:LocalToWorld(Vector(0, 75, 12))
+        local mn, mx   = ent:GetRenderBounds()
+        local gizmoPos = ent:LocalToWorld(Vector(0, mx.y * 0.75, math.max(12, mx.z * 0.35)))
         local fwdVec   = ent:GetForward()
         local rgtVec   = ent:GetRight()
         local upVec    = ent:GetUp()
@@ -283,7 +373,7 @@ function TIV.Editor3D.Open()
     -- RIGHT PANEL: CONTROLS & COMPONENT EDITING
     -- ========================================================================
     local rightPanel = vgui.Create("DScrollPanel", frame)
-    rightPanel:SetPos(viewportW + 24, 54)
+    rightPanel:SetPos(viewportW + 24, panelY)
     rightPanel:SetSize(rightWidth, mainH)
     rightPanel.Paint = function(s, w, h)
         draw.RoundedBox(6, 0, 0, w, h, Color(16, 20, 28, 255))
@@ -295,7 +385,184 @@ function TIV.Editor3D.Open()
     controlsContainer:DockMargin(12, 12, 12, 12)
     controlsContainer.Paint = function() end
 
-    local function RefreshEditor()
+    -- Forward declarations
+    local RefreshEditor
+    local PopulateModelDropdown
+    local SwitchToModel
+
+    PopulateModelDropdown = function(combo, activeMdl)
+        if not IsValid(combo) then return end
+        combo:Clear()
+
+        local presets = {
+            { name = "HL2 Buggy / Jeep",         model = "models/buggy.mdl" },
+            { name = "EP2 Jalopy / Muscle Car", model = "models/vehicle.mdl" },
+            { name = "Combine APC",             model = "models/props_vehicles/apc001.mdl" },
+            { name = "HL2 Airboat",             model = "models/airboat.mdl" },
+            { name = "Van / Ambulance",         model = "models/props_vehicles/van.mdl" },
+            { name = "Pickup Truck",            model = "models/props_vehicles/pickup01.mdl" },
+        }
+
+        local activeLower = string.lower(activeMdl or "")
+        local matched = false
+
+        for _, p in ipairs(presets) do
+            local isSel = (activeLower == string.lower(p.model))
+            if isSel then matched = true end
+            combo:AddChoice(p.name .. " (" .. string.GetFileFromFilename(p.model) .. ")", p.model, isSel)
+        end
+
+        if TIV.GetIdentifiedInterceptors then
+            local activeList = TIV.GetIdentifiedInterceptors()
+            if #activeList > 0 then
+                combo:AddSpacer()
+                for _, info in ipairs(activeList) do
+                    local isSel = (activeLower == string.lower(info.model))
+                    if isSel then matched = true end
+                    combo:AddChoice("[Active] " .. info.name, info.model, isSel)
+                end
+            end
+        end
+
+        if not matched and activeMdl and activeMdl ~= "" then
+            combo:AddSpacer()
+            combo:AddChoice("Custom: " .. string.GetFileFromFilename(activeMdl), activeMdl, true)
+        end
+    end
+
+    SwitchToModel = function(targetModel)
+        if not targetModel or string.Trim(targetModel) == "" then return end
+        targetModel = string.lower(string.Trim(targetModel))
+
+        -- Auto-save previous vehicle configuration before switching
+        if TIV.Editor3D.ActiveConfig and TIV.Editor3D.ActiveConfig.vehicle_model then
+            TIV.Editor3D.SaveConfigToFile(TIV.Editor3D.ActiveConfig)
+        end
+
+        curVehModel = targetModel
+
+        -- Update model in 3D viewport
+        if IsValid(modelPanel) then
+            modelPanel:SetModel(curVehModel)
+            if IsValid(modelPanel.Entity) then
+                modelPanel.Entity:SetAngles(Angle(0, 0, 0))
+                modelPanel.Entity:SetPos(Vector(0, 0, 0))
+
+                local rmn, rmx = modelPanel.Entity:GetRenderBounds()
+                local center = (rmn + rmx) * 0.5
+                local size   = (rmx - rmn):Length()
+                modelPanel:SetLookAt(Vector(0, 0, center.z))
+                local dist = math.Clamp(size * 1.35, 140, 480)
+                modelPanel:SetCamPos(Vector(dist * 0.7, dist * 0.7, dist * 0.5 + center.z))
+            end
+        end
+
+        -- Load configuration for new model
+        TIV.Editor3D.ActiveConfig = TIV.Editor3D.LoadConfigFromFile(curVehModel)
+        TIV.Editor3D.ActiveConfig.vehicle_model = curVehModel
+        TIV.Editor3D.SelectedIndex = 1
+
+        -- Clear clientside preview models
+        TIV.Editor3D.ClearClientsideModels()
+
+        -- Synchronize UI inputs
+        if IsValid(modelEntry) then
+            modelEntry:SetText(curVehModel)
+        end
+        if IsValid(modelCombo) then
+            PopulateModelDropdown(modelCombo, curVehModel)
+        end
+
+        if isfunction(RefreshEditor) then
+            RefreshEditor()
+        end
+        surface.PlaySound("buttons/button14.wav")
+    end
+
+    -- Initial dropdown population and event wiring
+    PopulateModelDropdown(modelCombo, curVehModel)
+
+    modelCombo.OnSelect = function(s, idx, val, modelPath)
+        if modelPath and modelPath ~= "" and string.lower(modelPath) ~= string.lower(curVehModel) then
+            SwitchToModel(modelPath)
+        end
+    end
+
+    modelEntry.OnEnter = function(s)
+        local inputMdl = s:GetText()
+        if inputMdl and inputMdl ~= "" and string.lower(inputMdl) ~= string.lower(curVehModel) then
+            SwitchToModel(inputMdl)
+        end
+    end
+
+    switchBtn.DoClick = function()
+        local inputMdl = modelEntry:GetText()
+        if inputMdl and inputMdl ~= "" then
+            SwitchToModel(inputMdl)
+        end
+    end
+
+    useVehBtn.DoClick = function()
+        local targetEnt = (TIV.Deploy and TIV.Deploy.ResolveVehicle and TIV.Deploy.ResolveVehicle(LocalPlayer()))
+        if not IsValid(targetEnt) then
+            local tr = LocalPlayer():GetEyeTrace()
+            if tr.Hit and IsValid(tr.Entity) and (TIV.IsSupportedVehicle(tr.Entity) or tr.Entity:IsVehicle()) then
+                targetEnt = tr.Entity
+            end
+        end
+
+        if IsValid(targetEnt) then
+            local mdl = targetEnt:GetModel()
+            if mdl and mdl ~= "" then
+                SwitchToModel(mdl)
+                Derma_Message("Loaded model from " .. (targetEnt:IsVehicle() and "vehicle" or "interceptor") .. ":\n" .. mdl, "Vehicle Detected", "OK")
+                return
+            end
+        end
+
+        Derma_Message("No vehicle or interceptor found in your cockpit or crosshairs.\nSit inside a vehicle or aim at one in the world.", "Vehicle Detection", "OK")
+    end
+
+    cloneBtn.DoClick = function()
+        local menu = DermaMenu()
+        local presets = {
+            { name = "HL2 Buggy / Jeep",         model = "models/buggy.mdl" },
+            { name = "EP2 Jalopy / Muscle Car", model = "models/vehicle.mdl" },
+            { name = "Combine APC",             model = "models/props_vehicles/apc001.mdl" },
+            { name = "HL2 Airboat",             model = "models/airboat.mdl" },
+            { name = "Van / Ambulance",         model = "models/props_vehicles/van.mdl" },
+            { name = "Pickup Truck",            model = "models/props_vehicles/pickup01.mdl" },
+        }
+
+        for _, p in ipairs(presets) do
+            if string.lower(p.model) ~= string.lower(curVehModel) then
+                menu:AddOption("Copy layout from " .. p.name, function()
+                    local srcCfg = TIV.Editor3D.LoadConfigFromFile(p.model)
+                    if srcCfg and istable(srcCfg.components) then
+                        local clonedComponents = table.Copy(srcCfg.components)
+                        TIV.Editor3D.ActiveConfig.components = clonedComponents
+                        TIV.Editor3D.SelectedIndex = 1
+                        TIV.Editor3D.ClearClientsideModels()
+                        RefreshEditor()
+                        surface.PlaySound("buttons/button15.wav")
+                    end
+                end)
+            end
+        end
+        menu:Open()
+    end
+
+    tagBtn.DoClick = function()
+        net.Start("TIV_TagAimedInterceptor")
+        net.SendToServer()
+        timer.Simple(0.25, function()
+            if IsValid(modelCombo) then
+                PopulateModelDropdown(modelCombo, curVehModel)
+            end
+        end)
+    end
+
+    RefreshEditor = function()
         controlsContainer:Clear()
 
         local config     = TIV.Editor3D.ActiveConfig
@@ -717,7 +984,11 @@ function TIV.Editor3D.Open()
             local raw = txt:GetText()
             local imported, err = TIV.CustomConfig.DeserializeFromLua(raw)
             if imported and istable(imported.components) then
+                if imported.vehicle_model and string.lower(imported.vehicle_model) ~= string.lower(curVehModel) then
+                    SwitchToModel(imported.vehicle_model)
+                end
                 TIV.Editor3D.ActiveConfig = imported
+                TIV.Editor3D.ActiveConfig.vehicle_model = curVehModel
                 TIV.Editor3D.SelectedIndex = 1
                 TIV.Editor3D.ClearClientsideModels()
                 RefreshEditor()
@@ -731,9 +1002,9 @@ function TIV.Editor3D.Open()
 
     -- RESET TO DEFAULTS BUTTON
     AddFooterBtn("RESET TO DEFAULTS", Color(90, 40, 40), LEFT, function()
-        Derma_Query("Reset all components back to vehicle factory defaults?", "Confirm Reset",
+        Derma_Query("Reset all components back to factory defaults for " .. string.GetFileFromFilename(curVehModel) .. "?", "Confirm Reset",
             "Reset", function()
-                TIV.Editor3D.ActiveConfig = TIV.CustomConfig.GetDefaultConfig(vehModel)
+                TIV.Editor3D.ActiveConfig = TIV.CustomConfig.GetDefaultConfig(curVehModel)
                 TIV.Editor3D.SelectedIndex = 1
                 TIV.Editor3D.ClearClientsideModels()
                 RefreshEditor()
@@ -745,6 +1016,7 @@ function TIV.Editor3D.Open()
     -- SAVE & APPLY TO VEHICLE
     AddFooterBtn("SAVE & APPLY TO VEHICLE", Color(180, 120, 20), RIGHT, function()
         local config = TIV.Editor3D.ActiveConfig
+        config.vehicle_model = curVehModel
         TIV.Editor3D.SaveConfigToFile(config)
 
         local luaStr = TIV.CustomConfig.SerializeToLua(config)
