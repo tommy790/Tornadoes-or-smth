@@ -34,7 +34,6 @@ local PRESETS = {
     {
         id          = "ef5_titan",
         name        = "EF5 Titan (Heavy Intercept)",
-        icon        = "icon16/shield.png",
         color       = Color(240, 80, 50),
         desc        = "Maximum anchor reinforcement for intercepting violent EF4 and EF5 tornadoes. Unbreakable anchor force limit, elevated loft resistance, and automatic wind deployment.",
         cvars = {
@@ -58,7 +57,6 @@ local PRESETS = {
     {
         id          = "standard",
         name        = "Standard Interceptor (Balanced)",
-        icon        = "icon16/car.png",
         color       = Color(60, 180, 240),
         desc        = "Authentic storm intercept profile based on the real TIV 2. Features 6 balanced spikes, hydraulic suspension lowering, and realistic wind strain simulation.",
         cvars = {
@@ -82,7 +80,6 @@ local PRESETS = {
     {
         id          = "scout",
         name        = "Scout Chaser (Fast & Agile)",
-        icon        = "icon16/lightning.png",
         color       = Color(240, 200, 40),
         desc        = "Optimized for high-speed chasing and rapid redeployment. Uses 4 corner spikes with doubled hydraulic speed for quick intercepts and fast escapes.",
         cvars = {
@@ -106,7 +103,6 @@ local PRESETS = {
     {
         id          = "stealth",
         name        = "Stealth Interceptor (Clean Look)",
-        icon        = "icon16/eye.png",
         color       = Color(180, 140, 240),
         desc        = "Hides physical spike models and the Wiremod controller while maintaining full physical ground anchoring. Ideal for vehicle models where props clip through bodywork.",
         cvars = {
@@ -130,7 +126,6 @@ local PRESETS = {
     {
         id          = "hardcore",
         name        = "Hardcore Simulation (Breakable)",
-        icon        = "icon16/bomb.png",
         color       = Color(220, 50, 80),
         desc        = "High-stakes realistic simulation. Anchors can snap under lateral EF4/EF5 storm shear. If anchors fail, spikes are violently torn from the vehicle into the tornado.",
         cvars = {
@@ -154,7 +149,6 @@ local PRESETS = {
     {
         id          = "defaults",
         name        = "Factory Addon Defaults",
-        icon        = "icon16/arrow_refresh.png",
         color       = Color(160, 160, 160),
         desc        = "Restores all TIV configuration settings, tolerances, speeds, and limits back to default vanilla values.",
         cvars = {
@@ -549,13 +543,13 @@ hook.Add("PopulateToolMenu", "TIV_PopulateFullSettingsMenu", function()
             :SetTooltip("Hides the physical model of the auto-attached Wire controller.")
 
         panel:Help("Wire Input Ports:")
-        panel:ControlHelp("• Deploy (NORMAL): Triggers deploy sequence (1 = deploy).\n• Retract (NORMAL): Triggers retract sequence (1 = retract).\n• ToggleDeploy (NORMAL): Toggles deploy/retract on pulse.\n• EmergencyStop (NORMAL): Aborts deployment immediately.\n• Reset (NORMAL): Emergency resets faulted systems.\n• Handbrake (NORMAL): Manual override for parking brake.")
+        panel:ControlHelp("- Deploy (NORMAL): Triggers deploy sequence (1 = deploy).\n- Retract (NORMAL): Triggers retract sequence (1 = retract).\n- ToggleDeploy (NORMAL): Toggles deploy/retract on pulse.\n- EmergencyStop (NORMAL): Aborts deployment immediately.\n- Reset (NORMAL): Emergency resets faulted systems.\n- Handbrake (NORMAL): Manual override for parking brake.")
 
         panel:Help("Wire Output Telemetry:")
-        panel:ControlHelp("• State (STRING): idle, lowering, deploying_spikes, anchored, etc.\n• IsDeployed (NORMAL): 1 when anchored, 0 otherwise.\n• WindSpeed (NORMAL): Real-time storm wind at vehicle in MPH.\n• WindDirection (VECTOR): Unit direction vector of the wind.\n• Stress (NORMAL): Wind stress ratio on anchors (0.0 to 1.0).\n• ActiveSpikes (NORMAL): Number of intact deployed spikes.\n• AnchorIntegrity (NORMAL): 1 if holding, 0 if compromised.")
+        panel:ControlHelp("- State (STRING): idle, lowering, deploying_spikes, anchored, etc.\n- IsDeployed (NORMAL): 1 when anchored, 0 otherwise.\n- WindSpeed (NORMAL): Real-time storm wind at vehicle in MPH.\n- WindDirection (VECTOR): Unit direction vector of the wind.\n- Stress (NORMAL): Wind stress ratio on anchors (0.0 to 1.0).\n- ActiveSpikes (NORMAL): Number of intact deployed spikes.\n- AnchorIntegrity (NORMAL): 1 if holding, 0 if compromised.")
 
         panel:Help("Expression 2 Functions:")
-        panel:ControlHelp("• E:isTIV() -> number\n• E:tivState() -> string\n• E:tivWindSpeed() -> number\n• E:tivStress() -> number\n• E:tivDeploy() -> number\n• E:tivRetract() -> number\n• E:tivToggle() -> number")
+        panel:ControlHelp("- E:isTIV() -> number\n- E:tivState() -> string\n- E:tivWindSpeed() -> number\n- E:tivStress() -> number\n- E:tivDeploy() -> number\n- E:tivRetract() -> number\n- E:tivToggle() -> number")
     end)
 
     -- ------------------------------------------------------------------------
@@ -692,7 +686,7 @@ function TIV.Menu.OpenMasterConsole()
     end
 
     local tabButtons = {}
-    local function AddSidebarTab(label, icon, tabFunc)
+    local function AddSidebarTab(label, tabFunc)
         local btn = vgui.Create("DButton", sidebar)
         btn:SetTall(42)
         btn:Dock(TOP)
@@ -701,7 +695,6 @@ function TIV.Menu.OpenMasterConsole()
         btn:SetFont("DermaDefaultBold")
         btn:SetContentAlignment(4)
         btn:SetTextColor(THEME.textDim)
-        if icon then btn:SetIcon(icon) end
 
         btn.Paint = function(self, bw, bh)
             local active = (btn.IsActive == true)
@@ -1159,12 +1152,12 @@ function TIV.Menu.OpenMasterConsole()
         inDesc:SetTextColor(THEME.textDim)
         inDesc:SetWrap(true)
         inDesc:SetAutoStretchVertical(true)
-        inDesc:SetText([[• Deploy (NORMAL): Triggers deploy sequence when pulsed to 1.
-• Retract (NORMAL): Triggers unanchoring and suspension raising when pulsed to 1.
-• ToggleDeploy (NORMAL): Toggles deployed/retracted state.
-• EmergencyStop (NORMAL): Immediately halts deployment and recovers vehicle.
-• Reset (NORMAL): Emergency clears faults and rebuilds spikes.
-• Handbrake (NORMAL): Manually applies or releases parking brake.]])
+        inDesc:SetText([[- Deploy (NORMAL): Triggers deploy sequence when pulsed to 1.
+- Retract (NORMAL): Triggers unanchoring and suspension raising when pulsed to 1.
+- ToggleDeploy (NORMAL): Toggles deployed/retracted state.
+- EmergencyStop (NORMAL): Immediately halts deployment and recovers vehicle.
+- Reset (NORMAL): Emergency clears faults and rebuilds spikes.
+- Handbrake (NORMAL): Manually applies or releases parking brake.]])
         inDesc:Dock(TOP)
         inDesc:DockMargin(0, 4, 0, 16)
 
@@ -1179,15 +1172,15 @@ function TIV.Menu.OpenMasterConsole()
         outDesc:SetTextColor(THEME.textDim)
         outDesc:SetWrap(true)
         outDesc:SetAutoStretchVertical(true)
-        outDesc:SetText([[• State (STRING): idle, lowering, deploying_spikes, anchored, retracting, raising, lofted.
-• IsDeployed (NORMAL): 1 if vehicle is anchored, 0 otherwise.
-• WindSpeed (NORMAL): Current storm wind speed at vehicle in MPH.
-• WindDirection (VECTOR): Unit direction vector of the wind.
-• Stress (NORMAL): Wind stress ratio on anchor constraints (0.0 to 1.0).
-• ActiveSpikes (NORMAL): Number of intact ground spikes.
-• AnchorIntegrity (NORMAL): 1 if constraints are intact, 0 if compromised.
-• VehicleSpeed (NORMAL): Vehicle ground speed in MPH.
-• VerticalVelocity (NORMAL): Vehicle ascent/descent rate in MPH.]])
+        outDesc:SetText([[- State (STRING): idle, lowering, deploying_spikes, anchored, retracting, raising, lofted.
+- IsDeployed (NORMAL): 1 if vehicle is anchored, 0 otherwise.
+- WindSpeed (NORMAL): Current storm wind speed at vehicle in MPH.
+- WindDirection (VECTOR): Unit direction vector of the wind.
+- Stress (NORMAL): Wind stress ratio on anchor constraints (0.0 to 1.0).
+- ActiveSpikes (NORMAL): Number of intact ground spikes.
+- AnchorIntegrity (NORMAL): 1 if constraints are intact, 0 if compromised.
+- VehicleSpeed (NORMAL): Vehicle ground speed in MPH.
+- VerticalVelocity (NORMAL): Vehicle ascent/descent rate in MPH.]])
         outDesc:Dock(TOP)
         outDesc:DockMargin(0, 4, 0, 16)
 
@@ -1208,29 +1201,29 @@ function TIV.Menu.OpenMasterConsole()
         title:DockMargin(0, 0, 0, 15)
 
         local guideText = [[STEP 1: PRE-INTERCEPT APPROACH
-• Use the cockpit HUD or Wiremod radar to track storm wind direction.
-• Position vehicle directly into the projected path of the tornado.
-• Bring the vehicle to a COMPLETE STOP (< 5 MPH).
-• Align vehicle nose into the wind vector to minimize lateral surface area.
+- Use the cockpit HUD or Wiremod radar to track storm wind direction.
+- Position vehicle directly into the projected path of the tornado.
+- Bring the vehicle to a COMPLETE STOP (< 5 MPH).
+- Align vehicle nose into the wind vector to minimize lateral surface area.
 
 STEP 2: DEPLOYMENT EXECUTION
-• Press [B] or pulse the Wire 'Deploy' input.
-• Hydraulic rams lower vehicle chassis flush to suspension limits.
-• Steel spikes drive into the ground terrain.
-• Heavy-duty ballsocket constraints link the vehicle to the earth.
+- Press [B] or pulse the Wire 'Deploy' input.
+- Hydraulic rams lower vehicle chassis flush to suspension limits.
+- Steel spikes drive into the ground terrain.
+- Heavy-duty ballsocket constraints link the vehicle to the earth.
 
 STEP 3: INTERCEPT MONITORING
-• Monitor the Anchor Stress Bar on your HUD:
-  - 0% - 60%: Safe holding capacity.
-  - 60% - 85%: High lateral load (Caution).
-  - 85% - 100%: Severe storm vortex shear.
-• Audible alarm klaxons will sound if wind approaches the loft threshold!
+- Monitor the Anchor Stress Bar on your HUD:
+  * 0% - 60%: Safe holding capacity.
+  * 60% - 85%: High lateral load (Caution).
+  * 85% - 100%: Severe storm vortex shear.
+- Audible alarm klaxons will sound if wind approaches the loft threshold!
 
 STEP 4: RETRACTION & RELOCATION
-• Once the vortex core passes, press [B] or pulse Wire 'Retract'.
-• Spikes retract smoothly from the ground.
-• Hydraulic suspension re-pressurizes to road height.
-• Vehicle parking handbrake automatically disengages.]]
+- Once the vortex core passes, press [B] or pulse Wire 'Retract'.
+- Spikes retract smoothly from the ground.
+- Hydraulic suspension re-pressurizes to road height.
+- Vehicle parking handbrake automatically disengages.]]
 
         local body = vgui.Create("DLabel", pnl)
         body:SetFont("DermaDefault")
@@ -1280,13 +1273,13 @@ STEP 4: RETRACTION & RELOCATION
     end
 
     -- Register sidebar tabs
-    local t1 = AddSidebarTab("Quick Presets", "icon16/wand.png", BuildPresetsTab)
-    AddSidebarTab("Spikes & Radar", "icon16/anchor.png", BuildSpikesTab)
-    AddSidebarTab("Suspension & Deploy", "icon16/wrench.png", BuildSuspensionTab)
-    AddSidebarTab("Storm & Wind", "icon16/weather_clouds.png", BuildWindTab)
-    AddSidebarTab("Cockpit HUD", "icon16/monitor.png", BuildHUDTab)
-    AddSidebarTab("Wiremod & E2", "icon16/plugin.png", BuildWiremodTab)
-    AddSidebarTab("Field Manual", "icon16/book.png", BuildManualTab)
+    local t1 = AddSidebarTab("Quick Presets", BuildPresetsTab)
+    AddSidebarTab("Spikes & Radar", BuildSpikesTab)
+    AddSidebarTab("Suspension & Deploy", BuildSuspensionTab)
+    AddSidebarTab("Storm & Wind", BuildWindTab)
+    AddSidebarTab("Cockpit HUD", BuildHUDTab)
+    AddSidebarTab("Wiremod & E2", BuildWiremodTab)
+    AddSidebarTab("Field Manual", BuildManualTab)
 
     -- Default to Presets tab
     t1:DoClick()
