@@ -173,6 +173,28 @@ CreateConVar(
     "Hide the physical model of the auto-attached Wiremod controller."
 )
 
+CreateConVar(
+    "tiv_stabilize_time",
+    tostring(TIV.Config.StabilizeTime or 0.6),
+    { FCVAR_ARCHIVE, FCVAR_REPLICATED },
+    "Duration in seconds to stabilize vehicle orientation against ground before lowering."
+)
+
+CreateConVar(
+    "tiv_ground_buffer",
+    tostring(TIV.Config.SkirtGroundBuffer or 1.2),
+    { FCVAR_ARCHIVE, FCVAR_REPLICATED },
+    "Buffer distance in units between chassis frame/skirts and terrain when fully lowered."
+)
+
+cvars.AddChangeCallback("tiv_stabilize_time", function(_, _, new)
+    TIV.Config.StabilizeTime = math.Clamp(tonumber(new) or 0.6, 0.2, 3.0)
+end, "TIV_RuntimeStabilizeTime")
+
+cvars.AddChangeCallback("tiv_ground_buffer", function(_, _, new)
+    TIV.Config.SkirtGroundBuffer = math.Clamp(tonumber(new) or 1.2, 0.5, 4.0)
+end, "TIV_RuntimeGroundBuffer")
+
 -- Real bug fix: callbacks had `*,*` paste artifacts (function(_, _, _) is correct).
 cvars.AddChangeCallback("tiv_spike_count", function(_, old, new)
     applyRuntimeSpikeConfig()

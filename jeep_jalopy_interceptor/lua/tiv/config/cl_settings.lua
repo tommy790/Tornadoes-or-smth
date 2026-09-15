@@ -74,6 +74,22 @@ hook.Add("PopulateToolMenu", "TIV_AddSettingsPanel", function()
 
             panel:CheckBox("Hide Wire Controller Model", "tiv_wire_hide_controller")
                 :SetTooltip("Hides the physical model of the auto-attached Wire controller.")
+
+            panel:Help("Suspension & Leveling:")
+            panel:NumSlider(
+                "Stabilization Time (sec)",
+                "tiv_stabilize_time",
+                0.2,
+                2.5,
+                1
+            )
+            panel:NumSlider(
+                "Skirt Ground Buffer",
+                "tiv_ground_buffer",
+                0.5,
+                3.5,
+                1
+            )
         end
     )
 end)

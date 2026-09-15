@@ -8,7 +8,7 @@ e2function number entity:isTIV()
     return (TIV and TIV.IsSupportedVehicle and TIV.IsSupportedVehicle(this)) and 1 or 0
 end
 
---- Returns the current deployment state of <this> TIV (idle, lowering, deploying_spikes, anchored, retracting, raising, lofted)
+--- Returns the current deployment state of <this> TIV (idle, stabilizing, lowering, deploying_spikes, anchored, retracting, raising, lofted)
 e2function string entity:tivState()
     if not IsValid(this) or not TIV or not TIV.IsSupportedVehicle or not TIV.IsSupportedVehicle(this) then return "" end
     local data = TIV.Deploy and TIV.Deploy.GetState and TIV.Deploy.GetState(this)

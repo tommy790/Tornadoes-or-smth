@@ -1,7 +1,7 @@
 if not E2Helper then return end
 
 E2Helper.Descriptions["isTIV(e:)"] = "Returns 1 if entity is a supported Tornado Intercept Vehicle, 0 otherwise."
-E2Helper.Descriptions["tivState(e:)"] = "Returns the deployment state of the TIV (idle, lowering, deploying_spikes, anchored, retracting, raising, lofted)."
+E2Helper.Descriptions["tivState(e:)"] = "Returns the deployment state of the TIV (idle, stabilizing, lowering, deploying_spikes, anchored, retracting, raising, lofted)."
 E2Helper.Descriptions["tivIsDeployed(e:)"] = "Returns 1 if the TIV is fully deployed and anchored, 0 otherwise."
 E2Helper.Descriptions["tivIsAnchored(e:)"] = "Returns 1 if the TIV is anchored, 0 otherwise."
 E2Helper.Descriptions["tivIsTransitioning(e:)"] = "Returns 1 if the TIV is transitioning (deploying or retracting), 0 otherwise."

@@ -8,6 +8,25 @@ local function GetPivotLimit()
     return math.Clamp(tonumber(TIV.Config.AnchorPivotLimit) or 28, 5, 60)
 end
 
+local function GetElasticConsts(ent1, ent2)
+    local wire = rawget(_G, "WireLib")
+    if istable(wire) and isfunction(wire.CalcElasticConsts) then
+        return wire.CalcElasticConsts(ent1, ent2)
+    end
+    local m1 = (IsValid(ent1) and IsValid(ent1:GetPhysicsObject())) and ent1:GetPhysicsObject():GetMass() or 1200
+    local m2 = (IsValid(ent2) and IsValid(ent2:GetPhysicsObject())) and ent2:GetPhysicsObject():GetMass() or 50
+    local minMass = math.min(m1, m2)
+    return minMass * 150, minMass * 30
+end
+
+local function CreateWorldLatch(spike, worldEnt, forceLimit)
+    if isfunction(rawget(_G, "MakeWireLatch")) then
+        local const = MakeWireLatch(spike, worldEnt, 0, 0, forceLimit or 0)
+        if IsValid(const) then return const end
+    end
+    return constraint.Weld(spike, worldEnt, 0, 0, forceLimit or 0, false, false)
+end
+
 -- ============================================================================
 -- BUILD BALLSOCKET
 -- ============================================================================
@@ -49,6 +68,7 @@ function TIV.Anchor.AttachSingle(veh, data, spikeData, spikeTableIndex)
         spikePhys:SetAngleVelocity(Vector(0, 0, 0))
     end
 
+    -- 1. Vehicle-to-Spike Pivot Ballsocket
     local ballsocket = CreateSpikeBallsocket(
         veh, spike,
         localAttachPos,
@@ -68,34 +88,72 @@ function TIV.Anchor.AttachSingle(veh, data, spikeData, spikeTableIndex)
         print("[TIV] WARNING: Ballsocket failed for spike " .. index)
     end
 
+    -- 2. Wiremod Elastic / Hydraulic Dampener (Vehicle to Spike)
+    -- Simulates hydraulic down-force ram on the anchor arm
+    local constant, dampen = GetElasticConsts(veh, spike)
+    local dampener = constraint.Elastic(
+        veh, spike,
+        0, 0,
+        localAttachPos,
+        Vector(0, 0, 0),
+        constant,
+        dampen,
+        0,
+        "",
+        0,
+        true
+    )
+    if IsValid(dampener) then
+        table.insert(data.constraints, {
+            constraint      = dampener,
+            spikeIndex      = index,
+            spikeTableIndex = spikeTableIndex,
+            type            = "wire_dampener",
+        })
+    end
+
+    -- 3. World Anchor via Wire Latch (or high-integrity world weld)
     local worldEnt = game.GetWorld()
     if IsValid(worldEnt) then
-        local worldAnchor = constraint.AdvBallsocket(
-            spike, worldEnt,
-            0, 0,
-            Vector(0, 0, 0),
-            spikeWorldPos,
-            TIV.Config.SpikeForceLimit,
-            0,
-            -1, -1, -1,
-             1,  1,  1,
-            0, 0, 0,
-            0, 0, 0,
-            1
-        )
+        local worldAnchor = CreateWorldLatch(spike, worldEnt, TIV.Config.SpikeForceLimit or 0)
         if IsValid(worldAnchor) then
             table.insert(data.constraints, {
                 constraint      = worldAnchor,
                 spikeIndex      = index,
                 spikeTableIndex = spikeTableIndex,
                 isWorldAnchor   = true,
-                type            = "anchor_ballsocket",
+                type            = "anchor_latch",
             })
         else
-            print("[TIV] WARNING: World anchor failed for spike " .. index)
+            -- Fallback to AdvBallsocket if weld fails
+            local bsAnchor = constraint.AdvBallsocket(
+                spike, worldEnt,
+                0, 0,
+                Vector(0, 0, 0),
+                spikeWorldPos,
+                TIV.Config.SpikeForceLimit,
+                0,
+                -1, -1, -1,
+                 1,  1,  1,
+                0, 0, 0,
+                0, 0, 0,
+                1
+            )
+            if IsValid(bsAnchor) then
+                table.insert(data.constraints, {
+                    constraint      = bsAnchor,
+                    spikeIndex      = index,
+                    spikeTableIndex = spikeTableIndex,
+                    isWorldAnchor   = true,
+                    type            = "anchor_ballsocket",
+                })
+            else
+                print("[TIV] WARNING: World anchor failed for spike " .. index)
+            end
         end
     end
 
+    -- 4. NoCollide between vehicle and spike
     local nocol = constraint.NoCollide(veh, spike, 0, 0)
     if IsValid(nocol) then
         table.insert(data.constraints, {
@@ -105,9 +163,7 @@ function TIV.Anchor.AttachSingle(veh, data, spikeData, spikeTableIndex)
         })
     end
 
-    -- Re-freeze spike now that all its constraints exist. This is what
-    -- actually keeps the spike anchored to its world position; the
-    -- world->spike ballsocket above is unreliable on its own.
+    -- Re-freeze spike now that all its constraints exist.
     if IsValid(spikePhys) then
         spikePhys:SetVelocity(Vector(0, 0, 0))
         spikePhys:SetAngleVelocity(Vector(0, 0, 0))
@@ -158,43 +214,46 @@ function TIV.Anchor.DetachAll(veh, data)
         end
     end
     data.constraints = {}
+
+    if IsValid(data.lowerConstraint) then
+        data.lowerConstraint:Remove()
+        data.lowerConstraint = nil
+    end
 end
 
 -- ============================================================================
 -- CHECK INTEGRITY
--- Returns true if there's at least one intact vehicle->spike ballsocket.
--- (Matches original behavior.)
+-- Returns true if there is at least one intact vehicle anchor coupling.
 -- ============================================================================
 function TIV.Anchor.CheckIntegrity(veh, data)
     if not data.constraints then return true end
 
-    local broken = 0
-    local ballsocketCount = 0
+    local activeJoints = 0
 
     for i = #data.constraints, 1, -1 do
         local conData = data.constraints[i]
         if not IsValid(conData.constraint) then
             table.remove(data.constraints, i)
-            broken = broken + 1
-        elseif conData.type == "ballsocket" then
-            ballsocketCount = ballsocketCount + 1
+        elseif conData.type == "ballsocket" or conData.type == "wire_dampener" then
+            activeJoints = activeJoints + 1
         end
     end
 
-    return ballsocketCount > 0
+    return activeJoints > 0
 end
 
 -- ============================================================================
 -- GET COUNTS
 -- ============================================================================
 function TIV.Anchor.GetCounts(data)
-    local counts = { total = 0, ballsockets = 0, anchors = 0, nocollide = 0 }
+    local counts = { total = 0, ballsockets = 0, anchors = 0, nocollide = 0, dampeners = 0 }
     if not data.constraints then return counts end
     for _, conData in ipairs(data.constraints) do
         if IsValid(conData.constraint) then
             counts.total = counts.total + 1
             if     conData.type == "ballsocket"        then counts.ballsockets = counts.ballsockets + 1
-            elseif conData.type == "anchor_ballsocket" then counts.anchors     = counts.anchors + 1
+            elseif conData.type == "anchor_latch" or conData.type == "anchor_ballsocket" then counts.anchors = counts.anchors + 1
+            elseif conData.type == "wire_dampener"     then counts.dampeners   = counts.dampeners + 1
             elseif conData.type == "nocollide"         then counts.nocollide   = counts.nocollide + 1
             end
         end
@@ -214,12 +273,17 @@ function TIV.Anchor.ForceDetach(veh, data)
     data.constraints = {}
     data.anchored    = false
 
-    -- Previously left vehicle gravity disabled after ForceDetach (because
-    -- UnfreezeForDeploy turned it off). Restore it here so the vehicle falls.
+    if IsValid(data.lowerConstraint) then
+        data.lowerConstraint:Remove()
+        data.lowerConstraint = nil
+    end
+
     if IsValid(veh) then
         local phys = veh:GetPhysicsObject()
         if IsValid(phys) then
             phys:EnableGravity(true)
+            phys:EnableMotion(true)
+            phys:Wake()
         end
     end
 end
