@@ -15,7 +15,7 @@ This major release introduces a full career progression system, an interactive i
 2. [Interactive 3D Interceptor Configuration Editor](#2-interactive-3d-interceptor-configuration-editor)
 3. [Physical Armor Plating & Debris Deflection](#3-physical-armor-plating--debris-deflection)
 4. [Dynamic Angled Spike Mechanics & Vector Trajectory](#4-dynamic-angled-spike-mechanics--vector-trajectory)
-5. [Storm Aerodynamics & Staged Anchor Lofting](#5-storm-aerodynamics--staged-anchor-lofting)
+5. [Clean 4-Stage Storm Aerodynamics & Windward Lofting](#5-clean-4-stage-storm-aerodynamics--windward-lofting)
 6. [GStorms & XTwisters 3 (XT3) Compatibility Engine](#6-gstorms--xtwisters-3-xt3-compatibility-engine)
 7. [Wiremod & Expression 2 (E2) APIs](#7-wiremod--expression-2-e2-apis)
 8. [Tactical Cockpit HUD & Instruments](#8-tactical-cockpit-hud--instruments)
@@ -112,23 +112,28 @@ This major release introduces a full career progression system, an interactive i
 
 ---
 
-### 5. Storm Aerodynamics & Staged Anchor Lofting
+### 5. Clean 4-Stage Storm Aerodynamics & Windward Lofting
 
-#### Staged Directional Anchor Shear Sequence
-1. **Mechanical Stress Calculation**:
-   - Stress evaluates real-time wind speed relative to the vehicle's structural limit (180+ MPH base, dynamically scaled by aerodynamic cowls and armor upgrades).
-   - Dynamic metal groaning and strain audio play as stress rises, warning the crew before anchor failure.
-2. **Sequential Anchor Failure**:
-   - In winds exceeding the threshold, anchors fail sequentially in timed mechanical stages: **Rear -> Mid -> Front**.
-   - Spikes play metallic break sounds, throw spark bursts, and dislodge cleanly.
-3. **Trigger Loft Event**:
-   - When all anchors are severed or anchor integrity is lost, full lofting is triggered immediately.
-   - All remaining vehicle constraints are detached, gravity and motion are restored, and the vehicle is hurled into the air by upward loft force and randomized aerodynamic tumble torque.
-   - An automated 15-second recovery timer resets vehicle systems back to idle once the vehicle returns to earth.
+#### Stage 1: Rock-Solid Ground Planting
+- **Zero Artificial Chassis Forces**: When fully anchored, all external wind push forces and artificial rocking torques are completely disabled.
+- **No Physics Solver Fighting**: Eliminates constraint twitching, rubber-banding, or chassis creeping against ground balljoints.
+- **Dynamic Cockpit Stress Audio & Rumble**: Intense storm forces are conveyed realistically through interior screen rumbling (`util.ScreenShake`) and directional metal groan audio without displacing the physical vehicle.
 
-#### Anchor Guard & Integrity Defense
-- Automatic integrity monitor guards against external tornado mod unwelding scripts (such as GStorms or XT3 prop-unweld routines).
-- Prevents premature detachment and maintains true vehicle-to-ground anchoring stability until structural limits are exceeded.
+#### Stage 2: Sequential Windward Anchor Shear & Natural Tipping
+- **Relative Wind Vector Calculation**: The addon calculates the incoming wind angle relative to the vehicle chassis to determine windward vs. leeward exposure.
+- **Windward-First Failure Sequence**: Anchors on the windward side (under maximum aerodynamic tension) snap first, progressing sequentially toward the leeward side in timed waves.
+- **Physical Tipping via Leeward Pivot**: When windward anchors break, gravity is enabled, and lateral wind force naturally tips the vehicle over its intact leeward ground anchors like a real hinge.
+- **Permanent Failure Flagging**: Failed spikes are marked (`sd.failed = true`) so the Anchor Guard never rebuilds constraints to sheared pins, completely preventing the mid-air anchor trap.
+
+#### Stage 3: Clean Single-Impulse Loft
+- **Instant Clean Severance**: The instant all anchors fail or integrity is lost, `TIV.Anchor.ForceDetach` and `constraint.RemoveAll(veh)` sever every constraint tethering the vehicle to the ground.
+- **Single Initial Launch Impulse**: Vehicle receives a single initial upward and downwind impulse with randomized aerodynamic tumble torque.
+- **Natural Gravity & Storm Flight**: No artificial continuous upward force loops. Airborne flight is governed purely by Source Engine gravity and native storm mod physics (GStorms / XT3). When the tornado passes, gravity naturally returns the vehicle to earth.
+- **Automatic Post-Loft Reset**: A 15-second safety timer settles the vehicle, mounts fresh spikes, and returns the state machine to idle.
+
+#### Stage 4: Extreme Vortex Armor Tearing
+- Under extreme vortex winds (> 210 MPH EF4/EF5 core), physical welds on armor plates can shear.
+- Detached panels emit metallic screeches and spark showers, flying downwind as hazardous physical debris.
 
 ---
 
