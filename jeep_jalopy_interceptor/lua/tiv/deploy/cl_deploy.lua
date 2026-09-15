@@ -95,9 +95,7 @@ net.Receive("TIV_DeployStatus", function()
         local lp = LocalPlayer()
         if IsValid(lp) and lp:GetPos():DistToSqr(veh:GetPos()) < 1500 * 1500 then
             -- Positional via EmitSound on the entity
-            if state == "stabilizing" then
-                veh:EmitSound("tiv2sounds/tiv2frontpanel.wav", 70, 100, 0.6)
-            elseif state == "lowering" or state == "raising" then
+            if state == "lowering" or state == "raising" then
                 veh:EmitSound("tiv2sounds/tiv2drop-wav.wav", 70, 100, 0.6)
             elseif state == "deploying_spikes" or state == "retracting" then
                 local spikeCount = TIV.Instruments and TIV.Instruments.Data
@@ -111,9 +109,7 @@ net.Receive("TIV_DeployStatus", function()
     end
 
     -- Local player: full-volume 2D cockpit sounds.
-    if state == "stabilizing" then
-        surface.PlaySound("tiv2sounds/tiv2frontpanel.wav")
-    elseif state == "lowering" then
+    if state == "lowering" then
         surface.PlaySound("tiv2sounds/tiv2drop-wav.wav")
     elseif state == "deploying_spikes" then
         local spikeCount = TIV.Instruments and TIV.Instruments.Data

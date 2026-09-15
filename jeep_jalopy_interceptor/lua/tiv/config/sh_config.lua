@@ -26,10 +26,6 @@ TIV.Config.LoftWindMin = 50
 
 -- DEPLOYMENT
 TIV.Config.DeployKey            = KEY_B
-TIV.Config.StabilizeTime        = 0.6
-TIV.Config.MaxStabilizeSlope    = 45
-TIV.Config.SkirtGroundBuffer    = 1.2
-TIV.Config.MaxSuspensionTravel  = 10.0
 TIV.Config.LowerTime            = 3
 TIV.Config.SpikeCount           = 6
 TIV.Config.LowerAmount          = 10

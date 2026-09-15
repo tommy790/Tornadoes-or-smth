@@ -77,9 +77,9 @@ TIV.Wire.Inputs = {
 
 TIV.Wire.Outputs = {
     -- Deployment state
-    { name = "State",             type = "STRING", desc = "Current deployment state (idle, stabilizing, lowering, deploying_spikes, anchored, retracting, raising, lofted)" },
+    { name = "State",             type = "STRING", desc = "Current deployment state (idle, lowering, deploying_spikes, anchored, retracting, raising, lofted)" },
     { name = "IsDeployed",        type = "NORMAL", desc = "1 if vehicle is fully anchored and deployed, 0 otherwise" },
-    { name = "IsDeploying",       type = "NORMAL", desc = "1 if currently in deploy sequence (stabilizing, lowering, or deploying spikes), 0 otherwise" },
+    { name = "IsDeploying",       type = "NORMAL", desc = "1 if currently in deploy sequence (lowering or deploying spikes), 0 otherwise" },
     { name = "IsRetracting",      type = "NORMAL", desc = "1 if currently in retract sequence (retracting spikes or raising), 0 otherwise" },
     { name = "IsAnchored",        type = "NORMAL", desc = "1 if anchored, 0 otherwise" },
     { name = "IsIdle",            type = "NORMAL", desc = "1 if completely idle and ready for deploy, 0 otherwise" },
@@ -435,7 +435,7 @@ function TIV.Wire.UpdateOutputs(veh)
     -- State flags
     local state        = data.state or "idle"
     local isDeployed   = (state == "anchored") and 1 or 0
-    local isDeploying  = (state == "stabilizing" or state == "lowering" or state == "deploying_spikes") and 1 or 0
+    local isDeploying  = (state == "lowering" or state == "deploying_spikes") and 1 or 0
     local isRetracting = (state == "retracting" or state == "raising") and 1 or 0
     local isAnchored   = (state == "anchored") and 1 or 0
     local isIdle       = (state == "idle") and 1 or 0

@@ -7,7 +7,6 @@ TIV.HUD = TIV.HUD or {}
 -- Added "raising" state (was missing from both color and name tables).
 local STATE_COLORS = {
     idle             = Color(100, 255, 100),
-    stabilizing      = Color(180, 220, 255),
     lowering         = Color(255, 255, 100),
     deploying_spikes = Color(255, 150, 50),
     anchored         = Color(50, 200, 255),
@@ -18,7 +17,6 @@ local STATE_COLORS = {
 
 local APC_STATE_COLORS = {
     idle             = Color(120, 160, 90),    -- desat green
-    stabilizing      = Color(140, 180, 220),   -- cool blue
     lowering         = Color(220, 190, 60),    -- gold
     deploying_spikes = Color(230, 140, 40),    -- amber
     anchored         = Color(80, 140, 220),    -- steel blue
@@ -29,7 +27,6 @@ local APC_STATE_COLORS = {
 
 local STATE_NAMES = {
     idle             = "IDLE - MOBILE",
-    stabilizing      = "STABILIZING...",
     lowering         = "LOWERING...",
     deploying_spikes = "DEPLOYING SPIKES...",
     anchored         = "ANCHORED",
@@ -355,7 +352,7 @@ hook.Add("HUDPaint", "TIV_DrawHUD", function()
     elseif state == "deploying_spikes" then
         draw.SimpleText("DRIVING INTO GROUND...", "DermaDefault",
             panelX + panelW / 2, y, Color(255, 150, 50), TEXT_ALIGN_CENTER)
-    elseif state == "stabilizing" or state == "lowering" or state == "raising" or state == "retracting" then
+    elseif state == "lowering" or state == "raising" or state == "retracting" then
         draw.SimpleText("PLEASE WAIT...", "DermaDefault",
             panelX + panelW / 2, y, Color(200, 200, 100), TEXT_ALIGN_CENTER)
     elseif state == "lofted" then
