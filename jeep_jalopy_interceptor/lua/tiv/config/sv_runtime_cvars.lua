@@ -173,6 +173,13 @@ CreateConVar(
     "Hide the physical model of the auto-attached Wiremod controller."
 )
 
+CreateConVar(
+    "tiv_suspension_limit",
+    "0",
+    { FCVAR_ARCHIVE, FCVAR_REPLICATED },
+    "Override suspension lowering distance in units (0 = automatic based on vehicle suspension limit)."
+)
+
 -- Real bug fix: callbacks had `*,*` paste artifacts (function(_, _, _) is correct).
 cvars.AddChangeCallback("tiv_spike_count", function(_, old, new)
     applyRuntimeSpikeConfig()

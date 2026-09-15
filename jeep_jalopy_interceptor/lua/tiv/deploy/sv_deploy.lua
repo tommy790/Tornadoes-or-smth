@@ -192,6 +192,54 @@ function TIV.Deploy.HandleInput(ply, veh)
 end
 
 -- ============================================================================
+-- SUSPENSION LIMIT
+-- Determines the maximum distance the chassis can lower before bottoming out,
+-- preventing the wheels from clipping into the terrain.
+-- ============================================================================
+function TIV.Deploy.GetSuspensionLimit(veh)
+    if not IsValid(veh) then return TIV.Config.LowerAmount or 4.8 end
+
+    local cvar = GetConVar("tiv_suspension_limit")
+    if cvar then
+        local override = cvar:GetFloat()
+        if override > 0 then
+            return override
+        end
+    end
+
+    -- Query vehicle engine wheel spring base height if available
+    if isfunction(veh.GetWheelCount) and isfunction(veh.GetWheelBaseHeight) then
+        local count = veh:GetWheelCount()
+        if count and count > 0 then
+            local minHeight = 999
+            for i = 0, count - 1 do
+                local h = veh:GetWheelBaseHeight(i)
+                if isnumber(h) and h > 0.5 and h < minHeight then
+                    minHeight = h
+                end
+            end
+            if minHeight < 999 then
+                -- Base spring travel minus a safety margin so tires never penetrate terrain
+                return math.Clamp(minHeight - 0.4, 1.5, 6.0)
+            end
+        end
+    end
+
+    -- Model / class specific limits from config
+    local class = string.lower(veh:GetClass() or "")
+    local model = string.lower(veh:GetModel() or "")
+
+    local limits = TIV.Config.SuspensionLimits or {}
+    if class == "prop_vehicle_jalopy" or string.find(model, "jalopy", 1, true) then
+        return limits.jalopy or 4.2
+    elseif class == "prop_vehicle_apc" or string.find(model, "apc", 1, true) then
+        return limits.apc or 5.0
+    end
+
+    return limits.jeep or TIV.Config.LowerAmount or 4.8
+end
+
+-- ============================================================================
 -- DEPLOY
 -- ============================================================================
 function TIV.Deploy.StartDeploy(ply, veh)
@@ -211,6 +259,9 @@ function TIV.Deploy.StartDeploy(ply, veh)
         end
     end
 
+    local lowerLimit = TIV.Deploy.GetSuspensionLimit(veh)
+    data.lowerAmount = lowerLimit
+
     data.state           = "lowering"
     data.originalPos     = veh:GetPos()
     data.gravityReleased = false
@@ -223,7 +274,7 @@ function TIV.Deploy.StartDeploy(ply, veh)
     end
 
     local startPos    = veh:GetPos()
-    local endPos      = startPos - Vector(0, 0, TIV.Config.LowerAmount)
+    local endPos      = startPos - Vector(0, 0, lowerLimit)
     local startTime   = CurTime()
     -- Keep EntIndex-based timer name (sessionID may be nil if EnsureSpikes
     -- hasn't built spikes yet, e.g. 0-spike mode without prior deploy).
@@ -322,8 +373,11 @@ function TIV.Deploy.RaiseVehicle(ply, veh)
     data.state       = "raising"
     TIV.Deploy.BroadcastState(veh, "raising")
 
+    local raiseDist  = data.lowerAmount or TIV.Deploy.GetSuspensionLimit(veh)
     local curPos     = veh:GetPos()
-    local endPos     = curPos + Vector(0, 0, TIV.Config.LowerAmount)
+    local endPos     = (data.originalPos and data.originalPos:DistToSqr(curPos) < 100)
+        and data.originalPos
+        or (curPos + Vector(0, 0, raiseDist))
     local startTime  = CurTime()
     local timerName  = "TIV_Raise_" .. veh:EntIndex()
 

@@ -74,6 +74,15 @@ hook.Add("PopulateToolMenu", "TIV_AddSettingsPanel", function()
 
             panel:CheckBox("Hide Wire Controller Model", "tiv_wire_hide_controller")
                 :SetTooltip("Hides the physical model of the auto-attached Wire controller.")
+
+            panel:Help("Suspension Lowering:")
+            panel:NumSlider(
+                "Suspension Limit (0=Auto)",
+                "tiv_suspension_limit",
+                0,
+                10,
+                1
+            ):SetTooltip("Override suspension lowering limit in units. Set to 0 to automatically use the vehicle suspension compression limit.")
         end
     )
 end)
