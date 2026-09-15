@@ -182,18 +182,45 @@ function TIV.Progression.PurchaseUpgrade(ply, upgradeID)
     print(string.format("[TIV] %s unlocked upgrade: %s (Spent %d Intercepts, Balance: %d)",
         ply:Nick(), upgrade.name, upgrade.cost, profile.current_intercepts))
 
-    -- Re-evaluate vehicle bonuses if in a vehicle
-    local veh = TIV.Deploy and TIV.Deploy.ResolveVehicle and TIV.Deploy.ResolveVehicle(ply)
-    if IsValid(veh) then
-        if TIV.CustomComponents and TIV.CustomComponents.ApplyVehicleBonuses then
-            TIV.CustomComponents.ApplyVehicleBonuses(veh)
-        end
-        if TIV.Wire and TIV.Wire.UpdateOutputs then
-            TIV.Wire.UpdateOutputs(veh)
-        end
-    end
+    -- Re-evaluate vehicle bonuses, armor panels, and angled spikes
+    TIV.Progression.UpdatePlayerVehicles(ply, upgradeID)
 
     return true, "Upgrade unlocked successfully!"
+end
+
+function TIV.Progression.UpdatePlayerVehicles(ply, upgradeID)
+    if not IsValid(ply) then return end
+    for _, veh in ipairs(ents.FindByClass("prop_vehicle_*")) do
+        if TIV.IsSupportedVehicle(veh) then
+            local isOwner = (veh._TIVOwner == ply) or (veh:GetDriver() == ply)
+                or (veh.CPPIGetOwner and veh:CPPIGetOwner() == ply)
+                or game.SinglePlayer()
+            if isOwner then
+                veh._TIVOwner = ply
+                veh._TIVArmorNeedsRebuild = true
+                if TIV.CustomComponents and TIV.CustomComponents.EnsureArmor then
+                    TIV.CustomComponents.EnsureArmor(veh, ply)
+                end
+                if TIV.CustomComponents and TIV.CustomComponents.ApplyVehicleBonuses then
+                    TIV.CustomComponents.ApplyVehicleBonuses(veh)
+                end
+                if TIV.Wire and TIV.Wire.UpdateOutputs then
+                    TIV.Wire.UpdateOutputs(veh)
+                end
+
+                -- If angled spikes or all upgrades unlocked, rebuild spikes if vehicle is idle
+                if upgradeID == "angled_spikes" or upgradeID == nil then
+                    local data = TIV.Deploy and TIV.Deploy.GetState and TIV.Deploy.GetState(veh)
+                    if data and data.state == "idle" then
+                        TIV.Anchor.DetachAll(veh, data)
+                        TIV.Spikes.RemoveAll(data, veh:EntIndex())
+                        data.spikesCreated = false
+                        TIV.Deploy.EnsureSpikes(veh, data)
+                    end
+                end
+            end
+        end
+    end
 end
 
 net.Receive("TIV_PurchaseUpgrade", function(len, ply)
@@ -230,15 +257,7 @@ net.Receive("TIV_CheatAction", function(len, ply)
         TIV.Progression.SyncToPlayer(ply)
         ply:ChatPrint("[TIV Cheat] All upgrades have been unlocked!")
 
-        local veh = TIV.Deploy and TIV.Deploy.ResolveVehicle and TIV.Deploy.ResolveVehicle(ply)
-        if IsValid(veh) then
-            if TIV.CustomComponents and TIV.CustomComponents.ApplyVehicleBonuses then
-                TIV.CustomComponents.ApplyVehicleBonuses(veh)
-            end
-            if TIV.Wire and TIV.Wire.UpdateOutputs then
-                TIV.Wire.UpdateOutputs(veh)
-            end
-        end
+        TIV.Progression.UpdatePlayerVehicles(ply, nil)
     elseif action == "add_points" or action == "add_points_10" or action == "add_points_50" then
         local amt = (arg and arg > 0) and arg or (action == "add_points_50" and 50 or 10)
         TIV.Progression.AwardIntercepts(ply, amt, "Cheat Sandbox Grant (+" .. amt .. ")")
@@ -249,6 +268,8 @@ net.Receive("TIV_CheatAction", function(len, ply)
         TIV.Progression.SavePlayerProfile(ply)
         TIV.Progression.SyncToPlayer(ply)
         ply:ChatPrint("[TIV Cheat] Progression and upgrades reset.")
+
+        TIV.Progression.UpdatePlayerVehicles(ply, nil)
     end
 end)
 
@@ -265,6 +286,8 @@ concommand.Add("tiv_unlock_all", function(ply)
             TIV.Progression.SavePlayerProfile(ply)
             TIV.Progression.SyncToPlayer(ply)
             ply:ChatPrint("[TIV] All upgrades unlocked via console command.")
+
+            TIV.Progression.UpdatePlayerVehicles(ply, nil)
         end
     end
 end)
@@ -366,6 +389,10 @@ hook.Add("PlayerEnteredVehicle", "TIV_ProgressionEnter", function(ply, veh)
     local tivVeh = TIV.Deploy and TIV.Deploy.ResolveVehicle and TIV.Deploy.ResolveVehicle(ply)
     if IsValid(tivVeh) then
         TIV.Progression.SyncToPlayer(ply)
+        tivVeh._TIVOwner = ply
+        if TIV.CustomComponents and TIV.CustomComponents.EnsureArmor then
+            TIV.CustomComponents.EnsureArmor(tivVeh, ply)
+        end
         if TIV.CustomComponents and TIV.CustomComponents.ApplyVehicleBonuses then
             TIV.CustomComponents.ApplyVehicleBonuses(tivVeh)
         end

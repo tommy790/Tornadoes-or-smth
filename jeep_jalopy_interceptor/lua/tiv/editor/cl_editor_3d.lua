@@ -40,6 +40,20 @@ function TIV.Editor3D.LoadConfigFromFile(defaultModel)
                         end
                     end
                 end
+
+                -- Auto-apply angled spike preset if upgrade is active and spikes are at default 90 degrees
+                if TIV.Progression and TIV.Progression.IsUnlocked and TIV.Progression.IsUnlocked("angled_spikes") then
+                    for _, c in ipairs(decoded.components) do
+                        if c.type == "spike" and c.ang and math.abs(c.ang.p - 90) < 0.1 and math.abs(c.ang.y) < 0.1 and math.abs(c.ang.r) < 0.1 then
+                            if c.pos and c.pos.x > 0 then
+                                c.ang = Angle(80, 0, 0)
+                            elseif c.pos and c.pos.x < 0 then
+                                c.ang = Angle(-80, 0, 0)
+                            end
+                        end
+                    end
+                end
+
                 return decoded
             end
         end

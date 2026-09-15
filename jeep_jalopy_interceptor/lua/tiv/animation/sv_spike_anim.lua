@@ -179,10 +179,17 @@ function TIV.SpikeAnim.CreateSpikes(veh, data)
     if not IsValid(veh) then return end
 
     -- Check if player has unlocked angled_spikes
-    local driver = veh.GetDriver and veh:GetDriver() or nil
+    local ply = (veh.GetDriver and veh:GetDriver()) or veh._TIVOwner
+    if not IsValid(ply) and veh.CPPIGetOwner then
+        ply = veh:CPPIGetOwner()
+    end
+    if not IsValid(ply) and game.SinglePlayer() then
+        ply = player.GetHumans()[1] or Entity(1)
+    end
+
     local hasAngledUpg = false
-    if IsValid(driver) and TIV.Progression and TIV.Progression.GetPlayerProfile then
-        local prof = TIV.Progression.GetPlayerProfile(driver)
+    if IsValid(ply) and TIV.Progression and TIV.Progression.GetPlayerProfile then
+        local prof = TIV.Progression.GetPlayerProfile(ply)
         if prof and prof.unlocked_upgrades and prof.unlocked_upgrades["angled_spikes"] then
             hasAngledUpg = true
         end
@@ -190,9 +197,10 @@ function TIV.SpikeAnim.CreateSpikes(veh, data)
 
     -- Check if vehicle has custom configuration
     local customSpikes = nil
-    if veh._TIVConfig and istable(veh._TIVConfig.components) then
+    local config = veh._TIVConfig or (TIV.CustomConfig and TIV.CustomConfig.GetDefaultConfig and TIV.CustomConfig.GetDefaultConfig(veh:GetModel(), hasAngledUpg))
+    if config and istable(config.components) then
         customSpikes = {}
-        for _, comp in ipairs(veh._TIVConfig.components) do
+        for _, comp in ipairs(config.components) do
             if comp.type == "spike" then
                 table.insert(customSpikes, comp)
             end

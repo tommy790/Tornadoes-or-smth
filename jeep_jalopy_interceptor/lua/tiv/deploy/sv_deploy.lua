@@ -129,6 +129,10 @@ function TIV.Deploy.EnsureSpikes(veh, data)
         TIV.Wire.EnsureController(veh)
     end
 
+    if TIV.CustomComponents and TIV.CustomComponents.EnsureArmor then
+        TIV.CustomComponents.EnsureArmor(veh)
+    end
+
     if TIV.CustomComponents and TIV.CustomComponents.ApplyVehicleBonuses then
         TIV.CustomComponents.ApplyVehicleBonuses(veh)
     end

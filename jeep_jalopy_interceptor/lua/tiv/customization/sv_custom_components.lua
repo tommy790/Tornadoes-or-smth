@@ -46,6 +46,7 @@ function TIV.CustomComponents.SpawnArmorProps(veh, config, unlockedUpgrades)
 
     local hasSideUpgrade  = unlockedUpgrades["side_armor"] == true
     local hasFrontUpgrade = unlockedUpgrades["front_armor"] == true
+    local hasRoofUpgrade  = unlockedUpgrades["roof_spoiler"] == true
 
     for i, comp in ipairs(config.components) do
         local ctype = comp.type or ""
@@ -55,6 +56,7 @@ function TIV.CustomComponents.SpawnArmorProps(veh, config, unlockedUpgrades)
             local allowed = true
             if ctype == "armor_side" and not hasSideUpgrade then allowed = false end
             if ctype == "armor_front" and not hasFrontUpgrade then allowed = false end
+            if ctype == "armor_roof" and not hasRoofUpgrade then allowed = false end
 
             if allowed then
                 local model = comp.model or "models/props_phx/construct/metal_plate1x2.mdl"
@@ -75,12 +77,14 @@ function TIV.CustomComponents.SpawnArmorProps(veh, config, unlockedUpgrades)
                     prop:Spawn()
                     prop:Activate()
 
-                    prop:SetCollisionGroup(COLLISION_GROUP_WORLD)
+                    prop:SetCollisionGroup(COLLISION_GROUP_DEBRIS)
                     prop:SetCustomCollisionCheck(true)
                     prop:SetColor(Color(180, 185, 195, 255))
+                    prop:SetRenderMode(RENDERMODE_NORMAL)
 
                     local phys = prop:GetPhysicsObject()
                     if IsValid(phys) then
+                        phys:SetMass(100)
                         phys:EnableMotion(false)
                         phys:EnableGravity(false)
                     end
@@ -93,10 +97,18 @@ function TIV.CustomComponents.SpawnArmorProps(veh, config, unlockedUpgrades)
                     prop:SetLocalPos(localPos)
                     prop:SetLocalAngles(localAng)
 
-                    prop.IsTIVArmor      = true
-                    prop.PhysgunDisabled = true
-                    prop.DoNotDuplicate  = true
-                    prop.TIV_OwnerVehicle= veh
+                    prop:SetNWBool("TIV_Armor", true)
+                    if IsValid(veh) then prop:SetNWEntity("TIV_OwnerVehicle", veh) end
+                    prop:SetNWBool("GStormsIgnore", true)
+                    prop:SetNWBool("XT3Ignore", true)
+
+                    prop.IsTIVArmor           = true
+                    prop.GStormsIgnore        = true
+                    prop.XT3Ignore            = true
+                    prop.XT3DoNotApplyPhysics = true
+                    prop.PhysgunDisabled      = true
+                    prop.DoNotDuplicate       = true
+                    prop.TIV_OwnerVehicle     = veh
 
                     table.insert(spawnedProps, prop)
                 end
@@ -106,6 +118,65 @@ function TIV.CustomComponents.SpawnArmorProps(veh, config, unlockedUpgrades)
 
     TIV.CustomComponents.VehicleArmor[entIdx] = spawnedProps
     veh._TIVArmorProps = spawnedProps
+end
+
+-- ============================================================================
+-- ENSURE ARMOR PANELS ARE MOUNTED FOR VEHICLE & OWNER
+-- ============================================================================
+function TIV.CustomComponents.EnsureArmor(veh, ply)
+    if not IsValid(veh) or not TIV.IsSupportedVehicle(veh) then return end
+
+    if not IsValid(ply) then
+        ply = (veh.GetDriver and veh:GetDriver()) or veh._TIVOwner
+        if not IsValid(ply) and veh.CPPIGetOwner then
+            ply = veh:CPPIGetOwner()
+        end
+        if not IsValid(ply) and game.SinglePlayer() then
+            ply = player.GetHumans()[1] or Entity(1)
+        end
+    end
+
+    if not IsValid(ply) then return end
+    veh._TIVOwner = ply
+
+    local profile = TIV.Progression.GetPlayerProfile(ply)
+    local unlocked = profile and profile.unlocked_upgrades or {}
+
+    local hasSideUpgrade  = (unlocked["side_armor"] == true)
+    local hasFrontUpgrade = (unlocked["front_armor"] == true)
+    local hasRoofUpgrade  = (unlocked["roof_spoiler"] == true)
+    local hasAnyArmor     = hasSideUpgrade or hasFrontUpgrade or hasRoofUpgrade
+
+    local existingProps = TIV.CustomComponents.VehicleArmor[veh:EntIndex()] or veh._TIVArmorProps or {}
+    local validProps = 0
+    for _, p in ipairs(existingProps) do
+        if IsValid(p) then validProps = validProps + 1 end
+    end
+
+    if not hasAnyArmor then
+        if validProps > 0 then
+            TIV.CustomComponents.RemoveArmorProps(veh)
+            TIV.CustomComponents.ApplyVehicleBonuses(veh)
+        end
+        return
+    end
+
+    local config = veh._TIVConfig or TIV.CustomConfig.GetDefaultConfig(veh:GetModel(), unlocked["angled_spikes"] == true)
+    local desiredCount = 0
+    for _, comp in ipairs(config.components or {}) do
+        local ctype = comp.type or ""
+        if (ctype == "armor_side" and hasSideUpgrade)
+           or (ctype == "armor_front" and hasFrontUpgrade)
+           or (ctype == "armor_roof" and hasRoofUpgrade) then
+            desiredCount = desiredCount + 1
+        end
+    end
+
+    if validProps ~= desiredCount or veh._TIVArmorNeedsRebuild then
+        veh._TIVArmorNeedsRebuild = nil
+        TIV.CustomComponents.SpawnArmorProps(veh, config, unlocked)
+        TIV.CustomComponents.ApplyVehicleBonuses(veh)
+    end
 end
 
 -- ============================================================================
@@ -221,8 +292,37 @@ hook.Add("EntityTakeDamage", "TIV_ArmorDamageReduction", function(target, dmginf
 end)
 
 -- ============================================================================
--- VEHICLE CLEANUP
+-- VEHICLE LIFECYCLE HOOKS
 -- ============================================================================
+hook.Add("PlayerSpawnedVehicle", "TIV_CustomComponents_Spawn", function(ply, veh)
+    if IsValid(veh) and TIV.IsSupportedVehicle(veh) then
+        veh._TIVOwner = ply
+        timer.Simple(0.1, function()
+            if IsValid(veh) and IsValid(ply) then
+                if TIV.CustomComponents and TIV.CustomComponents.EnsureArmor then
+                    TIV.CustomComponents.EnsureArmor(veh, ply)
+                end
+            end
+        end)
+    end
+end)
+
+hook.Add("PlayerEnteredVehicle", "TIV_CustomComponents_Enter", function(ply, veh)
+    local tivVeh = (TIV.Deploy and TIV.Deploy.ResolveVehicle and TIV.Deploy.ResolveVehicle(ply)) or veh
+    if IsValid(tivVeh) and TIV.IsSupportedVehicle(tivVeh) then
+        tivVeh._TIVOwner = ply
+        if TIV.CustomComponents and TIV.CustomComponents.EnsureArmor then
+            TIV.CustomComponents.EnsureArmor(tivVeh, ply)
+        end
+    end
+end)
+
+hook.Add("EntityRemoved", "TIV_CustomComponents_EntityRemoved", function(ent)
+    if IsValid(ent) and TIV.IsSupportedVehicle(ent) then
+        TIV.CustomComponents.RemoveArmorProps(ent)
+    end
+end)
+
 hook.Add("TIV_VehicleRemoved", "TIV_CustomComponentsCleanup", function(veh)
     if IsValid(veh) then
         TIV.CustomComponents.RemoveArmorProps(veh)
