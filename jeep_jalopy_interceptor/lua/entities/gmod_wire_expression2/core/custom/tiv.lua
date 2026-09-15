@@ -55,7 +55,7 @@ e2function number entity:tivStress()
     local data = TIV.Deploy and TIV.Deploy.GetState and TIV.Deploy.GetState(this)
     if not data or data.state ~= "anchored" then return 0 end
     local spd = TIV.Wind and TIV.Wind.GetSpeed and TIV.Wind.GetSpeed(this) or 0
-    return TIV.Loft.CalculateStress(spd)
+    return TIV.Loft.CalculateStress(spd, this)
 end
 
 --- Returns the total number of installed spikes on <this> TIV
@@ -156,6 +156,16 @@ e2function number entity:tivReset()
     if TIV.Wire and TIV.Wire.Reset then
         TIV.Wire.Reset(this)
         return 1
+    end
+    return 0
+end
+
+--- Activates hydraulic self-righting rollover recovery on <this> TIV
+e2function number entity:tivRecover()
+    if not IsValid(this) or not TIV or not TIV.IsSupportedVehicle or not TIV.IsSupportedVehicle(this) then return 0 end
+    if not isOwner(self, this) then return self:throw("You do not own this TIV!", 0) end
+    if TIV.Loft and TIV.Loft.SelfRightVehicle then
+        return TIV.Loft.SelfRightVehicle(this, self.player) and 1 or 0
     end
     return 0
 end

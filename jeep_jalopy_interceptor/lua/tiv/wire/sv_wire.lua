@@ -68,6 +68,7 @@ TIV.Wire.Inputs = {
     { name = "ToggleDeploy",   type = "NORMAL", desc = "Toggle between Deploy and Retract on rising edge" },
     { name = "EmergencyStop",  type = "NORMAL", desc = "Emergency stop/abort active sequence and safely recover vehicle to idle" },
     { name = "Reset",          type = "NORMAL", desc = "Emergency reset vehicle systems and recreate spikes to fresh idle state" },
+    { name = "Recover",        type = "NORMAL", desc = "Activate hydraulic rollover recovery to self-right overturned vehicle when > 0" },
     { name = "Enable",         type = "NORMAL", desc = "Enable Wire deployment control (1 = enabled, 0 = locked/disabled)" },
     { name = "ManualWind",     type = "NORMAL", desc = "Override wind simulation with manual values (1 = manual, 0 = auto)" },
     { name = "WindSpeed",      type = "NORMAL", desc = "Manual wind speed in MPH (when ManualWind is active)" },
@@ -83,6 +84,7 @@ TIV.Wire.Outputs = {
     { name = "IsRetracting",      type = "NORMAL", desc = "1 if currently in retract sequence (retracting spikes or raising), 0 otherwise" },
     { name = "IsAnchored",        type = "NORMAL", desc = "1 if anchored, 0 otherwise" },
     { name = "IsIdle",            type = "NORMAL", desc = "1 if completely idle and ready for deploy, 0 otherwise" },
+    { name = "IsOverturned",      type = "NORMAL", desc = "1 if vehicle is rolled over or upside down, 0 otherwise" },
 
     -- Vehicle telemetry
     { name = "Speed",             type = "NORMAL", desc = "Vehicle ground speed in MPH" },
@@ -392,6 +394,10 @@ function TIV.Wire.HandleInput(sourceEnt, iname, value, veh)
         if value > 0 and prevVal <= 0 then
             TIV.Wire.Reset(veh)
         end
+    elseif iname == "Recover" then
+        if value > 0 and prevVal <= 0 then
+            TIV.Loft.PerformRolloverRecovery(veh, ply)
+        end
     end
 end
 
@@ -455,6 +461,7 @@ function TIV.Wire.UpdateOutputs(veh)
     local isAnchored   = (state == "anchored") and 1 or 0
     local isIdle       = (state == "idle") and 1 or 0
     local isLofted     = (state == "lofted") and 1 or 0
+    local isOverturned = (TIV.Loft and TIV.Loft.IsOverturned and TIV.Loft.IsOverturned(veh)) and 1 or 0
 
     -- Spikes & constraints
     local counts       = TIV.Anchor.GetCounts(data)
@@ -478,7 +485,7 @@ function TIV.Wire.UpdateOutputs(veh)
     end
 
     -- Stress & loft risk
-    local stress = (isAnchored == 1) and TIV.Loft.CalculateStress(windSpeed) or 0
+    local stress = (isAnchored == 1) and (TIV.Loft and TIV.Loft.CalculateStress and TIV.Loft.CalculateStress(windSpeed, veh) or 0) or 0
     local loftRisk = ((isAnchored == 1) and (stress >= 0.7 or windSpeed >= (TIV.Config.LoftWindThreshold or 160))) and 1 or 0
 
     -- Failure warnings
@@ -498,6 +505,7 @@ function TIV.Wire.UpdateOutputs(veh)
         trigger(target, "IsRetracting", isRetracting)
         trigger(target, "IsAnchored", isAnchored)
         trigger(target, "IsIdle", isIdle)
+        trigger(target, "IsOverturned", isOverturned)
 
         trigger(target, "Speed", speed)
         trigger(target, "Altitude", altitude)

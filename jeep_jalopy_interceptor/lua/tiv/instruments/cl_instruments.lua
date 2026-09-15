@@ -73,7 +73,8 @@ net.Receive("TIV_AnchorWarning", function()
 
     -- Distance-gated so a chase 2km away doesn't hear it.
     local pos = veh:GetPos()
-    if LocalPlayer():GetPos():DistToSqr(pos) < 1500 * 1500 then
+    local lp  = LocalPlayer()
+    if IsValid(lp) and lp:GetPos():DistToSqr(pos) < 1500 * 1500 then
         surface.PlaySound("physics/metal/metal_box_break1.wav")
     end
 
