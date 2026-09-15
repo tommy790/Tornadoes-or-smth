@@ -247,6 +247,78 @@ end
 hook.Add("PopulateToolMenu", "TIV_PopulateFullSettingsMenu", function()
 
     -- ------------------------------------------------------------------------
+    -- 0. 3D CUSTOMIZER TAB
+    -- ------------------------------------------------------------------------
+    spawnmenu.AddToolMenuOption("Utilities", "TIV", "TIV_Menu_Customizer", "3D Vehicle Customizer", "", "", function(panel)
+        panel:ClearControls()
+
+        local title = panel:Help("3D Interceptor Customizer")
+        title:SetFont("DermaDefaultBold")
+        panel:Help("Visually configure armor plates, front deflector cowls, and ground anchor spikes in full 3D. Positions and angles are calculated strictly in vehicle-local coordinates.")
+
+        local editBtn = vgui.Create("DButton", panel)
+        editBtn:SetText("OPEN 3D INTERCEPTOR EDITOR")
+        editBtn:SetTall(40)
+        editBtn:SetTextColor(Color(255, 255, 255))
+        editBtn.Paint = function(self, w, h)
+            draw.RoundedBox(6, 0, 0, w, h, self:IsHovered() and Color(240, 170, 30) or Color(200, 130, 20))
+        end
+        editBtn.DoClick = function()
+            if TIV.Editor3D and TIV.Editor3D.Open then
+                TIV.Editor3D.Open()
+            end
+        end
+        panel:AddItem(editBtn)
+
+        local copyBtn = vgui.Create("DButton", panel)
+        copyBtn:SetText("COPY ACTIVE CONFIGURATION")
+        copyBtn:SetTall(32)
+        copyBtn:SetTextColor(Color(255, 255, 255))
+        copyBtn.Paint = function(self, w, h)
+            draw.RoundedBox(4, 0, 0, w, h, self:IsHovered() and Color(35, 140, 95) or Color(28, 105, 75))
+        end
+        copyBtn.DoClick = function()
+            local cfg = (TIV.Editor3D and TIV.Editor3D.LoadConfigFromFile) and TIV.Editor3D.LoadConfigFromFile()
+                or TIV.CustomConfig.GetDefaultConfig("models/buggy.mdl")
+            local luaCode = TIV.CustomConfig.SerializeToLua(cfg)
+            SetClipboardText(luaCode)
+            Derma_Message("Vehicle configuration copied to clipboard in AI-friendly Lua format!", "Configuration Export", "OK")
+        end
+        panel:AddItem(copyBtn)
+
+        panel:Help("Coordinate Orientation: Forward (+Y), Right (+X), Up (+Z).")
+    end)
+
+    -- ------------------------------------------------------------------------
+    -- 0B. PROGRESSION & UPGRADES TAB
+    -- ------------------------------------------------------------------------
+    spawnmenu.AddToolMenuOption("Utilities", "TIV", "TIV_Menu_Progression", "Progression & Upgrades", "", "", function(panel)
+        panel:ClearControls()
+
+        local title = panel:Help("Interceptor Career & Upgrades")
+        title:SetFont("DermaDefaultBold")
+        panel:Help("Earn Intercept points by anchoring in severe storm winds (>= 70 MPH) and surviving violent tornado vortex cores.")
+
+        local shopBtn = vgui.Create("DButton", panel)
+        shopBtn:SetText("OPEN UPGRADE TREE")
+        shopBtn:SetTall(40)
+        shopBtn:SetTextColor(Color(255, 255, 255))
+        shopBtn.Paint = function(self, w, h)
+            draw.RoundedBox(6, 0, 0, w, h, self:IsHovered() and THEME.accent or THEME.accentDark)
+        end
+        shopBtn.DoClick = function()
+            if TIV.Progression and TIV.Progression.OpenUpgradeMenu then
+                TIV.Progression.OpenUpgradeMenu()
+            end
+        end
+        panel:AddItem(shopBtn)
+
+        local pCur = TIV.Progression and TIV.Progression.CurrentIntercepts or 0
+        local pTot = TIV.Progression and TIV.Progression.TotalIntercepts or 0
+        panel:Help(string.format("Spendable Intercepts: %d  |  Lifetime Intercepts: %d", pCur, pTot))
+    end)
+
+    -- ------------------------------------------------------------------------
     -- 1. PRESETS TAB
     -- ------------------------------------------------------------------------
     spawnmenu.AddToolMenuOption("Utilities", "TIV", "TIV_Menu_Presets", "Presets & Profiles", "", "", function(panel)
@@ -1198,6 +1270,110 @@ STEP 4: RETRACTION & RELOCATION
 
     -- Register sidebar tabs
     local t1 = AddSidebarTab("Quick Presets", BuildPresetsTab)
+    AddSidebarTab("3D Customizer", function(parent)
+        local pnl = vgui.Create("DPanel", parent)
+        pnl:Dock(FILL)
+        pnl.Paint = function() end
+
+        local title = vgui.Create("DLabel", pnl)
+        title:SetFont("DermaLarge")
+        title:SetTextColor(Color(255, 255, 255))
+        title:SetText("3D Interceptor Customizer")
+        title:Dock(TOP)
+        title:DockMargin(0, 0, 0, 10)
+
+        local desc = vgui.Create("DLabel", pnl)
+        desc:SetFont("DermaDefault")
+        desc:SetTextColor(THEME.textDim)
+        desc:SetText("Launch the full 3D visual workspace to position armor plates, cowls, and angled ground anchors directly on the vehicle in vehicle-local coordinates. Features instant AI-friendly configuration export and import.")
+        desc:SetWrap(true)
+        desc:SetAutoStretchVertical(true)
+        desc:Dock(TOP)
+        desc:DockMargin(0, 0, 0, 20)
+
+        local openBtn = vgui.Create("DButton", pnl)
+        openBtn:SetText("LAUNCH FULL 3D INTERCEPTOR EDITOR")
+        openBtn:SetTall(48)
+        openBtn:SetTextColor(Color(255, 255, 255))
+        openBtn:Dock(TOP)
+        openBtn:DockMargin(0, 0, 0, 15)
+        openBtn.Paint = function(s, w, h)
+            draw.RoundedBox(6, 0, 0, w, h, s:IsHovered() and Color(240, 170, 30) or Color(200, 130, 20))
+        end
+        openBtn.DoClick = function()
+            if TIV.Editor3D and TIV.Editor3D.Open then
+                TIV.Editor3D.Open()
+            end
+        end
+
+        local copyBtn = vgui.Create("DButton", pnl)
+        copyBtn:SetText("COPY ACTIVE CONFIGURATION")
+        copyBtn:SetTall(36)
+        copyBtn:SetTextColor(Color(255, 255, 255))
+        copyBtn:Dock(TOP)
+        copyBtn:DockMargin(0, 0, 0, 10)
+        copyBtn.Paint = function(s, w, h)
+            draw.RoundedBox(4, 0, 0, w, h, s:IsHovered() and Color(35, 140, 95) or Color(28, 105, 75))
+        end
+        copyBtn.DoClick = function()
+            local cfg = (TIV.Editor3D and TIV.Editor3D.LoadConfigFromFile) and TIV.Editor3D.LoadConfigFromFile()
+                or TIV.CustomConfig.GetDefaultConfig("models/buggy.mdl")
+            local luaCode = TIV.CustomConfig.SerializeToLua(cfg)
+            SetClipboardText(luaCode)
+            Derma_Message("Vehicle configuration copied to clipboard in AI-friendly Lua format!", "Configuration Export", "OK")
+        end
+
+        return pnl
+    end)
+
+    AddSidebarTab("Progression", function(parent)
+        local pnl = vgui.Create("DPanel", parent)
+        pnl:Dock(FILL)
+        pnl.Paint = function() end
+
+        local title = vgui.Create("DLabel", pnl)
+        title:SetFont("DermaLarge")
+        title:SetTextColor(Color(255, 255, 255))
+        title:SetText("Interceptor Progression & Upgrades")
+        title:Dock(TOP)
+        title:DockMargin(0, 0, 0, 10)
+
+        local desc = vgui.Create("DLabel", pnl)
+        desc:SetFont("DermaDefault")
+        desc:SetTextColor(THEME.textDim)
+        desc:SetText("Earn Intercept points by anchoring in active tornado wind fields (>= 70 MPH) and surviving violent core passes. Spend your Intercepts to unlock Angled Spikes, Side Armor, Front Deflectors, and Heavy Hydraulics.")
+        desc:SetWrap(true)
+        desc:SetAutoStretchVertical(true)
+        desc:Dock(TOP)
+        desc:DockMargin(0, 0, 0, 20)
+
+        local statsPanel = vgui.Create("DPanel", pnl)
+        statsPanel:SetTall(60)
+        statsPanel:Dock(TOP)
+        statsPanel:DockMargin(0, 0, 0, 20)
+        statsPanel.Paint = function(s, w, h)
+            draw.RoundedBox(6, 0, 0, w, h, THEME.panelBg)
+            draw.SimpleText("SPENDABLE: " .. tostring(TIV.Progression.CurrentIntercepts or 0) .. " PTS", "DermaDefaultBold", 20, 20, Color(240, 200, 50), TEXT_ALIGN_LEFT)
+            draw.SimpleText("CAREER TOTAL: " .. tostring(TIV.Progression.TotalIntercepts or 0), "DermaDefaultBold", 240, 20, Color(80, 200, 255), TEXT_ALIGN_LEFT)
+        end
+
+        local openShopBtn = vgui.Create("DButton", pnl)
+        openShopBtn:SetText("OPEN UPGRADE TREE")
+        openShopBtn:SetTall(42)
+        openShopBtn:SetTextColor(Color(255, 255, 255))
+        openShopBtn:Dock(TOP)
+        openShopBtn.Paint = function(s, w, h)
+            draw.RoundedBox(6, 0, 0, w, h, s:IsHovered() and THEME.accent or THEME.accentDark)
+        end
+        openShopBtn.DoClick = function()
+            if TIV.Progression and TIV.Progression.OpenUpgradeMenu then
+                TIV.Progression.OpenUpgradeMenu()
+            end
+        end
+
+        return pnl
+    end)
+
     AddSidebarTab("Spikes & Radar", BuildSpikesTab)
     AddSidebarTab("Suspension & Deploy", BuildSuspensionTab)
     AddSidebarTab("Storm & Wind", BuildWindTab)

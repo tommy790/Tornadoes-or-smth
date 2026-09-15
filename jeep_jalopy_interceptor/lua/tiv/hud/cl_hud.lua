@@ -161,6 +161,10 @@ hook.Add("HUDPaint", "TIV_DrawHUD", function()
     draw.SimpleText("* TIV INSTRUMENTS *", "DermaDefaultBold",
         panelX + panelW / 2, panelY + 8, Color(255, 255, 255), TEXT_ALIGN_CENTER)
 
+    local pts = TIV.Progression and TIV.Progression.CurrentIntercepts or 0
+    draw.SimpleText("PTS: " .. pts, "DermaDefaultBold",
+        panelX + panelW - 14, panelY + 8, Color(240, 200, 50), TEXT_ALIGN_RIGHT)
+
     local y     = panelY + 40
     local lineH = 22
     local lm    = panelX + 15

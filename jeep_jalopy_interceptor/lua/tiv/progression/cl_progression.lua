@@ -1,0 +1,276 @@
+-- ============================================================================
+-- TIV PROGRESSION & UPGRADE SYSTEM - Client
+-- Progression cache, animated HUD award notifications, and upgrade shop UI.
+-- ============================================================================
+
+TIV = TIV or {}
+TIV.Progression = TIV.Progression or {}
+
+TIV.Progression.CurrentIntercepts = TIV.Progression.CurrentIntercepts or 0
+TIV.Progression.TotalIntercepts   = TIV.Progression.TotalIntercepts   or 0
+TIV.Progression.UnlockedUpgrades  = TIV.Progression.UnlockedUpgrades  or {}
+
+-- HUD Toast Notification State
+local activeToast = nil
+
+-- ============================================================================
+-- NETWORK RECEIVERS
+-- ============================================================================
+net.Receive("TIV_SyncProgression", function()
+    TIV.Progression.CurrentIntercepts = net.ReadUInt(16)
+    TIV.Progression.TotalIntercepts   = net.ReadUInt(16)
+
+    local count = net.ReadUInt(8)
+    local unlocked = {}
+    for i = 1, count do
+        local id = net.ReadString()
+        unlocked[id] = true
+    end
+    TIV.Progression.UnlockedUpgrades = unlocked
+
+    hook.Run("TIV_ProgressionUpdated")
+end)
+
+net.Receive("TIV_InterceptAwarded", function()
+    local amount  = net.ReadUInt(8)
+    local current = net.ReadUInt(16)
+    local total   = net.ReadUInt(16)
+    local reason  = net.ReadString()
+
+    TIV.Progression.CurrentIntercepts = current
+    TIV.Progression.TotalIntercepts   = total
+
+    surface.PlaySound("garrysmod/save_load1.wav")
+
+    activeToast = {
+        amount    = amount,
+        reason    = reason,
+        current   = current,
+        total     = total,
+        startTime = CurTime(),
+        duration  = 5.5,
+    }
+
+    hook.Run("TIV_ProgressionUpdated")
+end)
+
+function TIV.Progression.IsUnlocked(id)
+    return TIV.Progression.UnlockedUpgrades[id] == true
+end
+
+function TIV.Progression.RequestSync()
+    net.Start("TIV_RequestProgression")
+    net.SendToServer()
+end
+
+-- ============================================================================
+-- HUD NOTIFICATION BANNER
+-- ============================================================================
+hook.Add("HUDPaint", "TIV_InterceptToastHUD", function()
+    if not activeToast then return end
+
+    local elapsed = CurTime() - activeToast.startTime
+    if elapsed > activeToast.duration then
+        activeToast = nil
+        return
+    end
+
+    local alpha = 255
+    if elapsed < 0.5 then
+        alpha = math.Clamp(elapsed / 0.5 * 255, 0, 255)
+    elseif elapsed > (activeToast.duration - 0.7) then
+        alpha = math.Clamp((activeToast.duration - elapsed) / 0.7 * 255, 0, 255)
+    end
+
+    local w, h = 420, 84
+    local x = (ScrW() - w) / 2
+    local y = 60
+
+    -- Background frame
+    draw.RoundedBox(6, x, y, w, h, Color(16, 20, 28, alpha * 0.95))
+    draw.RoundedBox(4, x + 2, y + 2, w - 4, h - 4, Color(24, 30, 42, alpha * 0.9))
+
+    -- Left accent indicator bar
+    draw.RoundedBox(3, x + 4, y + 4, 6, h - 8, Color(240, 180, 40, alpha))
+
+    -- Header text
+    draw.SimpleText("INTERCEPT LOGGED", "Trebuchet24", x + 22, y + 8, Color(240, 200, 50, alpha), TEXT_ALIGN_LEFT)
+    draw.SimpleText("+" .. activeToast.amount .. " POINT" .. (activeToast.amount > 1 and "S" or ""), "Trebuchet24", x + w - 16, y + 8, Color(80, 230, 100, alpha), TEXT_ALIGN_RIGHT)
+
+    -- Reason subtitle
+    draw.SimpleText(activeToast.reason, "DefaultFixedDropShadow", x + 22, y + 36, Color(220, 220, 220, alpha), TEXT_ALIGN_LEFT)
+
+    -- Footer balance
+    local balanceText = string.format("Spendable: %d pts  |  Lifetime Total: %d", activeToast.current, activeToast.total)
+    draw.SimpleText(balanceText, "DefaultFixedDropShadow", x + 22, y + 58, Color(160, 180, 210, alpha), TEXT_ALIGN_LEFT)
+end)
+
+-- ============================================================================
+-- UPGRADE SHOP WINDOW
+-- ============================================================================
+function TIV.Progression.OpenUpgradeMenu()
+    local frame = vgui.Create("DFrame")
+    frame:SetSize(780, 620)
+    frame:Center()
+    frame:SetTitle("")
+    frame:MakePopup()
+    frame:ShowCloseButton(false)
+
+    frame.Paint = function(s, w, h)
+        draw.RoundedBox(8, 0, 0, w, h, Color(20, 24, 32, 250))
+        draw.RoundedBox(6, 1, 1, w - 2, h - 2, Color(28, 34, 46, 255))
+        draw.RoundedBox(4, 2, 2, w - 4, 48, Color(16, 20, 28, 255))
+
+        draw.SimpleText("TIV PROGRESSION & UPGRADE TREE", "Trebuchet24", 16, 12, Color(240, 200, 60), TEXT_ALIGN_LEFT)
+    end
+
+    local closeBtn = vgui.Create("DButton", frame)
+    closeBtn:SetSize(36, 28)
+    closeBtn:SetPos(frame:GetWide() - 44, 10)
+    closeBtn:SetText("X")
+    closeBtn:SetTextColor(Color(200, 200, 200))
+    closeBtn.Paint = function(s, w, h)
+        local bg = s:IsHovered() and Color(200, 40, 40) or Color(50, 56, 70)
+        draw.RoundedBox(4, 0, 0, w, h, bg)
+    end
+    closeBtn.DoClick = function()
+        frame:Close()
+    end
+
+    -- Stats summary bar
+    local statsBar = vgui.Create("DPanel", frame)
+    statsBar:SetPos(16, 56)
+    statsBar:SetSize(frame:GetWide() - 32, 60)
+    statsBar.Paint = function(s, w, h)
+        draw.RoundedBox(6, 0, 0, w, h, Color(18, 22, 30, 255))
+
+        -- Stat 1: Current Intercepts
+        draw.SimpleText("SPENDABLE INTERCEPTS", "DermaDefaultBold", 20, 10, Color(160, 170, 190), TEXT_ALIGN_LEFT)
+        draw.SimpleText(tostring(TIV.Progression.CurrentIntercepts), "Trebuchet24", 20, 26, Color(250, 200, 50), TEXT_ALIGN_LEFT)
+
+        -- Stat 2: Total Career Intercepts
+        draw.SimpleText("CAREER INTERCEPTS", "DermaDefaultBold", 260, 10, Color(160, 170, 190), TEXT_ALIGN_LEFT)
+        draw.SimpleText(tostring(TIV.Progression.TotalIntercepts), "Trebuchet24", 260, 26, Color(80, 200, 255), TEXT_ALIGN_LEFT)
+
+        -- Stat 3: Unlocked Count
+        local unlockedCount = 0
+        local totalUpgrades = #TIV.Progression.GetAllUpgrades()
+        for _, u in ipairs(TIV.Progression.GetAllUpgrades()) do
+            if TIV.Progression.IsUnlocked(u.id) then unlockedCount = unlockedCount + 1 end
+        end
+        draw.SimpleText("UPGRADES UNLOCKED", "DermaDefaultBold", 500, 10, Color(160, 170, 190), TEXT_ALIGN_LEFT)
+        draw.SimpleText(string.format("%d / %d", unlockedCount, totalUpgrades), "Trebuchet24", 500, 26, Color(120, 240, 120), TEXT_ALIGN_LEFT)
+    end
+
+    -- Scrollable list of upgrades
+    local scroll = vgui.Create("DScrollPanel", frame)
+    scroll:SetPos(16, 124)
+    scroll:SetSize(frame:GetWide() - 32, frame:GetTall() - 180)
+
+    local function RebuildList()
+        scroll:Clear()
+
+        for _, upg in ipairs(TIV.Progression.GetAllUpgrades()) do
+            local isUnlocked = TIV.Progression.IsUnlocked(upg.id)
+            local canAfford  = TIV.Progression.CurrentIntercepts >= upg.cost
+
+            local item = scroll:Add("DPanel")
+            item:Dock(TOP)
+            item:DockMargin(0, 0, 0, 10)
+            item:SetTall(90)
+
+            item.Paint = function(s, w, h)
+                local bg = isUnlocked and Color(24, 38, 30, 240) or Color(22, 26, 36, 240)
+                local border = isUnlocked and Color(60, 140, 80) or Color(45, 52, 70)
+                draw.RoundedBox(6, 0, 0, w, h, border)
+                draw.RoundedBox(4, 1, 1, w - 2, h - 2, bg)
+
+                -- Category tag
+                draw.RoundedBox(3, 14, 10, 84, 18, Color(35, 42, 58))
+                draw.SimpleText(string.upper(upg.category or "UPGRADE"), "DermaDefault", 56, 11, Color(180, 200, 230), TEXT_ALIGN_CENTER)
+
+                -- Upgrade title
+                draw.SimpleText(upg.name, "Trebuchet18", 108, 9, Color(240, 240, 240), TEXT_ALIGN_LEFT)
+
+                -- Upgrade description
+                draw.SimpleText(upg.desc, "DermaDefault", 14, 36, Color(190, 195, 205), TEXT_ALIGN_LEFT)
+
+                -- Physics benefits preview
+                local bonusText = ""
+                if upg.bonuses then
+                    local parts = {}
+                    if upg.bonuses.loft_threshold then table.insert(parts, "+" .. upg.bonuses.loft_threshold .. " MPH Loft Resistance") end
+                    if upg.bonuses.rock_torque_mult then table.insert(parts, "-" .. math.Round((1 - upg.bonuses.rock_torque_mult) * 100) .. "% Rocking Torque") end
+                    if upg.bonuses.wind_force_mult then table.insert(parts, "-" .. math.Round((1 - upg.bonuses.wind_force_mult) * 100) .. "% Wind Drag") end
+                    if upg.bonuses.anchor_hold_mult then table.insert(parts, "+" .. math.Round((upg.bonuses.anchor_hold_mult - 1) * 100) .. "% Anchor Strength") end
+                    if upg.bonuses.added_mass then table.insert(parts, "+" .. upg.bonuses.added_mass .. " kg Mass") end
+                    bonusText = table.concat(parts, "  |  ")
+                end
+                draw.SimpleText("Physics: " .. bonusText, "DermaDefaultBold", 14, 66, Color(140, 210, 160), TEXT_ALIGN_LEFT)
+            end
+
+            -- Right action button
+            local actionBtn = vgui.Create("DButton", item)
+            actionBtn:SetSize(160, 42)
+            actionBtn:SetPos(item:GetWide() - 170, 24)
+            actionBtn:Dock(RIGHT)
+            actionBtn:DockMargin(10, 22, 14, 22)
+
+            if isUnlocked then
+                actionBtn:SetText("PURCHASED")
+                actionBtn:SetTextColor(Color(120, 240, 120))
+                actionBtn:SetEnabled(false)
+                actionBtn.Paint = function(s, w, h)
+                    draw.RoundedBox(4, 0, 0, w, h, Color(30, 60, 40))
+                end
+            else
+                local costStr = string.format("UNLOCK (%d PTS)", upg.cost)
+                actionBtn:SetText(costStr)
+                actionBtn:SetTextColor(canAfford and Color(255, 255, 255) or Color(160, 160, 160))
+                actionBtn:SetEnabled(canAfford)
+                actionBtn.Paint = function(s, w, h)
+                    local bg
+                    if not canAfford then
+                        bg = Color(50, 54, 64)
+                    elseif s:IsHovered() then
+                        bg = Color(240, 170, 30)
+                    else
+                        bg = Color(200, 130, 20)
+                    end
+                    draw.RoundedBox(4, 0, 0, w, h, bg)
+                end
+                actionBtn.DoClick = function()
+                    net.Start("TIV_PurchaseUpgrade")
+                        net.WriteString(upg.id)
+                    net.SendToServer()
+
+                    surface.PlaySound("buttons/button14.wav")
+                    timer.Simple(0.3, function()
+                        if IsValid(frame) then
+                            RebuildList()
+                            statsBar:InvalidateLayout()
+                        end
+                    end)
+                end
+            end
+        end
+    end
+
+    RebuildList()
+
+    -- Bottom instructions footer
+    local footer = vgui.Create("DPanel", frame)
+    footer:SetPos(16, frame:GetTall() - 48)
+    footer:SetSize(frame:GetWide() - 32, 38)
+    footer.Paint = function(s, w, h)
+        draw.RoundedBox(4, 0, 0, w, h, Color(16, 20, 28, 255))
+        draw.SimpleText("How to earn: Deploy & anchor inside severe tornado winds (>= 70 MPH) or survive a violent vortex core passage.",
+            "DermaDefault", 10, 11, Color(160, 180, 210), TEXT_ALIGN_LEFT)
+    end
+end
+
+concommand.Add("tiv_upgrades", function()
+    TIV.Progression.OpenUpgradeMenu()
+end)
+
+print("[TIV] Client progression module loaded")

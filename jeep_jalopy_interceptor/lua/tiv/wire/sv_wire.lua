@@ -120,10 +120,25 @@ TIV.Wire.Outputs = {
     { name = "IsLofted",          type = "NORMAL", desc = "1 if vehicle has been lofted into the air by a tornado, 0 otherwise" },
 
     -- Damage & failure warnings
-    { name = "AnchorFailure",     type = "NORMAL", desc = "Pulsed to 1 when an anchor ballsocket fails" },
-    { name = "SpikeFailure",      type = "NORMAL", desc = "Pulsed to 1 when a spike fails or breaks off" },
-    { name = "SystemFailure",     type = "NORMAL", desc = "1 if overall anchor integrity failed or emergency loft in progress" },
-    { name = "EmergencyState",    type = "NORMAL", desc = "1 if vehicle is in an emergency state (directional failure or lofted)" },
+    { name = "AnchorFailure",        type = "NORMAL", desc = "Pulsed to 1 when an anchor ballsocket fails" },
+    { name = "SpikeFailure",         type = "NORMAL", desc = "Pulsed to 1 when a spike fails or breaks off" },
+    { name = "SystemFailure",        type = "NORMAL", desc = "1 if overall anchor integrity failed or emergency loft in progress" },
+    { name = "EmergencyState",       type = "NORMAL", desc = "1 if vehicle is in an emergency state (directional failure or lofted)" },
+
+    -- Progression & upgrades
+    { name = "CurrentIntercepts",    type = "NORMAL", desc = "Spendable Intercept currency balance" },
+    { name = "TotalIntercepts",      type = "NORMAL", desc = "Total career Intercepts earned" },
+    { name = "UpgradeCount",         type = "NORMAL", desc = "Number of purchased upgrades" },
+    { name = "UnlockedUpgrades",     type = "STRING", desc = "Comma-separated string of unlocked upgrade IDs" },
+    { name = "HasAngledSpikes",      type = "NORMAL", desc = "1 if Angled Spikes upgrade unlocked, 0 otherwise" },
+    { name = "HasSideArmor",         type = "NORMAL", desc = "1 if Side Armor Panels upgrade unlocked, 0 otherwise" },
+    { name = "HasFrontArmor",        type = "NORMAL", desc = "1 if Front Armor Panels upgrade unlocked, 0 otherwise" },
+
+    -- Armor & protection
+    { name = "ArmorCount",           type = "NORMAL", desc = "Number of active armor panels installed on vehicle" },
+    { name = "ArmorProtection",      type = "NORMAL", desc = "Total kinetic impact protection percentage (0 to 100)" },
+    { name = "LoftThreshold",        type = "NORMAL", desc = "Effective loft wind threshold in MPH including all upgrades and armor" },
+    { name = "WindResistanceScale",  type = "NORMAL", desc = "Effective aerodynamic wind resistance drag factor (lower = better)" },
 }
 
 -- Pre-build formatted port and desc lists for WireLib
@@ -518,6 +533,63 @@ function TIV.Wire.UpdateOutputs(veh)
         trigger(target, "SpikeFailure", spikeFailure)
         trigger(target, "SystemFailure", systemFailure)
         trigger(target, "EmergencyState", emergencyState)
+
+        -- Progression & upgrades
+        local driver = veh.GetDriver and veh:GetDriver() or nil
+        if not IsValid(driver) then
+            for _, p in ipairs(player.GetAll()) do
+                if p:GetVehicle() == veh or (IsValid(p:GetVehicle()) and p:GetVehicle():GetParent() == veh) then
+                    driver = p
+                    break
+                end
+            end
+        end
+
+        local currentIntercepts = 0
+        local totalIntercepts   = 0
+        local upgradeCount      = 0
+        local unlockedStr       = ""
+        local hasAngled         = 0
+        local hasSideArmor      = 0
+        local hasFrontArmor     = 0
+
+        if IsValid(driver) and TIV.Progression and TIV.Progression.GetPlayerProfile then
+            local prof = TIV.Progression.GetPlayerProfile(driver)
+            if prof then
+                currentIntercepts = prof.current_intercepts or 0
+                totalIntercepts   = prof.total_intercepts or 0
+                local unlockedList = {}
+                for id, state in pairs(prof.unlocked_upgrades or {}) do
+                    if state then
+                        table.insert(unlockedList, id)
+                        upgradeCount = upgradeCount + 1
+                    end
+                end
+                unlockedStr   = table.concat(unlockedList, ",")
+                hasAngled     = (prof.unlocked_upgrades and prof.unlocked_upgrades["angled_spikes"]) and 1 or 0
+                hasSideArmor  = (prof.unlocked_upgrades and prof.unlocked_upgrades["side_armor"]) and 1 or 0
+                hasFrontArmor = (prof.unlocked_upgrades and prof.unlocked_upgrades["front_armor"]) and 1 or 0
+            end
+        end
+
+        local stats = veh._TIVEffectiveStats or {}
+        local armorCount     = stats.total_armor_count or (veh._TIVArmorProps and #veh._TIVArmorProps) or 0
+        local armorProt      = math.Round((stats.impact_reduction or 0) * 100)
+        local loftThreshold  = stats.effective_loft_mph or (TIV.Config and TIV.Config.LoftWindThreshold) or 180
+        local windResistScale= math.Round((stats.wind_force_mult or 1.0), 2)
+
+        trigger(target, "CurrentIntercepts",   currentIntercepts)
+        trigger(target, "TotalIntercepts",     totalIntercepts)
+        trigger(target, "UpgradeCount",        upgradeCount)
+        trigger(target, "UnlockedUpgrades",    unlockedStr)
+        trigger(target, "HasAngledSpikes",     hasAngled)
+        trigger(target, "HasSideArmor",        hasSideArmor)
+        trigger(target, "HasFrontArmor",       hasFrontArmor)
+
+        trigger(target, "ArmorCount",          armorCount)
+        trigger(target, "ArmorProtection",     armorProt)
+        trigger(target, "LoftThreshold",       loftThreshold)
+        trigger(target, "WindResistanceScale", windResistScale)
     end
 end
 
@@ -563,6 +635,19 @@ function TIV.Wire.ResetOutputsForEnt(ent)
     trigger(ent, "SpikeFailure", 0)
     trigger(ent, "SystemFailure", 0)
     trigger(ent, "EmergencyState", 0)
+
+    trigger(ent, "CurrentIntercepts",   0)
+    trigger(ent, "TotalIntercepts",     0)
+    trigger(ent, "UpgradeCount",        0)
+    trigger(ent, "UnlockedUpgrades",    "")
+    trigger(ent, "HasAngledSpikes",     0)
+    trigger(ent, "HasSideArmor",        0)
+    trigger(ent, "HasFrontArmor",       0)
+
+    trigger(ent, "ArmorCount",          0)
+    trigger(ent, "ArmorProtection",     0)
+    trigger(ent, "LoftThreshold",       180)
+    trigger(ent, "WindResistanceScale", 1.0)
 end
 
 -- ============================================================================

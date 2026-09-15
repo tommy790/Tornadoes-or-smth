@@ -2,8 +2,10 @@
 -- TIV SPIKE ANIMATION - Server Side
 -- Dynamic hydraulic spike deployment, terrain-adaptive ground interaction,
 -- vehicle-relative coordinate calculations, and seamless mid-stroke reversal.
+-- Fully supports Angled Spikes upgrade and custom 3D editor configurations.
 -- ============================================================================
 
+TIV = TIV or {}
 TIV.SpikeAnim = TIV.SpikeAnim or {}
 
 util.AddNetworkString("TIV_SpikeAnimStart")
@@ -56,15 +58,19 @@ TIV.SpikeAnim.GetStoredLocalPos     = GetStoredLocalPos
 
 -- ============================================================================
 -- TERRAIN RAYCASTING
--- Traces downward beneath the actual mounting position along the vehicle's
--- down vector (-veh:GetUp()), adapting to slopes, steps, rocks, and uneven terrain.
+-- Traces downward beneath the actual mounting position along the spike's
+-- penetration vector or vehicle down vector, adapting to slopes and terrain.
 -- ============================================================================
-local function TraceGroundForSpike(veh, mountWorldPos, data)
+local function TraceGroundForSpike(veh, mountWorldPos, spikeAng, data)
     local downDir = -veh:GetUp()
+    if isangle(spikeAng) then
+        local worldAng = veh:LocalToWorldAngles(spikeAng)
+        downDir = worldAng:Forward()
+    end
 
     local tr = util.TraceLine({
         start  = mountWorldPos,
-        endpos = mountWorldPos + (downDir * 220),
+        endpos = mountWorldPos + (downDir * 240),
         filter = function(ent)
             if ent == veh or ent:GetParent() == veh then return false end
             if data and data.spikes then
@@ -77,12 +83,30 @@ local function TraceGroundForSpike(veh, mountWorldPos, data)
         mask = MASK_SOLID,
     })
 
-    -- Fallback: if vehicle is perched on a steep slope or ledge, trace world down
+    -- Fallback 1: trace along vehicle down vector
+    if not tr.Hit then
+        tr = util.TraceLine({
+            start  = mountWorldPos,
+            endpos = mountWorldPos + (-veh:GetUp() * 240),
+            filter = function(ent)
+                if ent == veh or ent:GetParent() == veh then return false end
+                if data and data.spikes then
+                    for _, sd in ipairs(data.spikes) do
+                        if sd.entity == ent then return false end
+                    end
+                end
+                return true
+            end,
+            mask = MASK_SOLID,
+        })
+    end
+
+    -- Fallback 2: if vehicle is perched on a steep slope or ledge, trace world down
     if not tr.Hit then
         local worldDown = Vector(0, 0, -1)
         tr = util.TraceLine({
             start  = mountWorldPos,
-            endpos = mountWorldPos + (worldDown * 220),
+            endpos = mountWorldPos + (worldDown * 240),
             filter = function(ent)
                 if ent == veh or ent:GetParent() == veh then return false end
                 if data and data.spikes then
@@ -149,15 +173,43 @@ end
 -- ============================================================================
 -- CREATE SPIKES ON VEHICLE
 -- Mounts spikes solidly in the vehicle's local coordinate frame.
+-- Integrates custom positions, custom angles, and custom models.
 -- ============================================================================
 function TIV.SpikeAnim.CreateSpikes(veh, data)
     if not IsValid(veh) then return end
 
-    local offsets    = GetOffsetsForVehicle(veh)
+    -- Check if player has unlocked angled_spikes
+    local driver = veh.GetDriver and veh:GetDriver() or nil
+    local hasAngledUpg = false
+    if IsValid(driver) and TIV.Progression and TIV.Progression.GetPlayerProfile then
+        local prof = TIV.Progression.GetPlayerProfile(driver)
+        if prof and prof.unlocked_upgrades and prof.unlocked_upgrades["angled_spikes"] then
+            hasAngledUpg = true
+        end
+    end
+
+    -- Check if vehicle has custom configuration
+    local customSpikes = nil
+    if veh._TIVConfig and istable(veh._TIVConfig.components) then
+        customSpikes = {}
+        for _, comp in ipairs(veh._TIVConfig.components) do
+            if comp.type == "spike" then
+                table.insert(customSpikes, comp)
+            end
+        end
+    end
+
+    local offsets
+    if customSpikes and #customSpikes > 0 then
+        offsets = customSpikes
+    else
+        offsets = GetOffsetsForVehicle(veh)
+    end
+
     local spikeCount = math.Clamp(
-        TIV.Config.SpikeCount,
-        TIV.Config.SpikeCountConvarMin or 0,
-        TIV.Config.SpikeCountConvarMax or 6
+        customSpikes and #customSpikes or TIV.Config.SpikeCount,
+        0,
+        12
     )
 
     TIV.SpikeAnim._sessionCounter = TIV.SpikeAnim._sessionCounter + 1
@@ -193,30 +245,41 @@ function TIV.SpikeAnim.CreateSpikes(veh, data)
             if grp == "rear" and groupRear and not groupRear:GetBool() then allowed = false end
 
             if allowed then
-                local adjPos = Vector(offsetData.pos.x, offsetData.pos.y, offsetData.pos.z)
-                if adjPos.x > 0 then
-                    adjPos.x = adjPos.x + spreadOff
-                elseif adjPos.x < 0 then
-                    adjPos.x = adjPos.x - spreadOff
+                local rawPos = offsetData.pos or Vector(0, 0, 0)
+                local adjPos = Vector(rawPos.x, rawPos.y, rawPos.z)
+                if not customSpikes then
+                    if adjPos.x > 0 then
+                        adjPos.x = adjPos.x + spreadOff
+                    elseif adjPos.x < 0 then
+                        adjPos.x = adjPos.x - spreadOff
+                    end
+                    adjPos.y = adjPos.y + lengthOff
                 end
-                adjPos.y = adjPos.y + lengthOff
 
                 local storedLocalPos = GetStoredLocalPos(adjPos)
                 local storedLocalAng = GetParentedLocalAngle()
+                if hasAngledUpg and offsetData.ang then
+                    storedLocalAng = offsetData.ang
+                end
+
+                local model = offsetData.model or TIV.Config.SpikeModel or "models/props_junk/harpoon002a.mdl"
+                if not util.IsValidModel(model) then
+                    model = "models/props_junk/harpoon002a.mdl"
+                end
 
                 local spike = ents.Create("prop_physics")
                 if IsValid(spike) then
                     local worldPos = veh:LocalToWorld(storedLocalPos)
                     local worldAng = veh:LocalToWorldAngles(storedLocalAng)
 
-                    spike:SetModel(TIV.Config.SpikeModel or "models/props_c17/TrapPropeller_Lever.mdl")
+                    spike:SetModel(model)
                     spike:SetPos(worldPos)
                     spike:SetAngles(worldAng)
                     spike:Spawn()
                     spike:Activate()
 
                     spike:SetCollisionGroup(COLLISION_GROUP_DEBRIS)
-                    spike:SetColor(Color(80, 80, 80, 255))
+                    spike:SetColor(Color(90, 90, 95, 255))
                     spike:SetMaterial("models/props_combine/metal_combinebridge001")
 
                     TIV.SpikeAnim.ApplyCompatibilityFlags(spike, veh)
@@ -272,7 +335,7 @@ function TIV.SpikeAnim.ReparentSpike(veh, spike, spikeData)
     spike:SetCollisionGroup(COLLISION_GROUP_DEBRIS)
     spike:SetParent(veh)
     spike:SetLocalPos(spikeData.storedLocalPos or spikeData.localPos)
-    spike:SetLocalAngles(GetParentedLocalAngle())
+    spike:SetLocalAngles(spikeData.storedLocalAng or GetParentedLocalAngle())
     spikeData.phase = "idle"
 end
 
@@ -314,7 +377,12 @@ function TIV.SpikeAnim.DeployToGround(veh, data, callback)
     local totalSpikes   = #data.spikes
     local deployedCount = 0
     local speedMult     = GetConVar("tiv_deploy_speed") and math.max(0.2, GetConVar("tiv_deploy_speed"):GetFloat()) or 1.0
-    local driveDepth    = math.Clamp(GetConVar("tiv_spike_drive_depth") and GetConVar("tiv_spike_drive_depth"):GetFloat() or 18, 5, 35)
+    local driveDepth    = math.Clamp(GetConVar("tiv_spike_drive_depth") and GetConVar("tiv_spike_drive_depth"):GetFloat() or 18, 5, 45)
+
+    -- Extra drive depth from reinforced hydraulics upgrade if unlocked
+    if veh._TIVEffectiveStats and veh._TIVEffectiveStats.drive_depth_bonus then
+        driveDepth = driveDepth + veh._TIVEffectiveStats.drive_depth_bonus
+    end
 
     local completionFired = false
     local function fireCompletion()
@@ -354,17 +422,20 @@ function TIV.SpikeAnim.DeployToGround(veh, data, callback)
                     return
                 end
 
-                -- Raycast downward from the spike's actual mounting position
+                local localAng = spikeData.storedLocalAng or GetParentedLocalAngle()
+                local localDriveDir = localAng:Forward()
+
+                -- Raycast downward from the spike's actual mounting position along its drive angle
                 local mountWorldPos = veh:LocalToWorld(spikeData.storedLocalPos)
-                local groundTrace   = TraceGroundForSpike(veh, mountWorldPos, data)
+                local groundTrace   = TraceGroundForSpike(veh, mountWorldPos, localAng, data)
 
                 local groundWorldPos = groundTrace.Hit and groundTrace.HitPos
-                    or (mountWorldPos - veh:GetUp() * 50)
+                    or (mountWorldPos + (veh:LocalToWorldAngles(localAng):Forward() * 50))
                 local groundNormal   = groundTrace.HitNormal or veh:GetUp()
 
                 -- Calculate exact ground contact and anchoring depth in vehicle's local frame
                 local groundLocalPos = veh:WorldToLocal(groundWorldPos)
-                local targetLocalPos = groundLocalPos + Vector(0, 0, -driveDepth)
+                local targetLocalPos = groundLocalPos + (localDriveDir * driveDepth)
 
                 spikeData.groundPos      = groundWorldPos
                 spikeData.groundNormal   = groundNormal
@@ -407,7 +478,7 @@ function TIV.SpikeAnim.DeployToGround(veh, data, callback)
 
                             local curPos = LerpVector(ease, startLocalPos, groundLocalPos)
                             spike:SetLocalPos(curPos)
-                            spike:SetLocalAngles(GetParentedLocalAngle())
+                            spike:SetLocalAngles(localAng)
                         else
                             -- Ground contact impact puff and sound
                             if not hasImpacted then
@@ -428,41 +499,43 @@ function TIV.SpikeAnim.DeployToGround(veh, data, callback)
                             local settleElapsed = elapsed - strokeDuration
                             local settleFrac    = math.Clamp(settleElapsed / settleDuration, 0, 1)
 
-                            local settleRebound = math.sin(settleFrac * math.pi) * 1.5 * (1 - settleFrac)
-                            local curPos        = LerpVector(settleFrac, groundLocalPos, targetLocalPos) + Vector(0, 0, -settleRebound)
+                            -- Damped harmonic settling oscillation
+                            local bounce = math.sin(settleFrac * math.pi * 3) * (1 - settleFrac) * 1.5
+                            local penetrationPos = LerpVector(settleFrac, groundLocalPos, targetLocalPos)
+                            local settledPos = penetrationPos + (localDriveDir * bounce)
 
-                            spike:SetLocalPos(curPos)
-                            spike:SetLocalAngles(GetParentedLocalAngle())
+                            spike:SetLocalPos(settledPos)
+                            spike:SetLocalAngles(localAng)
+                        end
 
-                            if settleFrac >= 1 then
-                                -- Final locked position
-                                spikeData.phase        = "deployed"
-                                data.spikeAnims[index] = "deployed"
+                        if elapsed >= totalDuration then
+                            spikeData.phase        = "deployed"
+                            data.spikeAnims[index] = "deployed"
 
-                                -- Unparent to attach physical ballsocket constraints
-                                local finalWorldPos = veh:LocalToWorld(targetLocalPos)
-                                local finalWorldAng = veh:LocalToWorldAngles(GetParentedLocalAngle())
+                            local finalWorldPos = veh:LocalToWorld(targetLocalPos)
+                            local finalWorldAng = veh:LocalToWorldAngles(localAng)
 
-                                spike:SetParent(nil)
-                                spike:SetPos(finalWorldPos)
-                                spike:SetAngles(finalWorldAng)
-                                spike:SetCollisionGroup(COLLISION_GROUP_WORLD)
-                                TIV.SpikeAnim.ApplyCompatibilityFlags(spike, veh)
+                            spike:SetParent(nil)
+                            spike:SetPos(finalWorldPos)
+                            spike:SetAngles(finalWorldAng)
+                            spike:SetCollisionGroup(COLLISION_GROUP_WORLD)
+                            TIV.SpikeAnim.ApplyCompatibilityFlags(spike, veh)
 
-                                local sp = spike:GetPhysicsObject()
-                                if IsValid(sp) then sp:EnableMotion(false) end
-
-                                net.Start("TIV_SpikeAnimPhase")
-                                    net.WriteEntity(veh)
-                                    net.WriteUInt(index, 8)
-                                    net.WriteString("deployed")
-                                net.Broadcast()
-
-                                TIV.Anchor.AttachSingle(veh, data, spikeData, i)
-
-                                tickCompletion()
-                                return false
+                            local sp = spike:GetPhysicsObject()
+                            if IsValid(sp) then
+                                sp:EnableMotion(false)
                             end
+
+                            net.Start("TIV_SpikeAnimPhase")
+                                net.WriteEntity(veh)
+                                net.WriteUInt(index, 8)
+                                net.WriteString("deployed")
+                            net.Broadcast()
+
+                            TIV.Anchor.AttachSingle(veh, data, spikeData, i)
+
+                            tickCompletion()
+                            return false
                         end
 
                         return true
@@ -475,7 +548,7 @@ end
 
 -- ============================================================================
 -- DYNAMIC RETRACTION FROM GROUND
--- Smooth hydraulic return into vehicle stored ram cylinders with staggered timing.
+-- Smooth hydraulic withdrawal back into vehicle cylinders.
 -- ============================================================================
 function TIV.SpikeAnim.RetractFromGround(veh, data, callback)
     if not IsValid(veh) then
@@ -493,9 +566,6 @@ function TIV.SpikeAnim.RetractFromGround(veh, data, callback)
     net.Start("TIV_SpikeAnimRetract")
         net.WriteEntity(veh)
     net.Broadcast()
-
-    -- Detach constraints immediately so vehicle isn't anchored while retracting
-    TIV.Anchor.DetachAll(veh, data)
 
     local totalSpikes    = #data.spikes
     local retractedCount = 0
@@ -517,10 +587,11 @@ function TIV.SpikeAnim.RetractFromGround(veh, data, callback)
         if not IsValid(spike) then
             tickCompletion()
         else
-            local index = spikeData.index
-            local grp   = spikeData.group or "mid"
+            local index    = spikeData.index
+            local grp      = spikeData.group or "mid"
+            local localAng = spikeData.storedLocalAng or GetParentedLocalAngle()
 
-            -- Staggered retraction: Front pulls up first, then Mid, then Rear
+            -- Retract order: Front anchors withdraw first, then Mid, then Rear
             local baseDelay = 0.0
             if grp == "front" then
                 baseDelay = 0.00
@@ -533,23 +604,20 @@ function TIV.SpikeAnim.RetractFromGround(veh, data, callback)
             local stagger    = (baseDelay + sideJitter) / speedMult
 
             timer.Simple(stagger, function()
-                if not IsValid(spike) or not IsValid(veh) then
+                if not IsValid(veh) or not IsValid(spike) then
                     tickCompletion()
                     return
                 end
 
-                -- Reparent to vehicle at its current local position
                 local curLocalPos = veh:WorldToLocal(spike:GetPos())
-                local spikePhys   = spike:GetPhysicsObject()
-                if IsValid(spikePhys) then
-                    spikePhys:EnableMotion(false)
-                    spikePhys:EnableGravity(false)
-                end
+                local targetLocalPos = spikeData.storedLocalPos
 
-                spike:SetCollisionGroup(COLLISION_GROUP_DEBRIS)
+                -- Re-parent to vehicle so motion tracks cleanly if vehicle shifts
                 spike:SetParent(veh)
                 spike:SetLocalPos(curLocalPos)
-                spike:SetLocalAngles(GetParentedLocalAngle())
+                spike:SetLocalAngles(localAng)
+                spike:SetCollisionGroup(COLLISION_GROUP_DEBRIS)
+                TIV.SpikeAnim.ApplyCompatibilityFlags(spike, veh)
 
                 spikeData.phase        = "retracting"
                 data.spikeAnims[index] = "retracting"
@@ -562,14 +630,13 @@ function TIV.SpikeAnim.RetractFromGround(veh, data, callback)
 
                 local retractStart    = CurTime()
                 local retractDuration = (TIV.Config.SpikeRetractDuration or 3.0) / speedMult
-                local targetLocalPos  = spikeData.storedLocalPos
                 local jobKey          = sessionID .. "_retract_" .. index
 
                 TIV.SpikeAnim.ActiveJobs[jobKey] = {
                     veh   = veh,
                     spike = spike,
                     fn    = function(job)
-                        if not IsValid(spike) or not IsValid(veh) then
+                        if not IsValid(veh) or not IsValid(spike) then
                             tickCompletion()
                             return false
                         end
@@ -580,7 +647,7 @@ function TIV.SpikeAnim.RetractFromGround(veh, data, callback)
 
                         local newLocalPos = LerpVector(ease, curLocalPos, targetLocalPos)
                         spike:SetLocalPos(newLocalPos)
-                        spike:SetLocalAngles(GetParentedLocalAngle())
+                        spike:SetLocalAngles(localAng)
 
                         if frac >= 1 then
                             TIV.SpikeAnim.ReparentSpike(veh, spike, spikeData)
@@ -643,7 +710,8 @@ function TIV.SpikeAnim.InterruptAndRetract(veh, data, callback)
         if not IsValid(spike) then
             tickCompletion()
         else
-            local index = spikeData.index
+            local index    = spikeData.index
+            local localAng = spikeData.storedLocalAng or GetParentedLocalAngle()
 
             -- Sample current real-time position
             local curLocalPos
@@ -653,7 +721,7 @@ function TIV.SpikeAnim.InterruptAndRetract(veh, data, callback)
                 curLocalPos = veh:WorldToLocal(spike:GetPos())
                 spike:SetParent(veh)
                 spike:SetLocalPos(curLocalPos)
-                spike:SetLocalAngles(GetParentedLocalAngle())
+                spike:SetLocalAngles(localAng)
             end
 
             spikeData.phase        = "retracting"
@@ -686,7 +754,7 @@ function TIV.SpikeAnim.InterruptAndRetract(veh, data, callback)
 
                     local newLocalPos = LerpVector(ease, curLocalPos, targetLocalPos)
                     spike:SetLocalPos(newLocalPos)
-                    spike:SetLocalAngles(GetParentedLocalAngle())
+                    spike:SetLocalAngles(localAng)
 
                     if frac >= 1 then
                         TIV.SpikeAnim.ReparentSpike(veh, spike, spikeData)
@@ -731,7 +799,11 @@ function TIV.SpikeAnim.InterruptAndDeploy(veh, data, callback)
     local totalSpikes   = #data.spikes
     local deployedCount = 0
     local speedMult     = GetConVar("tiv_deploy_speed") and math.max(0.2, GetConVar("tiv_deploy_speed"):GetFloat()) or 1.0
-    local driveDepth    = math.Clamp(GetConVar("tiv_spike_drive_depth") and GetConVar("tiv_spike_drive_depth"):GetFloat() or 18, 5, 35)
+    local driveDepth    = math.Clamp(GetConVar("tiv_spike_drive_depth") and GetConVar("tiv_spike_drive_depth"):GetFloat() or 18, 5, 45)
+
+    if veh._TIVEffectiveStats and veh._TIVEffectiveStats.drive_depth_bonus then
+        driveDepth = driveDepth + veh._TIVEffectiveStats.drive_depth_bonus
+    end
 
     local completionFired = false
     local function fireCompletion()
@@ -749,15 +821,18 @@ function TIV.SpikeAnim.InterruptAndDeploy(veh, data, callback)
         if not IsValid(spike) then
             tickCompletion()
         else
-            local index         = spikeData.index
+            local index    = spikeData.index
+            local localAng = spikeData.storedLocalAng or GetParentedLocalAngle()
+            local localDriveDir = localAng:Forward()
+
             local mountWorldPos = veh:LocalToWorld(spikeData.storedLocalPos)
-            local groundTrace   = TraceGroundForSpike(veh, mountWorldPos, data)
+            local groundTrace   = TraceGroundForSpike(veh, mountWorldPos, localAng, data)
 
             local groundWorldPos = groundTrace.Hit and groundTrace.HitPos
-                or (mountWorldPos - veh:GetUp() * 50)
+                or (mountWorldPos + (veh:LocalToWorldAngles(localAng):Forward() * 50))
             local groundNormal   = groundTrace.HitNormal or veh:GetUp()
             local groundLocalPos = veh:WorldToLocal(groundWorldPos)
-            local targetLocalPos = groundLocalPos + Vector(0, 0, -driveDepth)
+            local targetLocalPos = groundLocalPos + (localDriveDir * driveDepth)
 
             spikeData.groundPos      = groundWorldPos
             spikeData.groundNormal   = groundNormal
@@ -792,14 +867,14 @@ function TIV.SpikeAnim.InterruptAndDeploy(veh, data, callback)
 
                     local newPos = LerpVector(ease, curLocalPos, targetLocalPos)
                     spike:SetLocalPos(newPos)
-                    spike:SetLocalAngles(GetParentedLocalAngle())
+                    spike:SetLocalAngles(localAng)
 
                     if frac >= 1 then
                         spikeData.phase        = "deployed"
                         data.spikeAnims[index] = "deployed"
 
                         local finalWorldPos = veh:LocalToWorld(targetLocalPos)
-                        local finalWorldAng = veh:LocalToWorldAngles(GetParentedLocalAngle())
+                        local finalWorldAng = veh:LocalToWorldAngles(localAng)
 
                         spike:SetParent(nil)
                         spike:SetPos(finalWorldPos)

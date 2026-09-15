@@ -159,3 +159,79 @@ e2function number entity:tivReset()
     end
     return 0
 end
+
+__e2setcost(5)
+
+--- Returns the current spendable Intercept points of the driver/owner of <this> TIV
+e2function number entity:tivCurrentIntercepts()
+    if not IsValid(this) or not TIV then return 0 end
+    local driver = this.GetDriver and this:GetDriver() or nil
+    if not IsValid(driver) and this.CPPIGetOwner then driver = this:CPPIGetOwner() end
+    if not IsValid(driver) then return 0 end
+    local prof = TIV.Progression and TIV.Progression.GetPlayerProfile and TIV.Progression.GetPlayerProfile(driver)
+    return prof and prof.current_intercepts or 0
+end
+
+--- Returns the lifetime total Intercepts earned by the driver/owner of <this> TIV
+e2function number entity:tivTotalIntercepts()
+    if not IsValid(this) or not TIV then return 0 end
+    local driver = this.GetDriver and this:GetDriver() or nil
+    if not IsValid(driver) and this.CPPIGetOwner then driver = this:CPPIGetOwner() end
+    if not IsValid(driver) then return 0 end
+    local prof = TIV.Progression and TIV.Progression.GetPlayerProfile and TIV.Progression.GetPlayerProfile(driver)
+    return prof and prof.total_intercepts or 0
+end
+
+--- Returns the number of unlocked upgrades for the driver/owner of <this> TIV
+e2function number entity:tivUpgradeCount()
+    if not IsValid(this) or not TIV then return 0 end
+    local driver = this.GetDriver and this:GetDriver() or nil
+    if not IsValid(driver) and this.CPPIGetOwner then driver = this:CPPIGetOwner() end
+    if not IsValid(driver) then return 0 end
+    local prof = TIV.Progression and TIV.Progression.GetPlayerProfile and TIV.Progression.GetPlayerProfile(driver)
+    if not prof or not prof.unlocked_upgrades then return 0 end
+    local count = 0
+    for _, state in pairs(prof.unlocked_upgrades) do
+        if state then count = count + 1 end
+    end
+    return count
+end
+
+--- Returns 1 if the driver/owner of <this> TIV has unlocked the specified upgrade <upgradeID>, 0 otherwise
+e2function number entity:tivHasUpgrade(string upgradeID)
+    if not IsValid(this) or not TIV or not upgradeID then return 0 end
+    local driver = this.GetDriver and this:GetDriver() or nil
+    if not IsValid(driver) and this.CPPIGetOwner then driver = this:CPPIGetOwner() end
+    if not IsValid(driver) then return 0 end
+    local prof = TIV.Progression and TIV.Progression.GetPlayerProfile and TIV.Progression.GetPlayerProfile(driver)
+    return (prof and prof.unlocked_upgrades and prof.unlocked_upgrades[upgradeID]) and 1 or 0
+end
+
+--- Returns the number of armor panels installed on <this> TIV
+e2function number entity:tivArmorCount()
+    if not IsValid(this) or not TIV then return 0 end
+    local stats = this._TIVEffectiveStats
+    if stats and stats.total_armor_count then return stats.total_armor_count end
+    return (this._TIVArmorProps and #this._TIVArmorProps) or 0
+end
+
+--- Returns the kinetic/impact debris protection percentage of <this> TIV (0 to 100)
+e2function number entity:tivArmorProtection()
+    if not IsValid(this) or not TIV then return 0 end
+    local stats = this._TIVEffectiveStats
+    return (stats and stats.impact_reduction) and math.Round(stats.impact_reduction * 100) or 0
+end
+
+--- Returns the effective loft wind threshold in MPH of <this> TIV (including armor and upgrades)
+e2function number entity:tivLoftThreshold()
+    if not IsValid(this) or not TIV then return 180 end
+    local stats = this._TIVEffectiveStats
+    return (stats and stats.effective_loft_mph) or (TIV.Config and TIV.Config.LoftWindThreshold) or 180
+end
+
+--- Returns the aerodynamic wind drag resistance scale of <this> TIV (lower = more aerodynamic)
+e2function number entity:tivWindResistanceScale()
+    if not IsValid(this) or not TIV then return 1 end
+    local stats = this._TIVEffectiveStats
+    return (stats and stats.wind_force_mult) and math.Round(stats.wind_force_mult, 2) or 1
+end

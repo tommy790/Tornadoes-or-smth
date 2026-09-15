@@ -128,6 +128,10 @@ function TIV.Deploy.EnsureSpikes(veh, data)
     if TIV.Wire and TIV.Wire.EnsureController then
         TIV.Wire.EnsureController(veh)
     end
+
+    if TIV.CustomComponents and TIV.CustomComponents.ApplyVehicleBonuses then
+        TIV.CustomComponents.ApplyVehicleBonuses(veh)
+    end
 end
 
 -- ============================================================================
@@ -547,6 +551,9 @@ hook.Add("EntityRemoved", "TIV_VehicleCleanup", function(ent)
 
     if TIV.Wire and TIV.Wire.OnVehicleRemoved then
         TIV.Wire.OnVehicleRemoved(ent)
+    end
+    if TIV.CustomComponents and TIV.CustomComponents.RemoveArmorProps then
+        TIV.CustomComponents.RemoveArmorProps(ent)
     end
     hook.Run("TIV_VehicleRemoved", ent)
 end)

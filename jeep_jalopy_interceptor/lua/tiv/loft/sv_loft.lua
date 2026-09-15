@@ -35,17 +35,21 @@ CreateConVar("tiv_loft_release_spikes", "0",
 -- ============================================================================
 -- STRESS CALCULATION
 -- ============================================================================
-function TIV.Loft.CalculateStress(windMPH)
+function TIV.Loft.CalculateStress(windMPH, veh)
     if windMPH < 100 then return 0 end
-    local ratio = windMPH / TIV.Config.LoftWindThreshold
+    local threshold = (IsValid(veh) and veh._TIVEffectiveStats and veh._TIVEffectiveStats.effective_loft_mph)
+        or TIV.Config.LoftWindThreshold
+        or 180
+    local ratio = windMPH / threshold
     return math.Clamp(ratio * ratio, 0, 1)
 end
 
-local function GetWindScale()
-    if TIV.Compat and TIV.Compat.Enabled then
-        return TIV.Compat.AnchoredWindForceScale or 0.65
+local function GetWindScale(veh)
+    local base = (TIV.Compat and TIV.Compat.Enabled) and (TIV.Compat.AnchoredWindForceScale or 0.65) or 1
+    if IsValid(veh) and veh._TIVEffectiveStats and veh._TIVEffectiveStats.wind_force_mult then
+        base = base * veh._TIVEffectiveStats.wind_force_mult
     end
-    return 1
+    return base
 end
 TIV.Loft.GetWindScale = GetWindScale
 
@@ -315,10 +319,13 @@ timer.Create("TIV_LoftThink", 0.05, 0, function()
                 local phys = veh:GetPhysicsObject()
                 if IsValid(phys) then
                     local windMPH = TIV.Wind.GetSpeed(veh)
-                    local stress  = TIV.Loft.CalculateStress(windMPH)
-                    local windScale = GetWindScale()
+                    local stress  = TIV.Loft.CalculateStress(windMPH, veh)
+                    local windScale = GetWindScale(veh)
                     -- Cache the force vector once per vehicle per tick.
                     local windForceVec = TIV.Wind.GetForceVector(veh)
+                    local effectiveThreshold = (veh._TIVEffectiveStats and veh._TIVEffectiveStats.effective_loft_mph)
+                        or TIV.Config.LoftWindThreshold
+                        or 180
 
                     -- ===== ANCHOR GUARD =====
                     -- Tornado mods (GStorms, XT3) have a "prop unweld"
@@ -382,6 +389,9 @@ timer.Create("TIV_LoftThink", 0.05, 0, function()
 
                         if stress > TIV.Config.Stress.TorqueMin then
                             local rockScale = tonumber(TIV.Config.AnchoredRockTorque) or 5.5
+                            if veh._TIVEffectiveStats and veh._TIVEffectiveStats.rock_torque_mult then
+                                rockScale = rockScale * veh._TIVEffectiveStats.rock_torque_mult
+                            end
                             local rockTorque = VectorRand() * phys:GetMass()
                                 * stress * rockScale * windScale
                             phys:ApplyTorqueCenter(rockTorque)
@@ -403,7 +413,7 @@ timer.Create("TIV_LoftThink", 0.05, 0, function()
                     end
 
                     -- ===== BELOW / ABOVE THRESHOLD BRANCHES =====
-                    if windMPH < TIV.Config.LoftWindThreshold then
+                    if windMPH < effectiveThreshold then
                         if TIV.Loft.WindTimers[entIndex] then
                             print(string.format(
                                 "[TIV] Wind dropped to %.0f MPH - sequence reset for #%d",

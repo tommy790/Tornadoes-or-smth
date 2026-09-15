@@ -8,6 +8,16 @@ AddCSLuaFile("tiv/config/sh_config.lua")
 include("tiv/config/sv_runtime_cvars.lua")
 AddCSLuaFile("tiv/config/cl_settings.lua")
 
+-- Progression & Customization shared
+include("tiv/progression/sh_progression.lua")
+AddCSLuaFile("tiv/progression/sh_progression.lua")
+include("tiv/customization/sh_custom_config.lua")
+AddCSLuaFile("tiv/customization/sh_custom_config.lua")
+
+-- Progression & Customization server
+include("tiv/progression/sv_progression.lua")
+include("tiv/customization/sv_custom_components.lua")
+
 include("tiv/wind/sv_wind.lua")
 include("tiv/animation/sv_spike_anim.lua")
 include("tiv/spikes/sv_spikes.lua")
@@ -22,6 +32,8 @@ AddCSLuaFile("tiv/instruments/cl_instruments.lua")
 AddCSLuaFile("tiv/deploy/cl_deploy.lua")
 AddCSLuaFile("tiv/animation/cl_spike_anim.lua")
 AddCSLuaFile("tiv/wire/cl_wire.lua")
+AddCSLuaFile("tiv/progression/cl_progression.lua")
+AddCSLuaFile("tiv/editor/cl_editor_3d.lua")
 AddCSLuaFile("entities/gmod_wire_tiv_controller.lua")
 AddCSLuaFile("entities/gmod_wire_expression2/core/custom/cl_tiv.lua")
 AddCSLuaFile("wire/stools/tiv.lua")
