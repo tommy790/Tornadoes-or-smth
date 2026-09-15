@@ -114,16 +114,15 @@ This major release introduces a full career progression system, an interactive i
 
 ### 5. Advanced Aerodynamic Lofting & Rollover Recovery
 
-#### Multi-Stage Progressive Anchor Failure Dynamics
+#### Progressive Anchor Failure & Clean Vortex Lofting
 1. **Mechanical Stress Calculation**:
    - Stress evaluates real-time wind speed squared, vehicle angle of attack, vehicle mass, and active armor drag coefficients.
-2. **Windward Anchor Failure**:
-   - In winds exceeding 160-240 MPH (scaled by upgrade perks), high lateral drag shears the windward anchor balljoints first.
-   - Metal shear audio and spark bursts signal anchor structural failure.
-3. **Physical Chassis Tipping**:
-   - When windward anchors fail, the vehicle hinges on its remaining leeward anchors, tilting 20° to 28° into the storm vortex.
-4. **Secondary Anchor Shear & Full Lofting**:
-   - Continued hurricane-force exposure snaps remaining anchors, transitioning vehicle state to `"lofted"`.
+2. **Sequential Windward Anchor Shear**:
+   - In winds exceeding 160-240 MPH (scaled by upgrade perks), extreme crosswinds systematically shear anchor balljoints (windward -> mid -> leeward) with metallic shear audio, pneumatic release, and spark bursts.
+   - The chassis remains firmly planted on the ground throughout anchor failure without artificial upward tipping forces displacing the vehicle.
+3. **Instant Constraint Decoupling & Clean Loft**:
+   - As the final anchors give way, all constraints between the vehicle, spikes, and the world brush are severed completely.
+   - The vehicle transitions cleanly into full aerodynamic lofting, swept into the tornado's vortex updraft and circulation.
 
 #### Vortex Aerodynamics & Armor Tearing
 - Dynamic lift, lateral drag, and rotational tumbling forces applied directly to the physics object based on wind vectors and vehicle orientation.
@@ -278,6 +277,7 @@ if (TIV:isTIV()) {
 
 ### 10. Bug Fixes & Codebase Health
 
+- **Chassis Tipping Removal & Anchor Stability**: Completely eliminated the pre-loft offset lifting forces (`ApplyForceOffset` and artificial rolling torque) that previously attempted to simulate vehicle tipping while anchored. Anchored wind force is now strictly lateral ($Z \le 0$), keeping the vehicle firmly clamped to the ground on its suspension until full anchor release occurs.
 - **Anchor Loft Separation Fix**: Resolved an issue where vehicles became stuck hovering mid-air while spikes remained frozen in the ground. The anchor guard now avoids regenerating constraints during active failure sequences, and `TriggerLoft` severs all world/vehicle constraints, ejecting sheared spikes as physics debris and ensuring clean aerodynamic lofting.
 - **Loft Updraft Balance & Landing Detection**: Rebalanced loft aerodynamic lift and height scaling to ensure vehicles tumble, fly, and cleanly crash land back onto terrain rather than hovering indefinitely. Automatic ground detection seamlessly settles the vehicle and mounts fresh spikes on landing.
 - **Failure Sequence Timer Resilience**: Prevented momentary tornado wind dips from prematurely aborting active anchor failure stages, adding a guaranteed 2.6-second loft fail-safe.

@@ -203,12 +203,6 @@ function TIV.Loft.FailSpikeList(veh, data, spikeIndices, duration, stageName)
             if not IsValid(veh) then return end
             if data.state ~= "anchored" then return end
 
-            if not data.gravityReleased then
-                data.gravityReleased = true
-                local vehPhys = veh:GetPhysicsObject()
-                if IsValid(vehPhys) then vehPhys:EnableGravity(true) end
-            end
-
             local spikeEnt, spikeData
             for _, sd in ipairs(data.spikes or {}) do
                 if sd.index == spikeIdx then
@@ -320,7 +314,6 @@ function TIV.Loft.StartDirectionalFailure(veh, data)
 
     TIV.Loft.WindTimers[entIndex]    = CurTime()
     TIV.Loft.FailingGroups[entIndex] = true
-    data.tippingActive               = true
 
     local sequence = TIV.Loft.GetWindwardFailureSequence(veh, data)
 
@@ -377,7 +370,6 @@ function TIV.Loft.TriggerLoft(veh, data)
     data.state           = "lofted"
     data.anchored        = false
     data.gravityReleased = true
-    data.tippingActive   = false
     data.spikesCreated   = false
     data.loftStartTime   = CurTime()
     data.lastVelZ        = 0
@@ -593,15 +585,18 @@ timer.Create("TIV_LoftThink", 0.05, 0, function()
                         end
                     end
 
-                    -- 2. Base Wind Force & Turbulence
+                    -- 2. Base Wind Force & Turbulence (Anchored)
                     if windMPH > TIV.Config.Stress.TurbulenceMinMPH then
-                        local windForce = windForceVec
+                        local rawForce = windForceVec
                             * phys:GetMass()
-                            * TIV.Config.AnchoredWindForce
+                            * (TIV.Config.AnchoredWindForce or 0.8)
                             * windScale
 
-                        local turbulence = VectorRand() * phys:GetMass() * (stress * 22)
-                        phys:ApplyForceCenter(windForce + turbulence)
+                        -- While anchored, wind force must be purely lateral (X, Y) with zero upward lift (Z <= 0)
+                        -- to ensure the vehicle remains pinned firmly to the ground and does not float out of place.
+                        local lateralWind = Vector(rawForce.x, rawForce.y, math.min(0, rawForce.z))
+                        local turbulence  = Vector(math.Rand(-1, 1), math.Rand(-1, 1), 0) * phys:GetMass() * (stress * 15)
+                        phys:ApplyForceCenter(lateralWind + turbulence)
 
                         if stress > TIV.Config.Stress.TorqueMin then
                             local rockScale = tonumber(TIV.Config.AnchoredRockTorque) or 5.5
@@ -614,32 +609,7 @@ timer.Create("TIV_LoftThink", 0.05, 0, function()
                         end
                     end
 
-                    -- 3. Pre-Loft Chassis Tipping (when some anchors have failed)
-                    local remainingBS = 0
-                    for _, c in ipairs(data.constraints or {}) do
-                        if c.type == "ballsocket" and IsValid(c.constraint) then
-                            remainingBS = remainingBS + 1
-                        end
-                    end
-
-                    if data.gravityReleased and remainingBS > 0 and remainingBS < #data.spikes then
-                        local windLocal = veh:WorldToLocal(veh:GetPos() + windDir)
-                        local unanchoredOffset = Vector(
-                            windLocal.x > 0 and -32 or 32,
-                            windLocal.y > 0 and -40 or 40,
-                            15
-                        )
-                        local liftPos   = veh:LocalToWorld(unanchoredOffset)
-                        local liftForce = (Vector(0, 0, 1) * 0.80 + windForceVec:GetNormalized() * 0.20)
-                            * phys:GetMass() * (stress * 80) * windScale
-                        phys:ApplyForceOffset(liftForce, liftPos)
-
-                        local rollSign = windLocal.x > 0 and 1 or -1
-                        local rollTorque = veh:GetForward() * rollSign * phys:GetMass() * (stress * 45) * windScale
-                        phys:ApplyTorqueCenter(rollTorque)
-                    end
-
-                    -- 4. Structural Metal Creak & Strain Audio
+                    -- 3. Structural Metal Creak & Strain Audio
                     if stress > 0.30 then
                         data.nextCreakTime = data.nextCreakTime or 0
                         if CurTime() > data.nextCreakTime then
@@ -657,16 +627,15 @@ timer.Create("TIV_LoftThink", 0.05, 0, function()
                         end
                     end
 
-                    -- 5. Below / Above Threshold State Transitions
+                    -- 4. Below / Above Threshold State Transitions
                     if windMPH < effectiveThreshold then
                         -- Only cancel failure timers if failure hasn't actually broken any anchors yet
                         -- AND wind dropped significantly (below 80% of threshold)
-                        if TIV.Loft.WindTimers[entIndex] and not data.gravityReleased and windMPH < (effectiveThreshold * 0.8) then
+                        if TIV.Loft.WindTimers[entIndex] and not TIV.Loft.FailingGroups[entIndex] and windMPH < (effectiveThreshold * 0.8) then
                             print(string.format(
                                 "[TIV] Wind dropped to %.0f MPH - sequence reset for #%d",
                                 windMPH, entIndex))
                             CleanupLoftTracking(entIndex)
-                            data.tippingActive = false
                         end
 
                         if TIV.Spikes.GetCount(data) > 0 then
@@ -800,7 +769,6 @@ timer.Create("TIV_LoftThink", 0.05, 0, function()
                         data.state               = "idle"
                         data.anchored            = false
                         data.gravityReleased     = false
-                        data.tippingActive       = false
                         data.spikesCreated       = false
                         TIV.Deploy.EnsureSpikes(veh, data)
                         TIV.Deploy.BroadcastState(veh, "idle")
