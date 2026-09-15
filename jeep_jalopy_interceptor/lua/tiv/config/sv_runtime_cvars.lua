@@ -180,6 +180,79 @@ CreateConVar(
     "Override suspension lowering distance in units (0 = automatic based on vehicle suspension limit)."
 )
 
+CreateConVar(
+    "tiv_auto_deploy_wind",
+    "0",
+    { FCVAR_ARCHIVE, FCVAR_NOTIFY, FCVAR_REPLICATED },
+    "Automatically initiate deployment when wind speed exceeds this MPH threshold (0 = disabled).",
+    0,
+    300
+)
+
+CreateConVar(
+    "tiv_deploy_speed",
+    "1.0",
+    { FCVAR_ARCHIVE, FCVAR_NOTIFY, FCVAR_REPLICATED },
+    "Speed multiplier for lowering/raising hydraulic suspension (0.5 to 3.0).",
+    0.5,
+    3.0
+)
+
+CreateConVar(
+    "tiv_deploy_handbrake",
+    "1",
+    { FCVAR_ARCHIVE, FCVAR_REPLICATED },
+    "Automatically apply vehicle handbrake when anchored."
+)
+
+CreateConVar(
+    "tiv_spike_drive_depth",
+    "18",
+    { FCVAR_ARCHIVE, FCVAR_REPLICATED },
+    "Ground penetration depth in units when driving spikes into terrain.",
+    5,
+    50
+)
+
+CreateConVar(
+    "tiv_spike_spread_offset",
+    "0",
+    { FCVAR_ARCHIVE, FCVAR_REPLICATED },
+    "Lateral spread adjustment in units for spike mounting positions.",
+    -25,
+    25
+)
+
+CreateConVar(
+    "tiv_spike_length_offset",
+    "0",
+    { FCVAR_ARCHIVE, FCVAR_REPLICATED },
+    "Longitudinal (forward/rear) adjustment in units for spike mounting positions.",
+    -40,
+    40
+)
+
+CreateConVar(
+    "tiv_spike_group_front",
+    "1",
+    { FCVAR_ARCHIVE, FCVAR_NOTIFY, FCVAR_REPLICATED },
+    "Enable/disable the front pair of anchor spikes."
+)
+
+CreateConVar(
+    "tiv_spike_group_mid",
+    "1",
+    { FCVAR_ARCHIVE, FCVAR_NOTIFY, FCVAR_REPLICATED },
+    "Enable/disable the middle pair of anchor spikes."
+)
+
+CreateConVar(
+    "tiv_spike_group_rear",
+    "1",
+    { FCVAR_ARCHIVE, FCVAR_NOTIFY, FCVAR_REPLICATED },
+    "Enable/disable the rear pair of anchor spikes."
+)
+
 -- Real bug fix: callbacks had `*,*` paste artifacts (function(_, _, _) is correct).
 cvars.AddChangeCallback("tiv_spike_count", function(_, old, new)
     applyRuntimeSpikeConfig()

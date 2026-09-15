@@ -4,6 +4,12 @@
 
 TIV.HUD = TIV.HUD or {}
 
+local cvarHudEnabled = CreateClientConVar("tiv_hud_enabled", "1", true, false, "Enable the TIV cockpit instruments HUD.")
+local cvarHudUnit    = CreateClientConVar("tiv_hud_unit", "mph", true, false, "Speed/wind display unit (mph, kmh, knots).")
+local cvarHudPos     = CreateClientConVar("tiv_hud_position", "0", true, false, "HUD position: 0=Bottom-Right, 1=Bottom-Left, 2=Top-Right, 3=Top-Left.")
+local cvarHudScale   = CreateClientConVar("tiv_hud_scale", "1.0", true, false, "HUD scale multiplier (0.75 to 1.5).")
+local cvarHudSound   = CreateClientConVar("tiv_hud_sound", "1", true, false, "Audible alert tones on severe wind or anchor strain.")
+
 -- Added "raising" state (was missing from both color and name tables).
 local STATE_COLORS = {
     idle             = Color(100, 255, 100),
@@ -75,6 +81,7 @@ end
 -- MAIN HUD PAINT
 -- ============================================================================
 hook.Add("HUDPaint", "TIV_DrawHUD", function()
+    if not cvarHudEnabled:GetBool() then return end
     if not TIV.Config or not TIV.Config.HUDEnabled then return end
 
     -- Real bug fix: guard against TIV.Instruments / Data being nil on first frame.
@@ -112,10 +119,25 @@ hook.Add("HUDPaint", "TIV_DrawHUD", function()
     local verticalVelocity  = data.verticalVelocity  or 0
 
     local sw, sh = ScrW(), ScrH()
-    local panelW = 360
-    local panelH = 340
-    local panelX = sw - panelW - 20
-    local panelY = sh - panelH - 20
+    local scale  = math.Clamp(cvarHudScale:GetFloat(), 0.75, 1.5)
+    local panelW = 360 * scale
+    local panelH = 340 * scale
+    local posMode = cvarHudPos:GetInt()
+
+    local panelX, panelY
+    if posMode == 1 then
+        panelX = 20
+        panelY = sh - panelH - 20
+    elseif posMode == 2 then
+        panelX = sw - panelW - 20
+        panelY = 20
+    elseif posMode == 3 then
+        panelX = 20
+        panelY = 20
+    else
+        panelX = sw - panelW - 20
+        panelY = sh - panelH - 20
+    end
 
     local state      = data.deployState or "idle"
     local colorTable = isAPC and APC_STATE_COLORS or STATE_COLORS
@@ -157,6 +179,18 @@ hook.Add("HUDPaint", "TIV_DrawHUD", function()
         stateColor  = Color(stateColor.r, stateColor.g, stateColor.b, 155 + blink * 100)
     end
 
+    -- Speed/wind unit conversion
+    local unitMode = string.lower(cvarHudUnit:GetString() or "mph")
+    local unitSuffix = " MPH"
+    local unitScale = 1.0
+    if unitMode == "kmh" or unitMode == "km/h" then
+        unitSuffix = " KM/H"
+        unitScale  = 1.60934
+    elseif unitMode == "knots" or unitMode == "kts" or unitMode == "knot" then
+        unitSuffix = " KTS"
+        unitScale  = 0.868976
+    end
+
     draw.SimpleText("STATUS", "DermaDefault", lm, y, Color(150, 150, 150))
     draw.SimpleText(stateName, "DermaDefaultBold", rm, y, stateColor, TEXT_ALIGN_RIGHT)
     y = y + lineH
@@ -174,12 +208,12 @@ hook.Add("HUDPaint", "TIV_DrawHUD", function()
     if windSpeed >= threshold then windColor = Color(255, 50, 50) end
 
     draw.SimpleText("WIND SPEED", "DermaDefault", lm, y, Color(150, 150, 150))
-    draw.SimpleText(math.floor(windSpeed) .. " MPH", "DermaDefaultBold",
+    draw.SimpleText(math.floor(windSpeed * unitScale) .. unitSuffix, "DermaDefaultBold",
         rm, y, windColor, TEXT_ALIGN_RIGHT)
     y = y + lineH
 
     draw.SimpleText("VEHICLE", "DermaDefault", lm, y, Color(150, 150, 150))
-    draw.SimpleText(math.floor(vehicleSpeed) .. " MPH", "DermaDefaultBold",
+    draw.SimpleText(math.floor(vehicleSpeed * unitScale) .. unitSuffix, "DermaDefaultBold",
         rm, y, Color(150, 200, 255), TEXT_ALIGN_RIGHT)
     y = y + lineH
 
@@ -335,9 +369,18 @@ hook.Add("HUDPaint", "TIV_DrawHUD", function()
         draw.SimpleText(dotLabel, "DermaDefaultBold",
             dotX + dotR + 8, dotY,
             dotColor, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-        draw.SimpleText(math.floor(windSpeed) .. " MPH", "DermaDefaultBold",
+        draw.SimpleText(math.floor(windSpeed * unitScale) .. unitSuffix, "DermaDefaultBold",
             dotAreaX + dotAreaW - 6, dotY,
             dotColor, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+
+        if cvarHudSound:GetBool() and CurTime() - (TIV.HUD.LastBeepTime or 0) >= (beepInterval or 1.0) then
+            TIV.HUD.LastBeepTime = CurTime()
+            if warningLevel == 2 then
+                surface.PlaySound("ambient/alarms/klaxon1.wav")
+            else
+                surface.PlaySound("buttons/button17.wav")
+            end
+        end
 
         y = dotAreaY + dotAreaH + 5
     end

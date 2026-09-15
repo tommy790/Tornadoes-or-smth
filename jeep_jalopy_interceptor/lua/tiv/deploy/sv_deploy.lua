@@ -273,6 +273,8 @@ function TIV.Deploy.StartDeploy(ply, veh)
         phys:EnableMotion(false)
     end
 
+    local speedMult   = GetConVar("tiv_deploy_speed") and math.max(0.2, GetConVar("tiv_deploy_speed"):GetFloat()) or 1.0
+    local lowerTime   = (TIV.Config.LowerTime or 1.0) / speedMult
     local startPos    = veh:GetPos()
     local endPos      = startPos - Vector(0, 0, lowerLimit)
     local startTime   = CurTime()
@@ -287,7 +289,7 @@ function TIV.Deploy.StartDeploy(ply, veh)
         end
 
         local elapsed    = CurTime() - startTime
-        local frac       = math.Clamp(elapsed / TIV.Config.LowerTime, 0, 1)
+        local frac       = math.Clamp(elapsed / lowerTime, 0, 1)
         local smoothFrac = frac * frac * (3 - 2 * frac)
 
         veh:SetPos(LerpVector(smoothFrac, startPos, endPos))
@@ -301,26 +303,31 @@ function TIV.Deploy.StartDeploy(ply, veh)
             timer.Remove(timerName)
             util.ScreenShake(veh:GetPos(), 3, 5, 0.5, 200)
 
-            if TIV.Spikes.GetCount(data) == 0 then
+            local function finalizeAnchored()
+                if not IsValid(veh) then return end
                 data.state    = "anchored"
                 data.anchored = true
+                local hbCVar = GetConVar("tiv_deploy_handbrake")
+                if not (hbCVar and not hbCVar:GetBool()) then
+                    ApplyHandbrake(veh)
+                end
+                TIV.Deploy.BroadcastState(veh, "anchored")
+            end
+
+            if TIV.Spikes.GetCount(data) == 0 then
                 local p = veh:GetPhysicsObject()
                 if IsValid(p) then
                     p:EnableMotion(false)
                     p:EnableGravity(true)
                 end
-                ApplyHandbrake(veh)
-                TIV.Deploy.BroadcastState(veh, "anchored")
+                finalizeAnchored()
             else
                 data.state = "deploying_spikes"
                 TIV.Deploy.BroadcastState(veh, "deploying_spikes")
                 TIV.Spikes.Deploy(veh, data, function()
                     if not IsValid(veh) then return end
-                    data.state    = "anchored"
-                    data.anchored = true
                     TIV.Anchor.UnfreezeForDeploy(veh)
-                    ApplyHandbrake(veh)
-                    TIV.Deploy.BroadcastState(veh, "anchored")
+                    finalizeAnchored()
                 end)
             end
         end
@@ -380,6 +387,8 @@ function TIV.Deploy.RaiseVehicle(ply, veh)
         or (curPos + Vector(0, 0, raiseDist))
     local startTime  = CurTime()
     local timerName  = "TIV_Raise_" .. veh:EntIndex()
+    local speedMult  = GetConVar("tiv_deploy_speed") and math.max(0.2, GetConVar("tiv_deploy_speed"):GetFloat()) or 1.0
+    local raiseTime  = 3 / speedMult
 
     timer.Create(timerName, 0.02, 0, function()
         if not IsValid(veh) then
@@ -388,7 +397,7 @@ function TIV.Deploy.RaiseVehicle(ply, veh)
         end
 
         local elapsed    = CurTime() - startTime
-        local frac       = math.Clamp(elapsed / 3, 0, 1)
+        local frac       = math.Clamp(elapsed / raiseTime, 0, 1)
         local smoothFrac = frac * frac * (3 - 2 * frac)
 
         veh:SetPos(LerpVector(smoothFrac, curPos, endPos))

@@ -399,6 +399,25 @@ timer.Create("TIV_WindThink", 0.1, 0, function()
         end
     end
 
+    -- Auto-deploy safety feature on high wind threshold
+    local autoDeployCVar = GetConVar("tiv_auto_deploy_wind")
+    local autoDeployThreshold = autoDeployCVar and autoDeployCVar:GetFloat() or 0
+    if autoDeployThreshold > 0 then
+        for _, entry in ipairs(activeVehicles) do
+            local veh = entry.veh
+            local data = entry.data
+            if data and data.state == "idle" then
+                local wMPH = TIV.Wind.GetSpeed(veh)
+                if wMPH >= autoDeployThreshold then
+                    local speed = veh:GetVelocity():Length() * 0.0568182
+                    if speed < 15 and TIV.Deploy and TIV.Deploy.Deploy then
+                        TIV.Deploy.Deploy(veh, data)
+                    end
+                end
+            end
+        end
+    end
+
     -- No TIV_WindUpdate broadcast: HUD gets wind via TIV_InstrumentData.
 end)
 

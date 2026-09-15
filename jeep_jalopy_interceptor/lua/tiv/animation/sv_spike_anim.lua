@@ -146,53 +146,81 @@ function TIV.SpikeAnim.CreateSpikes(veh, data)
     data.spikes     = {}
     data.spikeAnims = {}
 
+    local groupFront = GetConVar("tiv_spike_group_front")
+    local groupMid   = GetConVar("tiv_spike_group_mid")
+    local groupRear  = GetConVar("tiv_spike_group_rear")
+    local spreadOff  = GetConVar("tiv_spike_spread_offset") and GetConVar("tiv_spike_spread_offset"):GetFloat() or 0
+    local lengthOff  = GetConVar("tiv_spike_length_offset") and GetConVar("tiv_spike_length_offset"):GetFloat() or 0
+
     for i = 1, spikeCount do
         local offsetData = offsets[i]
         if offsetData then
-            local spike = ents.Create("prop_physics")
-            if IsValid(spike) then
-                local worldPos = veh:LocalToWorld(GetParentedLocalPos(offsetData))
-                local downAng  = GetSpikeDownAngle(veh)
+            local grp = offsetData.group or "mid"
+            local allowed = true
+            if grp == "front" and groupFront and not groupFront:GetBool() then allowed = false end
+            if grp == "mid" and groupMid and not groupMid:GetBool() then allowed = false end
+            if grp == "rear" and groupRear and not groupRear:GetBool() then allowed = false end
 
-                spike:SetModel(TIV.Config.SpikeModel)
-                spike:SetPos(worldPos)
-                spike:SetAngles(downAng)
-                spike:Spawn()
-                spike:Activate()
-
-                spike:SetCollisionGroup(COLLISION_GROUP_DEBRIS)
-                spike:SetColor(Color(80, 80, 80, 255))
-                spike:SetMaterial("models/props_combine/metal_combinebridge001")
-
-                -- Signal to tornado mods that this is an interceptor anchor,
-                -- not a debris prop, and apply the live visibility setting.
-                TIV.SpikeAnim.ApplyCompatibilityFlags(spike, veh)
-                TIV.SpikeAnim.ApplyVisibility(spike)
-                -- Some addons check this to skip cleanup entirely.
-                spike:SetCustomCollisionCheck(true)
-
-                local spikePhys = spike:GetPhysicsObject()
-                if IsValid(spikePhys) then
-                    spikePhys:SetMass(50)
-                    spikePhys:EnableMotion(false)
-                    spikePhys:EnableGravity(false)
+            if allowed then
+                local adjPos = Vector(offsetData.pos.x, offsetData.pos.y, offsetData.pos.z)
+                if adjPos.x > 0 then
+                    adjPos.x = adjPos.x + spreadOff
+                elseif adjPos.x < 0 then
+                    adjPos.x = adjPos.x - spreadOff
                 end
+                adjPos.y = adjPos.y + lengthOff
 
-                spike:SetParent(veh)
-                spike:SetLocalPos(GetParentedLocalPos(offsetData))
-                spike:SetLocalAngles(GetParentedLocalAngle())
+                local effectiveOffset = {
+                    pos   = adjPos,
+                    name  = offsetData.name,
+                    group = offsetData.group,
+                }
 
-                table.insert(data.spikes, {
-                    entity      = spike,
-                    offset      = offsetData.pos,
-                    localPos    = GetParentedLocalPos(offsetData),
-                    index       = i,
-                    phase       = "idle",
-                    deployAngle = GetSpikeDownAngle(veh),
-                    name        = offsetData.name,
-                    group       = offsetData.group,
-                })
-                data.spikeAnims[i] = "idle"
+                local spike = ents.Create("prop_physics")
+                if IsValid(spike) then
+                    local worldPos = veh:LocalToWorld(GetParentedLocalPos(effectiveOffset))
+                    local downAng  = GetSpikeDownAngle(veh)
+
+                    spike:SetModel(TIV.Config.SpikeModel)
+                    spike:SetPos(worldPos)
+                    spike:SetAngles(downAng)
+                    spike:Spawn()
+                    spike:Activate()
+
+                    spike:SetCollisionGroup(COLLISION_GROUP_DEBRIS)
+                    spike:SetColor(Color(80, 80, 80, 255))
+                    spike:SetMaterial("models/props_combine/metal_combinebridge001")
+
+                    -- Signal to tornado mods that this is an interceptor anchor,
+                    -- not a debris prop, and apply the live visibility setting.
+                    TIV.SpikeAnim.ApplyCompatibilityFlags(spike, veh)
+                    TIV.SpikeAnim.ApplyVisibility(spike)
+                    -- Some addons check this to skip cleanup entirely.
+                    spike:SetCustomCollisionCheck(true)
+
+                    local spikePhys = spike:GetPhysicsObject()
+                    if IsValid(spikePhys) then
+                        spikePhys:SetMass(50)
+                        spikePhys:EnableMotion(false)
+                        spikePhys:EnableGravity(false)
+                    end
+
+                    spike:SetParent(veh)
+                    spike:SetLocalPos(GetParentedLocalPos(effectiveOffset))
+                    spike:SetLocalAngles(GetParentedLocalAngle())
+
+                    table.insert(data.spikes, {
+                        entity      = spike,
+                        offset      = effectiveOffset.pos,
+                        localPos    = GetParentedLocalPos(effectiveOffset),
+                        index       = i,
+                        phase       = "idle",
+                        deployAngle = GetSpikeDownAngle(veh),
+                        name        = effectiveOffset.name,
+                        group       = effectiveOffset.group,
+                    })
+                    data.spikeAnims[i] = "idle"
+                end
             end
         end
     end
@@ -292,10 +320,12 @@ function TIV.SpikeAnim.DeployToGround(veh, data, onAllDeployed)
                     net.WriteString("deploying")
                 net.Broadcast()
 
+                local driveDepth    = GetConVar("tiv_spike_drive_depth") and GetConVar("tiv_spike_drive_depth"):GetFloat() or (TIV.Config.SpikeDriveDepth or 18)
+                local speedMult     = GetConVar("tiv_deploy_speed") and math.max(0.2, GetConVar("tiv_deploy_speed"):GetFloat()) or 1.0
                 local driveStart    = CurTime()
-                local driveDuration = TIV.Config.SpikeDriveDuration
+                local driveDuration = (TIV.Config.SpikeDriveDuration or 0.8) / speedMult
                 local startPos      = worldPos
-                local endPos        = groundPos + (downDir * TIV.Config.SpikeDriveDepth)
+                local endPos        = groundPos + (downDir * driveDepth)
 
                 local hasContactedGround = false
                 local hasFullyDeployed   = false
@@ -439,8 +469,9 @@ function TIV.SpikeAnim.RetractFromGround(veh, data, callback)
                     net.WriteString("retracting")
                 net.Broadcast()
 
+                local speedMult    = GetConVar("tiv_deploy_speed") and math.max(0.2, GetConVar("tiv_deploy_speed"):GetFloat()) or 1.0
                 local pullStart    = CurTime()
-                local pullDuration = TIV.Config.SpikeRetractDuration
+                local pullDuration = (TIV.Config.SpikeRetractDuration or 0.6) / speedMult
                 local startPos     = spike:GetPos()
                 local startAng     = spikeData.deployAngle or spike:GetAngles()
 
