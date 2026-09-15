@@ -165,15 +165,23 @@ hook.Add("HUDPaint", "TIV_DrawHUD", function()
     local isOverLimit = (windSpeed >= threshold)
 
     -- Warning levels
-    local anchorFail = TIV.Instruments.GetAnchorFail and TIV.Instruments.GetAnchorFail(veh)
+    local anchorFail   = TIV.Instruments.GetAnchorFail and TIV.Instruments.GetAnchorFail(veh)
+    local isOverturned = IsValid(veh) and (veh:GetUp().z < 0.40)
     local warningLevel = 0
-    local warningText = ""
-    if isOverLimit then
+    local warningText  = ""
+
+    if isOverturned then
+        warningLevel = 2
+        warningText  = "ROLLOVER DETECTED // PRESS [R] TO SELF-RIGHT"
+    elseif isOverLimit then
         warningLevel = 2
         warningText  = "CRITICAL: WIND VELOCITY EXCEEDS STRUCTURAL LIMIT"
     elseif anchorFail then
         warningLevel = 2
         warningText  = "ALERT: GROUND ANCHOR PIN FAILURE DETECTED"
+    elseif (stress or 0) >= 0.85 and state == "anchored" then
+        warningLevel = 2
+        warningText  = "CRITICAL: ANCHOR LOAD EXTREME // SHEAR IMMINENT"
     elseif windSpeed >= 150 then
         warningLevel = 1
         warningText  = "CAUTION: EXTREME VORTEX CORE SHEAR PASS"

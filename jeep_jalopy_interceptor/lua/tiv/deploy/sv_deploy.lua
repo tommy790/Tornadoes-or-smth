@@ -508,10 +508,16 @@ end)
 -- ============================================================================
 hook.Add("PlayerButtonDown", "TIV_DeployBind", function(ply, button)
     if not TIV.Config then return end
-    if button ~= TIV.Config.DeployKey then return end
     local veh = TIV.Deploy.ResolveVehicle(ply)
     if not IsValid(veh) then return end
-    TIV.Deploy.HandleInput(ply, veh)
+
+    if button == TIV.Config.DeployKey then
+        TIV.Deploy.HandleInput(ply, veh)
+    elseif button == KEY_R then
+        if veh:GetUp().z < 0.40 and TIV.Loft and TIV.Loft.SelfRightVehicle then
+            TIV.Loft.SelfRightVehicle(veh, ply)
+        end
+    end
 end)
 
 net.Receive("TIV_DeployRequest", function(len, ply)

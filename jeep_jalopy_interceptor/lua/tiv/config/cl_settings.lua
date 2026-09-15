@@ -476,6 +476,16 @@ hook.Add("PopulateToolMenu", "TIV_PopulateFullSettingsMenu", function()
                 notification.AddLegacy("[TIV] Enter a supported vehicle first!", NOTIFY_ERROR, 3)
             end
         end
+
+        local recoverBtn = panel:Button("Hydraulic Rollover Recovery (Self-Right)", "")
+        recoverBtn.DoClick = function()
+            local ply = LocalPlayer()
+            if IsValid(ply) and ply:InVehicle() then
+                RunConsoleCommand("tiv_recover")
+            else
+                notification.AddLegacy("[TIV] Enter a vehicle first!", NOTIFY_ERROR, 3)
+            end
+        end
     end)
 
     -- ------------------------------------------------------------------------

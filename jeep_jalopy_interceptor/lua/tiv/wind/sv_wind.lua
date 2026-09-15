@@ -264,6 +264,49 @@ TIV.Wind.SampleXT3WindAt          = SampleXT3WindAt
 TIV.Wind.SampleWorldWindAt        = SampleWorldWindAt
 
 -- ============================================================================
+-- FIND NEAREST ACTIVE VORTEX (GSTORMS & XTWISTERS 3)
+-- Locates the active tornado entity to derive continuous vortex dynamics,
+-- orbital circulation, and core updraft suction for airborne vehicles.
+-- ============================================================================
+function TIV.Wind.GetNearestVortex(pos, maxDist)
+    maxDist = maxDist or 8000
+    local maxDistSqr = maxDist * maxDist
+    local closestEnt = nil
+    local closestDistSqr = maxDistSqr
+
+    for _, ent in ipairs(ents.FindInSphere(pos, maxDist)) do
+        if IsValid(ent) then
+            local class = string.lower(ent:GetClass() or "")
+            local isVortex = false
+
+            if string.find(class, "gstorms_weather_ef", 1, true)
+                or string.find(class, "gstorms_weather_spout", 1, true)
+                or string.find(class, "gstorms_weather_dust_devil", 1, true)
+                or string.find(class, "gstorms_weather_hurricane", 1, true)
+                or string.find(class, "xt3_tornadoes_", 1, true)
+                or ent.Tornado == true
+                or (ent.GetTornado and ent:GetTornado() == true)
+                or (ent.IsXT3Vortex == true or ent.IsVortex == true) then
+                isVortex = true
+            end
+
+            if isVortex then
+                local distSqr = ent:GetPos():DistToSqr(pos)
+                if distSqr < closestDistSqr then
+                    closestDistSqr = distSqr
+                    closestEnt = ent
+                end
+            end
+        end
+    end
+
+    if IsValid(closestEnt) then
+        return closestEnt, closestEnt:GetPos(), math.sqrt(closestDistSqr)
+    end
+    return nil, nil, nil
+end
+
+-- ============================================================================
 -- PUBLIC API
 -- ============================================================================
 local function ManualActive()
