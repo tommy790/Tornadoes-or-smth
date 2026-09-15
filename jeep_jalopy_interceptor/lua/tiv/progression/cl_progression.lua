@@ -58,6 +58,13 @@ function TIV.Progression.IsUnlocked(id)
     return TIV.Progression.UnlockedUpgrades[id] == true
 end
 
+function TIV.Progression.RequestCheat(action, arg)
+    net.Start("TIV_CheatAction")
+        net.WriteString(action or "")
+        net.WriteInt(arg or 0, 32)
+    net.SendToServer()
+end
+
 function TIV.Progression.RequestSync()
     net.Start("TIV_RequestProgression")
     net.SendToServer()
@@ -177,44 +184,20 @@ function TIV.Progression.OpenUpgradeMenu()
             local item = scroll:Add("DPanel")
             item:Dock(TOP)
             item:DockMargin(0, 0, 0, 10)
-            item:SetTall(90)
+            item:SetTall(100)
 
             item.Paint = function(s, w, h)
                 local bg = isUnlocked and Color(24, 38, 30, 240) or Color(22, 26, 36, 240)
                 local border = isUnlocked and Color(60, 140, 80) or Color(45, 52, 70)
                 draw.RoundedBox(6, 0, 0, w, h, border)
                 draw.RoundedBox(4, 1, 1, w - 2, h - 2, bg)
-
-                -- Category tag
-                draw.RoundedBox(3, 14, 10, 84, 18, Color(35, 42, 58))
-                draw.SimpleText(string.upper(upg.category or "UPGRADE"), "DermaDefault", 56, 11, Color(180, 200, 230), TEXT_ALIGN_CENTER)
-
-                -- Upgrade title
-                draw.SimpleText(upg.name, "Trebuchet18", 108, 9, Color(240, 240, 240), TEXT_ALIGN_LEFT)
-
-                -- Upgrade description
-                draw.SimpleText(upg.desc, "DermaDefault", 14, 36, Color(190, 195, 205), TEXT_ALIGN_LEFT)
-
-                -- Physics benefits preview
-                local bonusText = ""
-                if upg.bonuses then
-                    local parts = {}
-                    if upg.bonuses.loft_threshold then table.insert(parts, "+" .. upg.bonuses.loft_threshold .. " MPH Loft Resistance") end
-                    if upg.bonuses.rock_torque_mult then table.insert(parts, "-" .. math.Round((1 - upg.bonuses.rock_torque_mult) * 100) .. "% Rocking Torque") end
-                    if upg.bonuses.wind_force_mult then table.insert(parts, "-" .. math.Round((1 - upg.bonuses.wind_force_mult) * 100) .. "% Wind Drag") end
-                    if upg.bonuses.anchor_hold_mult then table.insert(parts, "+" .. math.Round((upg.bonuses.anchor_hold_mult - 1) * 100) .. "% Anchor Strength") end
-                    if upg.bonuses.added_mass then table.insert(parts, "+" .. upg.bonuses.added_mass .. " kg Mass") end
-                    bonusText = table.concat(parts, "  |  ")
-                end
-                draw.SimpleText("Physics: " .. bonusText, "DermaDefaultBold", 14, 66, Color(140, 210, 160), TEXT_ALIGN_LEFT)
             end
 
             -- Right action button
             local actionBtn = vgui.Create("DButton", item)
-            actionBtn:SetSize(160, 42)
-            actionBtn:SetPos(item:GetWide() - 170, 24)
+            actionBtn:SetWide(150)
             actionBtn:Dock(RIGHT)
-            actionBtn:DockMargin(10, 22, 14, 22)
+            actionBtn:DockMargin(8, 28, 14, 28)
 
             if isUnlocked then
                 actionBtn:SetText("PURCHASED")
@@ -253,6 +236,51 @@ function TIV.Progression.OpenUpgradeMenu()
                     end)
                 end
             end
+
+            -- Left Content Area (strictly partitioned from the right action button)
+            local content = vgui.Create("DPanel", item)
+            content:Dock(FILL)
+            content:DockMargin(12, 8, 8, 8)
+            content.Paint = function() end
+
+            -- Top header row: Category badge + Title
+            local topRow = vgui.Create("DPanel", content)
+            topRow:Dock(TOP)
+            topRow:SetTall(22)
+            topRow:DockMargin(0, 0, 0, 4)
+            topRow.Paint = function(s, w, h)
+                draw.RoundedBox(3, 0, 2, 78, 18, Color(35, 42, 58))
+                draw.SimpleText(string.upper(upg.category or "UPGRADE"), "DermaDefault", 39, 3, Color(180, 200, 230), TEXT_ALIGN_CENTER)
+                draw.SimpleText(upg.name, "Trebuchet18", 88, 1, Color(240, 240, 240), TEXT_ALIGN_LEFT)
+            end
+
+            -- Upgrade description (wrapped safely inside left container)
+            local descLbl = vgui.Create("DLabel", content)
+            descLbl:Dock(TOP)
+            descLbl:SetTall(34)
+            descLbl:SetFont("DermaDefault")
+            descLbl:SetTextColor(Color(190, 195, 205))
+            descLbl:SetWrap(true)
+            descLbl:SetText(upg.desc)
+
+            -- Physics benefits preview
+            local bonusText = ""
+            if upg.bonuses then
+                local parts = {}
+                if upg.bonuses.loft_threshold then table.insert(parts, "+" .. upg.bonuses.loft_threshold .. " MPH Loft Resistance") end
+                if upg.bonuses.rock_torque_mult then table.insert(parts, "-" .. math.Round((1 - upg.bonuses.rock_torque_mult) * 100) .. "% Rocking Torque") end
+                if upg.bonuses.wind_force_mult then table.insert(parts, "-" .. math.Round((1 - upg.bonuses.wind_force_mult) * 100) .. "% Wind Drag") end
+                if upg.bonuses.anchor_hold_mult then table.insert(parts, "+" .. math.Round((upg.bonuses.anchor_hold_mult - 1) * 100) .. "% Anchor Strength") end
+                if upg.bonuses.added_mass then table.insert(parts, "+" .. upg.bonuses.added_mass .. " kg Mass") end
+                bonusText = table.concat(parts, "  |  ")
+            end
+
+            local bonusLbl = vgui.Create("DLabel", content)
+            bonusLbl:Dock(TOP)
+            bonusLbl:SetTall(18)
+            bonusLbl:SetFont("DermaDefaultBold")
+            bonusLbl:SetTextColor(Color(140, 210, 160))
+            bonusLbl:SetText("Physics: " .. bonusText)
         end
     end
 

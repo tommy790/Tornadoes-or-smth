@@ -63,6 +63,11 @@ end
 -- FAIL GROUP
 -- ============================================================================
 function TIV.Loft.FailGroup(veh, data, groupName, duration)
+    local cheatGodmode = GetConVar("tiv_cheat_godmode_anchors")
+    if cheatGodmode and cheatGodmode:GetBool() then
+        return
+    end
+
     local spikeIndices = TIV.Loft.SpikeGroups[groupName]
     if not spikeIndices then return end
 
@@ -220,6 +225,12 @@ TIV.Loft.CleanupTracking = CleanupLoftTracking
 function TIV.Loft.TriggerLoft(veh, data)
     if not IsValid(veh) then return end
     if data.state == "lofted" then return end
+
+    -- Cheat check: Godmode Anchors immunity
+    local cheatGodmode = GetConVar("tiv_cheat_godmode_anchors")
+    if cheatGodmode and cheatGodmode:GetBool() then
+        return
+    end
 
     local entIdx     = veh:EntIndex()
     local sessionID  = data.sessionID  -- capture for closure identity check

@@ -158,8 +158,8 @@ hook.Add("HUDPaint", "TIV_DrawHUD", function()
     draw.RoundedBoxEx(8, panelX, panelY, panelW, 32,
         Color(headerCol.r * 0.2, headerCol.g * 0.2, headerCol.b * 0.2, 230),
         true, true, false, false)
-    draw.SimpleText("* TIV INSTRUMENTS *", "DermaDefaultBold",
-        panelX + panelW / 2, panelY + 8, Color(255, 255, 255), TEXT_ALIGN_CENTER)
+    draw.SimpleText("TIV INSTRUMENTS", "DermaDefaultBold",
+        panelX + 14, panelY + 8, Color(255, 255, 255), TEXT_ALIGN_LEFT)
 
     local pts = TIV.Progression and TIV.Progression.CurrentIntercepts or 0
     draw.SimpleText("PTS: " .. pts, "DermaDefaultBold",
@@ -199,15 +199,26 @@ hook.Add("HUDPaint", "TIV_DrawHUD", function()
     y = y + 5
 
     -- Wind speed
-    local threshold = TIV.Config.LoftWindThreshold or 180
+    local threshold = (IsValid(veh) and veh._TIVEffectiveStats and veh._TIVEffectiveStats.effective_loft_mph)
+        or TIV.Config.LoftWindThreshold
+        or 180
+    local isOverLimit = (windSpeed >= threshold)
+
     local windColor = Color(100, 255, 100)
     if windSpeed > 80  then windColor = Color(200, 255, 50)  end
     if windSpeed > 120 then windColor = Color(255, 255, 50)  end
     if windSpeed > 150 then windColor = Color(255, 150, 50)  end
-    if windSpeed >= threshold then windColor = Color(255, 50, 50) end
+    if isOverLimit     then windColor = Color(255, 50, 50)   end
+
+    local windText = math.floor(windSpeed * unitScale) .. unitSuffix
+    if isOverLimit then
+        local blink = (math.floor(CurTime() * 5) % 2 == 0)
+        windColor = blink and Color(255, 40, 40) or Color(255, 160, 160)
+        windText  = "ERROR"
+    end
 
     draw.SimpleText("WIND SPEED", "DermaDefault", lm, y, Color(150, 150, 150))
-    draw.SimpleText(math.floor(windSpeed * unitScale) .. unitSuffix, "DermaDefaultBold",
+    draw.SimpleText(windText, "DermaDefaultBold",
         rm, y, windColor, TEXT_ALIGN_RIGHT)
     y = y + lineH
 
@@ -366,7 +377,9 @@ hook.Add("HUDPaint", "TIV_DrawHUD", function()
         draw.SimpleText(dotLabel, "DermaDefaultBold",
             dotX + dotR + 8, dotY,
             dotColor, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-        draw.SimpleText(math.floor(windSpeed * unitScale) .. unitSuffix, "DermaDefaultBold",
+
+        local speedWarningText = isOverLimit and "ERROR" or (math.floor(windSpeed * unitScale) .. unitSuffix)
+        draw.SimpleText(speedWarningText, "DermaDefaultBold",
             dotAreaX + dotAreaW - 6, dotY,
             dotColor, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
 

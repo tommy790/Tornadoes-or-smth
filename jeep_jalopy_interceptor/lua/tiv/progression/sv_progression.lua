@@ -11,6 +11,7 @@ util.AddNetworkString("TIV_SyncProgression")
 util.AddNetworkString("TIV_InterceptAwarded")
 util.AddNetworkString("TIV_PurchaseUpgrade")
 util.AddNetworkString("TIV_RequestProgression")
+util.AddNetworkString("TIV_CheatAction")
 
 TIV.Progression.PlayerData = TIV.Progression.PlayerData or {}
 TIV.Progression.ActiveTracking = TIV.Progression.ActiveTracking or {}
@@ -204,6 +205,68 @@ end)
 net.Receive("TIV_RequestProgression", function(len, ply)
     if not IsValid(ply) then return end
     TIV.Progression.SyncToPlayer(ply)
+end)
+
+net.Receive("TIV_CheatAction", function(len, ply)
+    if not IsValid(ply) then return end
+
+    local cheatsAllowed = game.SinglePlayer() or ply:IsAdmin()
+        or (GetConVar("tiv_cheats_enabled") and GetConVar("tiv_cheats_enabled"):GetBool())
+    if not cheatsAllowed then
+        ply:ChatPrint("[TIV] Cheats are restricted to administrators.")
+        return
+    end
+
+    local action = net.ReadString()
+    local arg = net.ReadInt(32)
+    local profile = TIV.Progression.GetPlayerProfile(ply)
+    if not profile then return end
+
+    if action == "unlock_all" then
+        for _, u in ipairs(TIV.Progression.GetAllUpgrades()) do
+            profile.unlocked_upgrades[u.id] = true
+        end
+        TIV.Progression.SavePlayerProfile(ply)
+        TIV.Progression.SyncToPlayer(ply)
+        ply:ChatPrint("[TIV Cheat] All upgrades have been unlocked!")
+
+        local veh = TIV.Deploy and TIV.Deploy.ResolveVehicle and TIV.Deploy.ResolveVehicle(ply)
+        if IsValid(veh) then
+            if TIV.CustomComponents and TIV.CustomComponents.ApplyVehicleBonuses then
+                TIV.CustomComponents.ApplyVehicleBonuses(veh)
+            end
+            if TIV.Wire and TIV.Wire.UpdateOutputs then
+                TIV.Wire.UpdateOutputs(veh)
+            end
+        end
+    elseif action == "add_points" or action == "add_points_10" or action == "add_points_50" then
+        local amt = (arg and arg > 0) and arg or (action == "add_points_50" and 50 or 10)
+        TIV.Progression.AwardIntercepts(ply, amt, "Cheat Sandbox Grant (+" .. amt .. ")")
+    elseif action == "reset" or action == "reset_progression" then
+        profile.current_intercepts = 0
+        profile.total_intercepts   = 0
+        profile.unlocked_upgrades  = {}
+        TIV.Progression.SavePlayerProfile(ply)
+        TIV.Progression.SyncToPlayer(ply)
+        ply:ChatPrint("[TIV Cheat] Progression and upgrades reset.")
+    end
+end)
+
+concommand.Add("tiv_unlock_all", function(ply)
+    if IsValid(ply) then
+        local cheatsAllowed = game.SinglePlayer() or ply:IsAdmin()
+            or (GetConVar("tiv_cheats_enabled") and GetConVar("tiv_cheats_enabled"):GetBool())
+        if not cheatsAllowed then return end
+        local profile = TIV.Progression.GetPlayerProfile(ply)
+        if profile then
+            for _, u in ipairs(TIV.Progression.GetAllUpgrades()) do
+                profile.unlocked_upgrades[u.id] = true
+            end
+            TIV.Progression.SavePlayerProfile(ply)
+            TIV.Progression.SyncToPlayer(ply)
+            ply:ChatPrint("[TIV] All upgrades unlocked via console command.")
+        end
+    end
 end)
 
 -- ============================================================================

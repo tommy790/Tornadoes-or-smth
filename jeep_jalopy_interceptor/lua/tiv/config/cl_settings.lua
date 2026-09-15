@@ -354,24 +354,10 @@ hook.Add("PopulateToolMenu", "TIV_PopulateFullSettingsMenu", function()
                 surface.DrawOutlinedRect(0, 0, w, h)
             end
 
-            local nameLbl = vgui.Create("DLabel", card)
-            nameLbl:SetPos(12, 6)
-            nameLbl:SetSize(220, 20)
-            nameLbl:SetFont("DermaDefaultBold")
-            nameLbl:SetTextColor(preset.color)
-            nameLbl:SetText(preset.name)
-
-            local descLbl = vgui.Create("DLabel", card)
-            descLbl:SetPos(12, 26)
-            descLbl:SetSize(280, 42)
-            descLbl:SetFont("DermaDefault")
-            descLbl:SetTextColor(THEME.textDim)
-            descLbl:SetWrap(true)
-            descLbl:SetText(preset.desc)
-
             local applyBtn = vgui.Create("DButton", card)
-            applyBtn:SetPos(panel:GetWide() > 300 and (panel:GetWide() - 95) or 220, 22)
-            applyBtn:SetSize(75, 30)
+            applyBtn:SetWide(75)
+            applyBtn:Dock(RIGHT)
+            applyBtn:DockMargin(6, 20, 10, 20)
             applyBtn:SetText("APPLY")
             applyBtn:SetTextColor(Color(255, 255, 255))
             applyBtn.Paint = function(self, w, h)
@@ -380,6 +366,25 @@ hook.Add("PopulateToolMenu", "TIV_PopulateFullSettingsMenu", function()
             applyBtn.DoClick = function()
                 TIV.Menu.ApplyPreset(preset)
             end
+
+            local textPanel = vgui.Create("DPanel", card)
+            textPanel:Dock(FILL)
+            textPanel:DockMargin(12, 6, 6, 6)
+            textPanel.Paint = function() end
+
+            local nameLbl = vgui.Create("DLabel", textPanel)
+            nameLbl:Dock(TOP)
+            nameLbl:SetTall(20)
+            nameLbl:SetFont("DermaDefaultBold")
+            nameLbl:SetTextColor(preset.color)
+            nameLbl:SetText(preset.name)
+
+            local descLbl = vgui.Create("DLabel", textPanel)
+            descLbl:Dock(FILL)
+            descLbl:SetFont("DermaDefault")
+            descLbl:SetTextColor(THEME.textDim)
+            descLbl:SetWrap(true)
+            descLbl:SetText(preset.desc)
 
             panel:AddItem(card)
         end
@@ -621,6 +626,96 @@ hook.Add("PopulateToolMenu", "TIV_PopulateFullSettingsMenu", function()
         panel:Help("Troubleshooting FAQ:")
         panel:ControlHelp("Q: Vehicle won't deploy?\nA: Vehicle must be almost stopped (< 15 MPH) and on solid ground.\n\nQ: Do spikes damage the vehicle?\nA: No, all spikes and constraints are collision-filtered.\n\nQ: Can spikes snap?\nA: Yes, if Spike Force Limit is non-zero and lateral storm force exceeds the limit.")
     end)
+
+    -- ------------------------------------------------------------------------
+    -- 8. CHEATS & DEV SANDBOX TAB
+    -- ------------------------------------------------------------------------
+    spawnmenu.AddToolMenuOption("Utilities", "TIV", "TIV_Menu_Cheats", "Cheats & Dev Sandbox", "", "", function(panel)
+        panel:ClearControls()
+
+        panel:Help("TIV Sandbox & Cheat Controls:")
+        panel:ControlHelp("Use these controls in sandbox or singleplayer to test extreme intercepts, record cinematic sequences, or instantly unlock all upgrades.")
+
+        panel:CheckBox("Godmode Anchors (Immune to violent lofting)", "tiv_cheat_godmode_anchors")
+        panel:ControlHelp("When enabled, hydraulic spikes and anchors will never snap or fail under any tornado wind speed.")
+
+        local unlockBtn = vgui.Create("DButton", panel)
+        unlockBtn:SetText("UNLOCK ALL UPGRADES")
+        unlockBtn:SetTall(34)
+        unlockBtn:SetTextColor(Color(255, 255, 255))
+        unlockBtn.Paint = function(s, w, h)
+            draw.RoundedBox(4, 0, 0, w, h, s:IsHovered() and Color(240, 160, 30) or Color(190, 120, 20))
+        end
+        unlockBtn.DoClick = function()
+            if TIV.Progression and TIV.Progression.RequestCheat then
+                TIV.Progression.RequestCheat("unlock_all")
+            else
+                RunConsoleCommand("tiv_unlock_all")
+            end
+            surface.PlaySound("buttons/button14.wav")
+            notification.AddLegacy("[TIV Sandbox] All vehicle upgrades unlocked!", NOTIFY_GENERIC, 3)
+        end
+        panel:AddItem(unlockBtn)
+
+        panel:Help("Grant Intercept Points:")
+        local pnlPts = vgui.Create("DPanel", panel)
+        pnlPts:SetTall(34)
+        pnlPts.Paint = function() end
+
+        local btn50 = vgui.Create("DButton", pnlPts)
+        btn50:Dock(LEFT)
+        btn50:SetWide(80)
+        btn50:SetText("+50 PTS")
+        btn50.DoClick = function()
+            if TIV.Progression and TIV.Progression.RequestCheat then
+                TIV.Progression.RequestCheat("add_points", 50)
+            end
+            surface.PlaySound("garrysmod/save_load1.wav")
+        end
+
+        local btn200 = vgui.Create("DButton", pnlPts)
+        btn200:Dock(LEFT)
+        btn200:DockMargin(8, 0, 0, 0)
+        btn200:SetWide(80)
+        btn200:SetText("+200 PTS")
+        btn200.DoClick = function()
+            if TIV.Progression and TIV.Progression.RequestCheat then
+                TIV.Progression.RequestCheat("add_points", 200)
+            end
+            surface.PlaySound("garrysmod/save_load1.wav")
+        end
+
+        local btn1000 = vgui.Create("DButton", pnlPts)
+        btn1000:Dock(LEFT)
+        btn1000:DockMargin(8, 0, 0, 0)
+        btn1000:SetWide(90)
+        btn1000:SetText("+1000 PTS")
+        btn1000.DoClick = function()
+            if TIV.Progression and TIV.Progression.RequestCheat then
+                TIV.Progression.RequestCheat("add_points", 1000)
+            end
+            surface.PlaySound("garrysmod/save_load1.wav")
+        end
+
+        panel:AddItem(pnlPts)
+
+        local resetBtn = vgui.Create("DButton", panel)
+        resetBtn:SetText("RESET PROGRESSION PROFILE")
+        resetBtn:SetTall(28)
+        resetBtn:SetTextColor(Color(255, 140, 140))
+        resetBtn.Paint = function(s, w, h)
+            draw.RoundedBox(4, 0, 0, w, h, s:IsHovered() and Color(140, 40, 40) or Color(60, 25, 25))
+        end
+        resetBtn.DoClick = function()
+            Derma_Query("Are you sure you want to reset your TIV progression points and unlocked upgrades back to zero?", "Reset Progression", "Yes", function()
+                if TIV.Progression and TIV.Progression.RequestCheat then
+                    TIV.Progression.RequestCheat("reset")
+                end
+                surface.PlaySound("buttons/button19.wav")
+            end, "No", function() end)
+        end
+        panel:AddItem(resetBtn)
+    end)
 end)
 
 -- ============================================================================
@@ -771,24 +866,10 @@ function TIV.Menu.OpenMasterConsole()
                 surface.DrawOutlinedRect(0, 0, cw, ch)
             end
 
-            local nameLbl = vgui.Create("DLabel", card)
-            nameLbl:SetPos(16, 8)
-            nameLbl:SetSize(350, 22)
-            nameLbl:SetFont("DermaDefaultBold")
-            nameLbl:SetTextColor(preset.color)
-            nameLbl:SetText(preset.name)
-
-            local descLbl = vgui.Create("DLabel", card)
-            descLbl:SetPos(16, 30)
-            descLbl:SetSize(460, 42)
-            descLbl:SetFont("DermaDefault")
-            descLbl:SetTextColor(THEME.textDim)
-            descLbl:SetWrap(true)
-            descLbl:SetText(preset.desc)
-
             local applyBtn = vgui.Create("DButton", card)
-            applyBtn:SetPos(495, 24)
-            applyBtn:SetSize(110, 34)
+            applyBtn:SetWide(115)
+            applyBtn:Dock(RIGHT)
+            applyBtn:DockMargin(10, 22, 14, 22)
             applyBtn:SetText("APPLY PRESET")
             applyBtn:SetFont("DermaDefaultBold")
             applyBtn:SetTextColor(Color(255, 255, 255))
@@ -798,6 +879,25 @@ function TIV.Menu.OpenMasterConsole()
             applyBtn.DoClick = function()
                 TIV.Menu.ApplyPreset(preset)
             end
+
+            local textPanel = vgui.Create("DPanel", card)
+            textPanel:Dock(FILL)
+            textPanel:DockMargin(16, 8, 8, 8)
+            textPanel.Paint = function() end
+
+            local nameLbl = vgui.Create("DLabel", textPanel)
+            nameLbl:Dock(TOP)
+            nameLbl:SetTall(22)
+            nameLbl:SetFont("DermaDefaultBold")
+            nameLbl:SetTextColor(preset.color)
+            nameLbl:SetText(preset.name)
+
+            local descLbl = vgui.Create("DLabel", textPanel)
+            descLbl:Dock(FILL)
+            descLbl:SetFont("DermaDefault")
+            descLbl:SetTextColor(THEME.textDim)
+            descLbl:SetWrap(true)
+            descLbl:SetText(preset.desc)
         end
 
         return pnl
@@ -1268,6 +1368,158 @@ STEP 4: RETRACTION & RELOCATION
         return pnl
     end
 
+    -- ========================================================================
+    -- TAB 8: CHEATS & DEV SANDBOX
+    -- ========================================================================
+    local function BuildCheatsTab(parent)
+        local pnl = vgui.Create("DScrollPanel", parent)
+
+        local title = vgui.Create("DLabel", pnl)
+        title:SetFont("DermaLarge")
+        title:SetTextColor(Color(255, 255, 255))
+        title:SetText("Dev Sandbox & Cheat Controls")
+        title:Dock(TOP)
+        title:DockMargin(0, 0, 0, 5)
+
+        local sub = vgui.Create("DLabel", pnl)
+        sub:SetFont("DermaDefault")
+        sub:SetTextColor(THEME.textDim)
+        sub:SetText("Sandbox testing tools for extreme intercepts, cinematic recording, and instant unlock testing.")
+        sub:Dock(TOP)
+        sub:DockMargin(0, 0, 0, 20)
+
+        -- Godmode Anchors Card
+        local godCard = vgui.Create("DPanel", pnl)
+        godCard:SetTall(75)
+        godCard:Dock(TOP)
+        godCard:DockMargin(0, 0, 0, 15)
+        godCard.Paint = function(s, w, h)
+            draw.RoundedBox(6, 0, 0, w, h, THEME.panelBg)
+            surface.SetDrawColor(THEME.border)
+            surface.DrawOutlinedRect(0, 0, w, h)
+            surface.SetDrawColor(Color(80, 160, 240))
+            surface.DrawRect(0, 0, 4, h)
+        end
+
+        local godTextPnl = vgui.Create("DPanel", godCard)
+        godTextPnl:Dock(FILL)
+        godTextPnl:DockMargin(16, 12, 10, 10)
+        godTextPnl.Paint = function() end
+
+        local godTitle = vgui.Create("DLabel", godTextPnl)
+        godTitle:Dock(TOP)
+        godTitle:SetFont("DermaDefaultBold")
+        godTitle:SetTextColor(Color(240, 240, 240))
+        godTitle:SetText("Godmode Anchors")
+
+        local godDesc = vgui.Create("DLabel", godTextPnl)
+        godDesc:Dock(FILL)
+        godDesc:SetFont("DermaDefault")
+        godDesc:SetTextColor(THEME.textDim)
+        godDesc:SetWrap(true)
+        godDesc:SetText("Prevents anchors and spikes from failing or lofting the vehicle, even at extreme EF5 core wind velocities.")
+
+        local godCheck = vgui.Create("DCheckBoxLabel", godCard)
+        godCheck:SetWide(110)
+        godCheck:Dock(RIGHT)
+        godCheck:DockMargin(10, 24, 16, 20)
+        godCheck:SetText("Enabled")
+        godCheck:SetConVar("tiv_cheat_godmode_anchors")
+        godCheck:SetTextColor(Color(255, 255, 255))
+
+        -- Progression Cheats Card
+        local progCard = vgui.Create("DPanel", pnl)
+        progCard:SetTall(200)
+        progCard:Dock(TOP)
+        progCard:DockMargin(0, 0, 0, 15)
+        progCard.Paint = function(s, w, h)
+            draw.RoundedBox(6, 0, 0, w, h, THEME.panelBg)
+            surface.SetDrawColor(THEME.border)
+            surface.DrawOutlinedRect(0, 0, w, h)
+            surface.SetDrawColor(Color(240, 170, 30))
+            surface.DrawRect(0, 0, 4, h)
+            draw.SimpleText("Progression & Upgrades Sandbox", "DermaDefaultBold", 16, 12, Color(240, 200, 50))
+            draw.SimpleText("Instantly unlock all vehicle components or grant intercept points to your profile.", "DermaDefault", 16, 32, THEME.textDim)
+        end
+
+        local unlockBtn = vgui.Create("DButton", progCard)
+        unlockBtn:SetPos(16, 60)
+        unlockBtn:SetSize(220, 36)
+        unlockBtn:SetText("UNLOCK ALL UPGRADES")
+        unlockBtn:SetTextColor(Color(255, 255, 255))
+        unlockBtn.Paint = function(s, w, h)
+            draw.RoundedBox(4, 0, 0, w, h, s:IsHovered() and Color(240, 170, 30) or Color(200, 130, 20))
+        end
+        unlockBtn.DoClick = function()
+            if TIV.Progression and TIV.Progression.RequestCheat then
+                TIV.Progression.RequestCheat("unlock_all")
+            else
+                RunConsoleCommand("tiv_unlock_all")
+            end
+            surface.PlaySound("buttons/button14.wav")
+            notification.AddLegacy("[TIV Sandbox] All vehicle upgrades unlocked!", NOTIFY_GENERIC, 3)
+        end
+
+        local grantLbl = vgui.Create("DLabel", progCard)
+        grantLbl:SetPos(16, 110)
+        grantLbl:SetSize(200, 20)
+        grantLbl:SetFont("DermaDefaultBold")
+        grantLbl:SetTextColor(Color(200, 210, 225))
+        grantLbl:SetText("Grant Intercept Points:")
+
+        local b50 = vgui.Create("DButton", progCard)
+        b50:SetPos(16, 136)
+        b50:SetSize(90, 30)
+        b50:SetText("+50 PTS")
+        b50.DoClick = function()
+            if TIV.Progression and TIV.Progression.RequestCheat then
+                TIV.Progression.RequestCheat("add_points", 50)
+            end
+            surface.PlaySound("garrysmod/save_load1.wav")
+        end
+
+        local b200 = vgui.Create("DButton", progCard)
+        b200:SetPos(116, 136)
+        b200:SetSize(90, 30)
+        b200:SetText("+200 PTS")
+        b200.DoClick = function()
+            if TIV.Progression and TIV.Progression.RequestCheat then
+                TIV.Progression.RequestCheat("add_points", 200)
+            end
+            surface.PlaySound("garrysmod/save_load1.wav")
+        end
+
+        local b1000 = vgui.Create("DButton", progCard)
+        b1000:SetPos(216, 136)
+        b1000:SetSize(100, 30)
+        b1000:SetText("+1000 PTS")
+        b1000.DoClick = function()
+            if TIV.Progression and TIV.Progression.RequestCheat then
+                TIV.Progression.RequestCheat("add_points", 1000)
+            end
+            surface.PlaySound("garrysmod/save_load1.wav")
+        end
+
+        local rstBtn = vgui.Create("DButton", progCard)
+        rstBtn:SetPos(336, 136)
+        rstBtn:SetSize(160, 30)
+        rstBtn:SetText("RESET PROGRESSION")
+        rstBtn:SetTextColor(Color(255, 140, 140))
+        rstBtn.Paint = function(s, w, h)
+            draw.RoundedBox(4, 0, 0, w, h, s:IsHovered() and Color(140, 40, 40) or Color(60, 25, 25))
+        end
+        rstBtn.DoClick = function()
+            Derma_Query("Reset progression points and unlocked upgrades back to zero?", "Reset Progression", "Yes", function()
+                if TIV.Progression and TIV.Progression.RequestCheat then
+                    TIV.Progression.RequestCheat("reset")
+                end
+                surface.PlaySound("buttons/button19.wav")
+            end, "No", function() end)
+        end
+
+        return pnl
+    end
+
     -- Register sidebar tabs
     local t1 = AddSidebarTab("Quick Presets", BuildPresetsTab)
     AddSidebarTab("3D Customizer", function(parent)
@@ -1380,6 +1632,7 @@ STEP 4: RETRACTION & RELOCATION
     AddSidebarTab("Cockpit HUD", BuildHUDTab)
     AddSidebarTab("Wiremod & E2", BuildWiremodTab)
     AddSidebarTab("Field Manual", BuildManualTab)
+    AddSidebarTab("Cheats / Sandbox", BuildCheatsTab)
 
     -- Default to Presets tab
     t1:DoClick()

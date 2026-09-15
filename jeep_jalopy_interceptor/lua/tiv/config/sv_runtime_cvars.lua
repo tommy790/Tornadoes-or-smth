@@ -253,6 +253,20 @@ CreateConVar(
     "Enable/disable the rear pair of anchor spikes."
 )
 
+CreateConVar(
+    "tiv_cheat_godmode_anchors",
+    "0",
+    { FCVAR_ARCHIVE, FCVAR_REPLICATED },
+    "Cheat: Spikes never break and vehicle cannot be lofted by tornado winds."
+)
+
+CreateConVar(
+    "tiv_cheats_enabled",
+    "1",
+    { FCVAR_ARCHIVE, FCVAR_REPLICATED },
+    "Allow TIV sandbox cheats and instant upgrade unlocking."
+)
+
 -- Real bug fix: callbacks had `*,*` paste artifacts (function(_, _, _) is correct).
 cvars.AddChangeCallback("tiv_spike_count", function(_, old, new)
     applyRuntimeSpikeConfig()
