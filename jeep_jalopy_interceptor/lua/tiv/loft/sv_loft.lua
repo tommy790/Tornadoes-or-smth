@@ -193,8 +193,6 @@ function TIV.Loft.StartDirectionalFailure(veh, data)
         "[TIV] Vehicle #%d exceeded %.0f MPH. Failure order: REAR -> MID -> FRONT",
         entIndex, TIV.Config.LoftWindThreshold))
 
-    veh:EmitSound("ambient/alarms/warningbell1.wav", 80)
-
     for _, step in ipairs(TIV.Loft.FailureSequence) do
         local stepGroup, stepDuration = step.group, step.duration
         timer.Create(prefix .. "_" .. stepGroup, step.startTime, 1, function()

@@ -47,15 +47,20 @@ end)
 
 net.Receive("TIV_SpikeAnimImpact", function()
     local veh    = net.ReadEntity()
-    -- Real bug fix: server writes index here; we MUST read it or the
-    -- vector/normal will be misaligned by one byte.
     local index  = net.ReadUInt(8)
     local pos    = net.ReadVector()
     local normal = net.ReadVector()
     if not IsValid(veh) then return end
 
-    if LocalPlayer():GetPos():DistToSqr(pos) < 300 * 300 then
-        util.ScreenShake(pos, 3, 10, 0.3, 300)
+    local ed = EffectData()
+    ed:SetOrigin(pos)
+    ed:SetNormal(normal)
+    ed:SetScale(1.2)
+    util.Effect("WheelDust", ed)
+
+    local lp = LocalPlayer()
+    if IsValid(lp) and lp:GetPos():DistToSqr(pos) < 350 * 350 then
+        util.ScreenShake(pos, 2, 8, 0.25, 250)
     end
 end)
 

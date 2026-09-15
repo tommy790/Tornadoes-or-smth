@@ -88,6 +88,33 @@ function TIV.Spikes.Retract(veh, data, callback)
 end
 
 -- ============================================================================
+-- INTERRUPT DEPLOY / RETRACT (MID-STROKE REVERSAL)
+-- ============================================================================
+function TIV.Spikes.InterruptAndRetract(veh, data, callback)
+    if not IsValid(veh) then
+        if callback then callback() end
+        return
+    end
+    if TIV.SpikeAnim and TIV.SpikeAnim.InterruptAndRetract then
+        TIV.SpikeAnim.InterruptAndRetract(veh, data, callback)
+        return
+    end
+    TIV.Spikes.Retract(veh, data, callback)
+end
+
+function TIV.Spikes.InterruptAndDeploy(veh, data, callback)
+    if not IsValid(veh) then
+        if callback then callback() end
+        return
+    end
+    if TIV.SpikeAnim and TIV.SpikeAnim.InterruptAndDeploy then
+        TIV.SpikeAnim.InterruptAndDeploy(veh, data, callback)
+        return
+    end
+    TIV.Spikes.Deploy(veh, data, callback)
+end
+
+-- ============================================================================
 -- REMOVE ALL
 -- Kills the actual jobs (was removing nonexistent timer names).
 -- ============================================================================

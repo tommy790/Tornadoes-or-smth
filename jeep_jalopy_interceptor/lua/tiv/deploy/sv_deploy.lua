@@ -188,6 +188,14 @@ function TIV.Deploy.HandleInput(ply, veh)
         TIV.Deploy.StartDeploy(ply, veh)
     elseif data.state == "anchored" then
         TIV.Deploy.StartRetract(ply, veh)
+    elseif data.state == "lowering" then
+        TIV.Deploy.ReverseToLowering(veh, data)
+    elseif data.state == "deploying_spikes" then
+        TIV.Deploy.ReverseToRetracting(veh, data)
+    elseif data.state == "retracting" then
+        TIV.Deploy.ReverseToDeploying(veh, data)
+    elseif data.state == "raising" then
+        TIV.Deploy.ReverseToRaising(veh, data)
     end
 end
 
@@ -276,7 +284,7 @@ function TIV.Deploy.StartDeploy(ply, veh)
     local speedMult   = GetConVar("tiv_deploy_speed") and math.max(0.2, GetConVar("tiv_deploy_speed"):GetFloat()) or 1.0
     local lowerTime   = (TIV.Config.LowerTime or 1.0) / speedMult
     local startPos    = veh:GetPos()
-    local endPos      = startPos - Vector(0, 0, lowerLimit)
+    local endPos      = startPos - (veh:GetUp() * lowerLimit)
     local startTime   = CurTime()
     -- Keep EntIndex-based timer name (sessionID may be nil if EnsureSpikes
     -- hasn't built spikes yet, e.g. 0-spike mode without prior deploy).
@@ -384,7 +392,7 @@ function TIV.Deploy.RaiseVehicle(ply, veh)
     local curPos     = veh:GetPos()
     local endPos     = (data.originalPos and data.originalPos:DistToSqr(curPos) < 100)
         and data.originalPos
-        or (curPos + Vector(0, 0, raiseDist))
+        or (curPos + (veh:GetUp() * raiseDist))
     local startTime  = CurTime()
     local timerName  = "TIV_Raise_" .. veh:EntIndex()
     local speedMult  = GetConVar("tiv_deploy_speed") and math.max(0.2, GetConVar("tiv_deploy_speed"):GetFloat()) or 1.0
@@ -428,6 +436,58 @@ function TIV.Deploy.RaiseVehicle(ply, veh)
             end
         end
     end)
+end
+
+-- ============================================================================
+-- MID-SEQUENCE REVERSAL HANDLERS
+-- Safely reverses deploy/retract in mid-stroke without state or entity corruption.
+-- ============================================================================
+function TIV.Deploy.ReverseToLowering(veh, data)
+    if not IsValid(veh) or not data then return end
+    local timerName = "TIV_Lower_" .. veh:EntIndex()
+    timer.Remove(timerName)
+    TIV.Deploy.RaiseVehicle(nil, veh)
+end
+
+function TIV.Deploy.ReverseToRetracting(veh, data)
+    if not IsValid(veh) or not data then return end
+    data.state = "retracting"
+    TIV.Deploy.BroadcastState(veh, "retracting")
+    ReleaseHandbrake(veh)
+
+    TIV.Spikes.InterruptAndRetract(veh, data, function()
+        if not IsValid(veh) then return end
+        TIV.Deploy.RaiseVehicle(nil, veh)
+    end)
+end
+
+function TIV.Deploy.ReverseToDeploying(veh, data)
+    if not IsValid(veh) or not data then return end
+    data.state = "deploying_spikes"
+    TIV.Deploy.BroadcastState(veh, "deploying_spikes")
+
+    local function finalizeAnchored()
+        if not IsValid(veh) then return end
+        data.state    = "anchored"
+        data.anchored = true
+        TIV.Anchor.UnfreezeForDeploy(veh)
+        local hbCVar = GetConVar("tiv_deploy_handbrake")
+        if not (hbCVar and not hbCVar:GetBool()) then
+            ApplyHandbrake(veh)
+        end
+        TIV.Deploy.BroadcastState(veh, "anchored")
+    end
+
+    TIV.Spikes.InterruptAndDeploy(veh, data, function()
+        finalizeAnchored()
+    end)
+end
+
+function TIV.Deploy.ReverseToRaising(veh, data)
+    if not IsValid(veh) or not data then return end
+    local timerName = "TIV_Raise_" .. veh:EntIndex()
+    timer.Remove(timerName)
+    TIV.Deploy.StartDeploy(nil, veh)
 end
 
 -- ============================================================================

@@ -515,15 +515,6 @@ hook.Add("PopulateToolMenu", "TIV_PopulateFullSettingsMenu", function()
         panel:Help("HUD Scale Factor:")
         panel:NumSlider("HUD Size Scale", "tiv_hud_scale", 0.75, 1.5, 2)
             :SetTooltip("Scales the size of the cockpit instrument cluster.")
-
-        panel:Help("Audio Alarms:")
-        panel:CheckBox("Audible Warning Alarms", "tiv_hud_sound")
-            :SetTooltip("Plays audible alarm klaxons during extreme wind or anchor structural failure.")
-
-        local testSndBtn = panel:Button("Test Klaxon Alarm Sound", "")
-        testSndBtn.DoClick = function()
-            surface.PlaySound("ambient/alarms/klaxon1.wav")
-        end
     end)
 
     -- ------------------------------------------------------------------------
@@ -1090,27 +1081,6 @@ function TIV.Menu.OpenMasterConsole()
         scaleSlider:DockMargin(0, 6, 0, 12)
         scaleSlider:SetDark(false)
 
-        local soundCb = vgui.Create("DCheckBoxLabel", pnl)
-        soundCb:SetText("Play Audible Alarms During Severe Wind & Structural Failure")
-        soundCb:SetConVar("tiv_hud_sound")
-        soundCb:Dock(TOP)
-        soundCb:DockMargin(0, 6, 0, 12)
-        soundCb:SetTextColor(THEME.text)
-
-        local testAlarmBtn = vgui.Create("DButton", pnl)
-        testAlarmBtn:SetTall(32)
-        testAlarmBtn:Dock(TOP)
-        testAlarmBtn:DockMargin(0, 8, 0, 8)
-        testAlarmBtn:SetText("TEST EMERGENCY KLAXON SOUND")
-        testAlarmBtn:SetFont("DermaDefaultBold")
-        testAlarmBtn:SetTextColor(Color(255, 255, 255))
-        testAlarmBtn.Paint = function(self, bw, bh)
-            draw.RoundedBox(4, 0, 0, bw, bh, self:IsHovered() and THEME.warning or Color(55, 45, 30))
-        end
-        testAlarmBtn.DoClick = function()
-            surface.PlaySound("ambient/alarms/klaxon1.wav")
-        end
-
         return pnl
     end
 
@@ -1217,7 +1187,7 @@ STEP 3: INTERCEPT MONITORING
   * 0% - 60%: Safe holding capacity.
   * 60% - 85%: High lateral load (Caution).
   * 85% - 100%: Severe storm vortex shear.
-- Audible alarm klaxons will sound if wind approaches the loft threshold!
+- Monitor the HUD status indicator if wind approaches the loft threshold.
 
 STEP 4: RETRACTION & RELOCATION
 - Once the vortex core passes, press [B] or pulse Wire 'Retract'.

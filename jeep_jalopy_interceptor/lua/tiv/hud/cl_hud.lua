@@ -8,7 +8,6 @@ local cvarHudEnabled = CreateClientConVar("tiv_hud_enabled", "1", true, false, "
 local cvarHudUnit    = CreateClientConVar("tiv_hud_unit", "mph", true, false, "Speed/wind display unit (mph, kmh, knots).")
 local cvarHudPos     = CreateClientConVar("tiv_hud_position", "0", true, false, "HUD position: 0=Bottom-Right, 1=Bottom-Left, 2=Top-Right, 3=Top-Left.")
 local cvarHudScale   = CreateClientConVar("tiv_hud_scale", "1.0", true, false, "HUD scale multiplier (0.75 to 1.5).")
-local cvarHudSound   = CreateClientConVar("tiv_hud_sound", "1", true, false, "Audible alert tones on severe wind or anchor strain.")
 
 -- Added "raising" state (was missing from both color and name tables).
 local STATE_COLORS = {
@@ -46,10 +45,6 @@ local SPIKE_NAMES = {
     [3] = "MR", [4] = "ML",
     [5] = "RR", [6] = "RL",
 }
-
-TIV.HUD.LastBeepTime     = 0
-TIV.HUD.BeepInterval     = 1.0
-TIV.HUD.FastBeepInterval = 0.3
 
 -- ============================================================================
 -- VERTICAL VELOCITY BAR
@@ -339,18 +334,16 @@ hook.Add("HUDPaint", "TIV_DrawHUD", function()
         draw.RoundedBox(4, dotAreaX, dotAreaY, dotAreaW, dotAreaH,
             Color(15, 15, 20, 200))
 
-        local dotColor, dotLabel, beepInterval
+        local dotColor, dotLabel
         if warningLevel == 2 then
             local blink  = math.abs(math.sin(CurTime() * 6))
             dotColor     = Color(255, 20, 20, 155 + blink * 100)
             -- Latch failure label even if wind also extreme.
             dotLabel     = anchorFail and "ANCHOR FAILURE" or "EXTREME WIND"
-            beepInterval = TIV.HUD.FastBeepInterval
         else
             local blink  = math.abs(math.sin(CurTime() * 3))
             dotColor     = Color(255, 160, 30, 155 + blink * 100)
             dotLabel     = "HIGH WIND"
-            beepInterval = TIV.HUD.BeepInterval
         end
 
         local dotX = dotAreaX + 18
@@ -372,15 +365,6 @@ hook.Add("HUDPaint", "TIV_DrawHUD", function()
         draw.SimpleText(math.floor(windSpeed * unitScale) .. unitSuffix, "DermaDefaultBold",
             dotAreaX + dotAreaW - 6, dotY,
             dotColor, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
-
-        if cvarHudSound:GetBool() and CurTime() - (TIV.HUD.LastBeepTime or 0) >= (beepInterval or 1.0) then
-            TIV.HUD.LastBeepTime = CurTime()
-            if warningLevel == 2 then
-                surface.PlaySound("ambient/alarms/klaxon1.wav")
-            else
-                surface.PlaySound("buttons/button17.wav")
-            end
-        end
 
         y = dotAreaY + dotAreaH + 5
     end
