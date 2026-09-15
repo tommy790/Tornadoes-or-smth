@@ -379,11 +379,12 @@ function TIV.SpikeAnim.DeployToGround(veh, data, callback)
                 net.Broadcast()
 
                 -- Starting local position (wherever the spike currently is)
-                local startLocalPos  = spike:GetLocalPos()
-                local strokeStart    = CurTime()
-                local strokeDuration = 0.55 / speedMult
-                local settleDuration = 0.12 / speedMult
-                local totalDuration  = strokeDuration + settleDuration
+                local startLocalPos      = spike:GetLocalPos()
+                local strokeStart        = CurTime()
+                local totalDriveDuration = (TIV.Config.SpikeDriveDuration or 3.0) / speedMult
+                local strokeDuration     = totalDriveDuration * 0.88
+                local settleDuration     = totalDriveDuration * 0.12
+                local totalDuration      = strokeDuration + settleDuration
 
                 local hasImpacted = false
                 local jobKey      = sessionID .. "_deploy_" .. index
@@ -446,6 +447,7 @@ function TIV.SpikeAnim.DeployToGround(veh, data, callback)
                                 spike:SetPos(finalWorldPos)
                                 spike:SetAngles(finalWorldAng)
                                 spike:SetCollisionGroup(COLLISION_GROUP_WORLD)
+                                TIV.SpikeAnim.ApplyCompatibilityFlags(spike, veh)
 
                                 local sp = spike:GetPhysicsObject()
                                 if IsValid(sp) then sp:EnableMotion(false) end
@@ -559,7 +561,7 @@ function TIV.SpikeAnim.RetractFromGround(veh, data, callback)
                 net.Broadcast()
 
                 local retractStart    = CurTime()
-                local retractDuration = 0.48 / speedMult
+                local retractDuration = (TIV.Config.SpikeRetractDuration or 3.0) / speedMult
                 local targetLocalPos  = spikeData.storedLocalPos
                 local jobKey          = sessionID .. "_retract_" .. index
 
@@ -666,7 +668,7 @@ function TIV.SpikeAnim.InterruptAndRetract(veh, data, callback)
             local retractStart    = CurTime()
             local targetLocalPos  = spikeData.storedLocalPos
             local distFrac        = math.Clamp((curLocalPos - targetLocalPos):Length() / 40, 0.2, 1.0)
-            local retractDuration = (0.45 * distFrac) / speedMult
+            local retractDuration = ((TIV.Config.SpikeRetractDuration or 3.0) * distFrac) / speedMult
             local jobKey          = sessionID .. "_int_retract_" .. index
 
             TIV.SpikeAnim.ActiveJobs[jobKey] = {
@@ -772,7 +774,7 @@ function TIV.SpikeAnim.InterruptAndDeploy(veh, data, callback)
             local curLocalPos = spike:GetLocalPos()
             local distFrac    = math.Clamp((curLocalPos - targetLocalPos):Length() / 40, 0.2, 1.0)
             local strokeStart = CurTime()
-            local duration    = (0.50 * distFrac) / speedMult
+            local duration    = ((TIV.Config.SpikeDriveDuration or 3.0) * distFrac) / speedMult
             local jobKey      = sessionID .. "_int_deploy_" .. index
 
             TIV.SpikeAnim.ActiveJobs[jobKey] = {
@@ -803,6 +805,7 @@ function TIV.SpikeAnim.InterruptAndDeploy(veh, data, callback)
                         spike:SetPos(finalWorldPos)
                         spike:SetAngles(finalWorldAng)
                         spike:SetCollisionGroup(COLLISION_GROUP_WORLD)
+                        TIV.SpikeAnim.ApplyCompatibilityFlags(spike, veh)
 
                         local sp = spike:GetPhysicsObject()
                         if IsValid(sp) then sp:EnableMotion(false) end
