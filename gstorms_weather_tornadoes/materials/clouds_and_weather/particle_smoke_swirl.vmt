@@ -1,0 +1,7 @@
+"UnlitGeneric"
+{
+	"$basetexture" "clouds_and_weather/particle_smoke_swirl"
+	"$vertexcolor" "1"
+	"$vertexalpha" "1"
+	"$translucent" "1"
+}

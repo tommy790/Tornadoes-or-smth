@@ -1,0 +1,7 @@
+"UnlitGeneric"
+{
+	"$basetexture" "other/icons/gstorms_map_icon"
+	"$vertexalpha" "1"
+                "$vertexcolor"  "1"
+	"$nofog" "1"
+}

@@ -1,0 +1,10 @@
+"Spritecard"
+{
+	"$basetexture" "clouds_and_weather/downfall_sheet_2"
+	"$vertexcolor" 	1
+	"$vertexalpha"	1
+	"$alphatest" "1"
+	"$additive" "1"
+	"$translucent" "1"
+	"$depthblend" "1"
+}

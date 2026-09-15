@@ -1,0 +1,8 @@
+"VertexLitGeneric"
+{
+    "$basetexture" "other/hailstone/gstorms_hailstone"
+    "$basetexturetransform" "center .5 .5 scale 6 6 rotate 0 translate 0 0"
+    "$vertexcolor" 1
+    "$translucent" "1"
+    "$vertexalpha" "1"
+}

@@ -1,0 +1,8 @@
+"UnlitGeneric"
+{
+	"$basetexture" "clouds_and_weather/cloud"
+	"$vertexalpha" "1"
+                "$vertexcolor"  "1"
+	"$translucent"  "1"
+	"$depthblend"  "1"
+}

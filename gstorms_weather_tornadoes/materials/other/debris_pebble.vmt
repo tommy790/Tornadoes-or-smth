@@ -1,0 +1,5 @@
+"UnlitGeneric"
+{
+	"$basetexture" "other/debris_pebble"
+	"$translucent" 1
+}

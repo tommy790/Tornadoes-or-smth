@@ -1,0 +1,18 @@
+ParticleSphere
+{
+	$basetexture "clouds_and_weather/smokestack"
+	$bumpmap "particle/billownormalmap"
+
+	$translucent 1
+	$nocull 1
+
+	$vertexcolor 1
+	$vertexalpha 1
+
+	Proxies
+	{
+		ParticleSphereProxy
+		{
+		}
+	}
+}

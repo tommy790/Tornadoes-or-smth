@@ -1,0 +1,10 @@
+"UnlitGeneric"
+{
+	"$basetexture" "clouds_and_weather/smoke_b"
+	"$vertexcolor" 1
+	"$vertexalpha" 1
+	"$translucent" 1
+   	"$depthtest" 1
+   	"$depthwrite" 1
+    	"$nocull" 1
+}
