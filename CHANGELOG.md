@@ -278,9 +278,12 @@ if (TIV:isTIV()) {
 
 ### 10. Bug Fixes & Codebase Health
 
+- **Anchor Loft Separation Fix**: Resolved an issue where vehicles became stuck hovering mid-air while spikes remained frozen in the ground. The anchor guard now avoids regenerating constraints during active failure sequences, and `TriggerLoft` severs all world/vehicle constraints, ejecting sheared spikes as physics debris and ensuring clean aerodynamic lofting.
+- **Loft Updraft Balance & Landing Detection**: Rebalanced loft aerodynamic lift and height scaling to ensure vehicles tumble, fly, and cleanly crash land back onto terrain rather than hovering indefinitely. Automatic ground detection seamlessly settles the vehicle and mounts fresh spikes on landing.
+- **Failure Sequence Timer Resilience**: Prevented momentary tornado wind dips from prematurely aborting active anchor failure stages, adding a guaranteed 2.6-second loft fail-safe.
 - **Suspension Travel Fix**: Removed artificial dead weight that caused wheels to clip into geometry, preserving authentic suspension lowering distance.
 - **Angled Spikes Vector Fix**: Spikes now drive, settle, and retract along their angled trajectory instead of dropping straight down.
-- **Nil Safety**: Added `LocalPlayer()` and entity validity guards across client instrument and audio net receivers.
+- **Nil Safety**: Added `LocalPlayer()` and occupant vehicle validity guards across client instruments, progression trackers, and audio net receivers.
 - **Collision Group Reliability**: Replaced invalid enum usage with engine-standard `COLLISION_GROUP_WORLD` and `COLLISION_GROUP_DEBRIS`.
 - **WireLib Scoping**: Fixed `BaseClass` scoping in Wiremod controller entities to ensure flawless baseclass inheritance.
 - **Zero Syntax Errors**: Verified entire Lua codebase across all modules with automated AST validation.
