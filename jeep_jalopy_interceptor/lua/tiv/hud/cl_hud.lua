@@ -1,5 +1,8 @@
 -- ============================================================================
--- TIV HUD
+-- MODERN TIV COCKPIT INSTRUMENTS HUD
+-- Streamlined storm intercept telemetry, high-contrast digital readouts,
+-- dynamic EF-scale intensity metering, anchor array micro-diagnostics,
+-- and critical loft/shear alerts.
 -- ============================================================================
 
 TIV.HUD = TIV.HUD or {}
@@ -9,68 +12,105 @@ local cvarHudUnit    = CreateClientConVar("tiv_hud_unit", "mph", true, false, "S
 local cvarHudPos     = CreateClientConVar("tiv_hud_position", "0", true, false, "HUD position: 0=Bottom-Right, 1=Bottom-Left, 2=Top-Right, 3=Top-Left.")
 local cvarHudScale   = CreateClientConVar("tiv_hud_scale", "1.0", true, false, "HUD scale multiplier (0.75 to 1.5).")
 
--- Added "raising" state (was missing from both color and name tables).
+-- Typography
+surface.CreateFont("TIV_HUD_Title", {
+    font = "Trebuchet MS",
+    size = 14,
+    weight = 700,
+    antialias = true,
+})
+
+surface.CreateFont("TIV_HUD_Hero", {
+    font = "Trebuchet MS",
+    size = 28,
+    weight = 800,
+    antialias = true,
+})
+
+surface.CreateFont("TIV_HUD_Unit", {
+    font = "Trebuchet MS",
+    size = 11,
+    weight = 700,
+    antialias = true,
+})
+
+surface.CreateFont("TIV_HUD_Label", {
+    font = "Trebuchet MS",
+    size = 11,
+    weight = 700,
+    antialias = true,
+})
+
+surface.CreateFont("TIV_HUD_Sub", {
+    font = "Trebuchet MS",
+    size = 11,
+    weight = 600,
+    antialias = true,
+})
+
+surface.CreateFont("TIV_HUD_Bold", {
+    font = "Trebuchet MS",
+    size = 12,
+    weight = 700,
+    antialias = true,
+})
+
+surface.CreateFont("TIV_HUD_Alert", {
+    font = "Trebuchet MS",
+    size = 11,
+    weight = 800,
+    antialias = true,
+})
+
+-- State colors and labels
 local STATE_COLORS = {
-    idle             = Color(100, 255, 100),
-    lowering         = Color(255, 255, 100),
-    deploying_spikes = Color(255, 150, 50),
-    anchored         = Color(50, 200, 255),
-    retracting       = Color(255, 255, 100),
-    raising          = Color(255, 255, 100),
-    lofted           = Color(255, 50, 50),
+    idle             = Color(80, 220, 120),
+    lowering         = Color(245, 205, 50),
+    deploying_spikes = Color(255, 145, 40),
+    anchored         = Color(50, 205, 255),
+    retracting       = Color(245, 205, 50),
+    raising          = Color(245, 205, 50),
+    lofted           = Color(255, 55, 55),
 }
 
 local APC_STATE_COLORS = {
-    idle             = Color(120, 160, 90),    -- desat green
-    lowering         = Color(220, 190, 60),    -- gold
-    deploying_spikes = Color(230, 140, 40),    -- amber
-    anchored         = Color(80, 140, 220),    -- steel blue
+    idle             = Color(120, 170, 95),
+    lowering         = Color(220, 190, 60),
+    deploying_spikes = Color(230, 140, 40),
+    anchored         = Color(80, 160, 230),
     retracting       = Color(220, 190, 60),
     raising          = Color(220, 190, 60),
-    lofted           = Color(220, 50, 50),
+    lofted           = Color(225, 60, 60),
 }
 
-local STATE_NAMES = {
-    idle             = "IDLE - MOBILE",
-    lowering         = "LOWERING...",
-    deploying_spikes = "DEPLOYING SPIKES...",
-    anchored         = "ANCHORED",
-    retracting       = "RETRACTING...",
-    raising          = "RAISING...",
-    lofted           = "LOFTED",
+local STATE_LABELS = {
+    idle             = "MOBILE // READY",
+    lowering         = "HYDRAULICS LOWERING",
+    deploying_spikes = "DRIVING SPIKES",
+    anchored         = "SECURED // ANCHORED",
+    retracting       = "RETRACTING SPIKES",
+    raising          = "HYDRAULICS RAISING",
+    lofted           = "CRITICAL // DETACHED",
 }
 
-local SPIKE_NAMES = {
-    [1] = "FR", [2] = "FL",
-    [3] = "MR", [4] = "ML",
-    [5] = "RR", [6] = "RL",
+local STATE_ACTIONS = {
+    idle             = "[B] DEPLOY",
+    anchored         = "[B] RETRACT",
+    lowering         = "WAITING",
+    deploying_spikes = "WAITING",
+    retracting       = "WAITING",
+    raising          = "WAITING",
+    lofted           = "DETACHED",
 }
 
--- ============================================================================
--- VERTICAL VELOCITY BAR
--- ============================================================================
-local function DrawVerticalVelocityBar(x, y, w, h, velMPH)
-    -- velMPH because server now sends vertical velocity in MPH (was units/s).
-    local clamped = math.Clamp(velMPH, -45, 45)
-    local frac    = clamped / 45
-    local midY    = y + h / 2
-
-    draw.RoundedBox(3, x, y, w, h, Color(20, 20, 25))
-    draw.SimpleText("^", "DermaDefault", x + w / 2, y - 2,
-        Color(100, 200, 100), TEXT_ALIGN_CENTER, TEXT_ALIGN_BOTTOM)
-    draw.SimpleText("v", "DermaDefault", x + w / 2, y + h + 2,
-        Color(200, 100, 100), TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP)
-
-    if math.abs(frac) > 0.01 then
-        local barH   = (h / 2) * math.abs(frac)
-        local barCol = frac > 0 and Color(100, 255, 100) or Color(255, 100, 100)
-        local barY   = frac > 0 and (midY - barH) or midY
-        draw.RoundedBox(2, x + 2, barY, w - 4, barH, barCol)
-    end
-
-    surface.SetDrawColor(80, 80, 90)
-    surface.DrawLine(x, midY, x + w, midY)
-end
+local EF_THRESHOLDS = { 65, 86, 111, 136, 166 }
+local EF_COLORS = {
+    Color(100, 220, 100),
+    Color(180, 220, 50),
+    Color(240, 200, 40),
+    Color(240, 130, 30),
+    Color(240, 50, 40)
+}
 
 -- ============================================================================
 -- MAIN HUD PAINT
@@ -78,19 +118,15 @@ end
 hook.Add("HUDPaint", "TIV_DrawHUD", function()
     if not cvarHudEnabled:GetBool() then return end
     if not TIV.Config or not TIV.Config.HUDEnabled then return end
-
-    -- Real bug fix: guard against TIV.Instruments / Data being nil on first frame.
     if not TIV.Instruments or not TIV.Instruments.Data then return end
 
     local ply = LocalPlayer()
     if not IsValid(ply) then return end
 
-    -- Resolve via shared helper if loaded, fall back to GetVehicle.
     local veh = (TIV.ResolveVehicle and TIV.ResolveVehicle(ply)) or ply:GetVehicle()
     if not IsValid(veh) then return end
-    -- Guard: TIV.IsSupportedVehicle may not exist yet on first HUDPaint.
+
     if TIV.IsSupportedVehicle and not TIV.IsSupportedVehicle(veh) then
-        -- Try seat parent before giving up
         local parent = veh:GetParent()
         if IsValid(parent) and TIV.IsSupportedVehicle(parent) then
             veh = parent
@@ -104,305 +140,338 @@ hook.Add("HUDPaint", "TIV_DrawHUD", function()
     local isAPC = cls == "prop_vehicle_apc" or string.find(model, "apc", 1, true) ~= nil
 
     local data = TIV.Instruments.Data
-
-    -- Defensive defaults so a partially-populated Data table never errors.
     local windSpeed         = data.windSpeed         or 0
     local vehicleSpeed      = data.vehicleSpeed      or 0
-    local altitude          = data.altitude          or 0
     local activeConstraints = data.activeConstraints or 0
     local stress            = data.stress            or 0
-    local verticalVelocity  = data.verticalVelocity  or 0
+    local state             = data.deployState       or "idle"
 
-    local sw, sh = ScrW(), ScrH()
-    local scale  = math.Clamp(cvarHudScale:GetFloat(), 0.75, 1.5)
-    local panelW = 360 * scale
-    local panelH = 340 * scale
-    local posMode = cvarHudPos:GetInt()
-
-    local panelX, panelY
-    if posMode == 1 then
-        panelX = 20
-        panelY = sh - panelH - 20
-    elseif posMode == 2 then
-        panelX = sw - panelW - 20
-        panelY = 20
-    elseif posMode == 3 then
-        panelX = 20
-        panelY = 20
-    else
-        panelX = sw - panelW - 20
-        panelY = sh - panelH - 20
-    end
-
-    local state      = data.deployState or "idle"
-    local colorTable = isAPC and APC_STATE_COLORS or STATE_COLORS
-    local headerCol  = colorTable[state] or Color(100, 100, 100)
-
-    draw.RoundedBox(8, panelX - 2, panelY - 2, panelW + 4, panelH + 4,
-        Color(headerCol.r * 0.5, headerCol.g * 0.5, headerCol.b * 0.5, 120))
-    draw.RoundedBox(8, panelX, panelY, panelW, panelH, Color(10, 10, 15, 230))
-
-    -- Per-vehicle state flash (multiplayer-correct).
-    local flashAge
-    if TIV.Deploy.GetFlashFor then
-        flashAge = CurTime() - TIV.Deploy.GetFlashFor(veh)
-    else
-        flashAge = CurTime() - (TIV.Deploy.LastStateFlash or 0)
-    end
-    if flashAge < 0.4 then
-        local alpha = (1 - flashAge / 0.4) * 80
-        draw.RoundedBox(8, panelX, panelY, panelW, panelH,
-            Color(headerCol.r, headerCol.g, headerCol.b, alpha))
-    end
-
-    draw.RoundedBoxEx(8, panelX, panelY, panelW, 32,
-        Color(headerCol.r * 0.2, headerCol.g * 0.2, headerCol.b * 0.2, 230),
-        true, true, false, false)
-    draw.SimpleText("TIV INSTRUMENTS", "DermaDefaultBold",
-        panelX + 14, panelY + 8, Color(255, 255, 255), TEXT_ALIGN_LEFT)
-
-    local pts = TIV.Progression and TIV.Progression.CurrentIntercepts or 0
-    draw.SimpleText("PTS: " .. pts, "DermaDefaultBold",
-        panelX + panelW - 14, panelY + 8, Color(240, 200, 50), TEXT_ALIGN_RIGHT)
-
-    local y     = panelY + 40
-    local lineH = 22
-    local lm    = panelX + 15
-    local rm    = panelX + panelW - 15
-
-    -- Status
-    local stateColor = colorTable[state] or Color(255, 255, 255)
-    local stateName  = STATE_NAMES[state]  or string.upper(state)
-    if state == "deploying_spikes" then
-        local blink = math.abs(math.sin(CurTime() * 4))
-        stateColor  = Color(stateColor.r, stateColor.g, stateColor.b, 155 + blink * 100)
-    end
-
-    -- Speed/wind unit conversion
+    -- Unit conversion
     local unitMode = string.lower(cvarHudUnit:GetString() or "mph")
-    local unitSuffix = " MPH"
+    local unitSuffix = "MPH"
     local unitScale = 1.0
     if unitMode == "kmh" or unitMode == "km/h" then
-        unitSuffix = " KM/H"
+        unitSuffix = "KM/H"
         unitScale  = 1.60934
     elseif unitMode == "knots" or unitMode == "kts" or unitMode == "knot" then
-        unitSuffix = " KTS"
+        unitSuffix = "KTS"
         unitScale  = 0.868976
     end
 
-    draw.SimpleText("STATUS", "DermaDefault", lm, y, Color(150, 150, 150))
-    draw.SimpleText(stateName, "DermaDefaultBold", rm, y, stateColor, TEXT_ALIGN_RIGHT)
-    y = y + lineH
-
-    surface.SetDrawColor(40, 40, 50)
-    surface.DrawLine(lm, y, rm, y)
-    y = y + 5
-
-    -- Wind speed
+    -- Wind limit & loft check
     local threshold = (IsValid(veh) and veh._TIVEffectiveStats and veh._TIVEffectiveStats.effective_loft_mph)
         or TIV.Config.LoftWindThreshold
         or 180
     local isOverLimit = (windSpeed >= threshold)
 
-    local windColor = Color(100, 255, 100)
-    if windSpeed > 80  then windColor = Color(200, 255, 50)  end
-    if windSpeed > 120 then windColor = Color(255, 255, 50)  end
-    if windSpeed > 150 then windColor = Color(255, 150, 50)  end
-    if isOverLimit     then windColor = Color(255, 50, 50)   end
+    -- Warning levels
+    local anchorFail = TIV.Instruments.GetAnchorFail and TIV.Instruments.GetAnchorFail(veh)
+    local warningLevel = 0
+    local warningText = ""
+    if isOverLimit then
+        warningLevel = 2
+        warningText  = "CRITICAL: WIND VELOCITY EXCEEDS STRUCTURAL LIMIT"
+    elseif anchorFail then
+        warningLevel = 2
+        warningText  = "ALERT: GROUND ANCHOR PIN FAILURE DETECTED"
+    elseif windSpeed >= 150 then
+        warningLevel = 1
+        warningText  = "CAUTION: EXTREME VORTEX CORE SHEAR PASS"
+    end
 
-    local windText = math.floor(windSpeed * unitScale) .. unitSuffix
+    -- Theme colors
+    local colorTable = isAPC and APC_STATE_COLORS or STATE_COLORS
+    local stateColor = colorTable[state] or Color(80, 220, 120)
+    if state == "deploying_spikes" then
+        local blink = math.abs(math.sin(CurTime() * 4))
+        stateColor = Color(stateColor.r, stateColor.g, stateColor.b, 155 + blink * 100)
+    end
+
+    -- Layout Dimensions
+    local sw, sh = ScrW(), ScrH()
+    local scale  = math.Clamp(cvarHudScale:GetFloat(), 0.75, 1.5)
+    local panelW = 340 * scale
+    local hasAlert = (warningLevel > 0)
+    local baseH  = hasAlert and 220 or 192
+    local panelH = baseH * scale
+
+    local posMode = cvarHudPos:GetInt()
+    local marginX, marginY = 24, 24
+    local panelX, panelY
+    if posMode == 1 then -- Bottom-Left
+        panelX = marginX
+        panelY = sh - panelH - marginY
+    elseif posMode == 2 then -- Top-Right
+        panelX = sw - panelW - marginX
+        panelY = marginY
+    elseif posMode == 3 then -- Top-Left
+        panelX = marginX
+        panelY = marginY
+    else -- 0 = Bottom-Right (Default)
+        panelX = sw - panelW - marginX
+        panelY = sh - panelH - marginY
+    end
+
+    -- Outer Glow / Flash on state transition
+    local flashAge = 1.0
+    if TIV.Deploy.GetFlashFor then
+        flashAge = CurTime() - TIV.Deploy.GetFlashFor(veh)
+    elseif TIV.Deploy.LastStateFlash then
+        flashAge = CurTime() - TIV.Deploy.LastStateFlash
+    end
+
+    if flashAge < 0.4 then
+        local fAlpha = (1 - flashAge / 0.4) * 110
+        draw.RoundedBox(8, panelX - 3, panelY - 3, panelW + 6, panelH + 6,
+            Color(stateColor.r, stateColor.g, stateColor.b, fAlpha))
+    else
+        draw.RoundedBox(8, panelX - 1, panelY - 1, panelW + 2, panelH + 2,
+            Color(stateColor.r * 0.4, stateColor.g * 0.4, stateColor.b * 0.4, 60))
+    end
+
+    -- Main Card Background (Modern Dark Translucent Glass)
+    draw.RoundedBox(8, panelX, panelY, panelW, panelH, Color(12, 16, 24, 235))
+    surface.SetDrawColor(45, 55, 75, 180)
+    surface.DrawOutlinedRect(panelX, panelY, panelW, panelH)
+
+    -- Top Accent Line (Color-coded by state)
+    draw.RoundedBoxEx(8, panelX + 1, panelY + 1, panelW - 2, 3, stateColor, true, true, false, false)
+
+    -- ------------------------------------------------------------------------
+    -- 1. HEADER ROW: Interceptor Title, Pulse Dot, & Points Badge
+    -- ------------------------------------------------------------------------
+    local curY = panelY + 9
+
+    -- Pulsing Status Dot
+    local pulse = math.abs(math.sin(CurTime() * 3))
+    draw.RoundedBox(4, panelX + 14, curY + 3, 7, 7, Color(stateColor.r, stateColor.g, stateColor.b, 255))
+    draw.RoundedBox(6, panelX + 12 - pulse * 2, curY + 1 - pulse * 2, 11 + pulse * 4, 11 + pulse * 4,
+        Color(stateColor.r, stateColor.g, stateColor.b, 60 * (1 - pulse)))
+
+    -- Header Title
+    local titleText = isAPC and "TIV // APC TELEMETRY" or "TIV-2 // INTERCEPTOR"
+    draw.SimpleText(titleText, "TIV_HUD_Title", panelX + 28, curY + 7, Color(240, 245, 255), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+
+    -- Points Pill (Top-Right)
+    local pts = TIV.Progression and TIV.Progression.CurrentIntercepts or 0
+    local ptsText = "PTS: " .. pts
+    local pillW = 76
+    local pillX = panelX + panelW - pillW - 12
+    draw.RoundedBox(4, pillX, curY - 1, pillW, 18, Color(240, 180, 40, 30))
+    surface.SetDrawColor(240, 180, 40, 140)
+    surface.DrawOutlinedRect(pillX, curY - 1, pillW, 18)
+    draw.SimpleText(ptsText, "TIV_HUD_Bold", pillX + pillW / 2, curY + 8, Color(255, 215, 80), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+
+    curY = curY + 24
+
+    -- ------------------------------------------------------------------------
+    -- 2. PRIMARY HERO TELEMETRY: Wind Velocity (Left) & Ground Speed (Right)
+    -- ------------------------------------------------------------------------
+    local cardGap = 8
+    local padX    = 12
+    local totalW  = panelW - (padX * 2)
+    local windW   = math.floor(totalW * 0.58)
+    local speedW  = totalW - windW - cardGap
+    local tileH   = 56
+
+    local windX   = panelX + padX
+    local speedX  = windX + windW + cardGap
+
+    -- --- TILE 1: WIND SPEED ---
+    draw.RoundedBox(5, windX, curY, windW, tileH, Color(18, 24, 34, 200))
+    surface.SetDrawColor(38, 48, 66, 160)
+    surface.DrawOutlinedRect(windX, curY, windW, tileH)
+
+    -- Wind Aspect / Bearing relative to vehicle
+    local relWindText = ""
+    local relWindCol  = Color(140, 160, 180)
+    if data.windDir and data.windDir:LengthSqr() > 0.01 and IsValid(veh) then
+        local vehForward = veh:GetForward()
+        local wDir = data.windDir:GetNormalized()
+        local dotFwd = vehForward:Dot(wDir)
+        local vehRight = veh:GetRight()
+        local dotRight = vehRight:Dot(wDir)
+
+        if dotFwd > 0.707 then
+            relWindText = "TAILWIND"
+            relWindCol  = Color(240, 180, 50)
+        elseif dotFwd < -0.707 then
+            relWindText = "HEAD-ON"
+            relWindCol  = Color(80, 220, 120)
+        elseif dotRight > 0 then
+            relWindText = "CROSS-R"
+            relWindCol  = Color(240, 130, 50)
+        else
+            relWindText = "CROSS-L"
+            relWindCol  = Color(240, 130, 50)
+        end
+    end
+
+    draw.SimpleText("WIND VELOCITY", "TIV_HUD_Label", windX + 8, curY + 5, Color(140, 155, 175), TEXT_ALIGN_LEFT)
+    if relWindText ~= "" then
+        draw.SimpleText(relWindText, "TIV_HUD_Unit", windX + windW - 8, curY + 5, relWindCol, TEXT_ALIGN_RIGHT)
+    end
+
+    -- Wind Speed Hero Readout & Unit
+    local windVal = math.floor(windSpeed * unitScale)
+    local windColor = Color(90, 220, 120)
+    if windSpeed > 80  then windColor = Color(230, 210, 60) end
+    if windSpeed > 120 then windColor = Color(255, 140, 40) end
+    if windSpeed > 150 then windColor = Color(255, 60, 60)  end
+
+    local windStr = tostring(windVal)
     if isOverLimit then
         local blink = (math.floor(CurTime() * 5) % 2 == 0)
         windColor = blink and Color(255, 40, 40) or Color(255, 160, 160)
-        windText  = "ERROR"
+        windStr   = "ERROR"
     end
 
-    draw.SimpleText("WIND SPEED", "DermaDefault", lm, y, Color(150, 150, 150))
-    draw.SimpleText(windText, "DermaDefaultBold",
-        rm, y, windColor, TEXT_ALIGN_RIGHT)
-    y = y + lineH
+    draw.SimpleText(windStr, "TIV_HUD_Hero", windX + 8, curY + 16, windColor, TEXT_ALIGN_LEFT)
+    if not isOverLimit then
+        draw.SimpleText(unitSuffix, "TIV_HUD_Unit", windX + 8 + string.len(windStr) * 16 + 4, curY + 28, Color(160, 175, 195), TEXT_ALIGN_LEFT)
+    end
 
-    draw.SimpleText("VEHICLE", "DermaDefault", lm, y, Color(150, 150, 150))
-    draw.SimpleText(math.floor(vehicleSpeed * unitScale) .. unitSuffix, "DermaDefaultBold",
-        rm, y, Color(150, 200, 255), TEXT_ALIGN_RIGHT)
-    y = y + lineH
+    -- EF-Scale Intensity Micro-Gauge
+    local efW = (windW - 16 - 8) / 5
+    for i = 1, 5 do
+        local segX = windX + 8 + (i - 1) * (efW + 2)
+        local segActive = (windSpeed >= EF_THRESHOLDS[i])
+        local segCol = segActive and EF_COLORS[i] or Color(28, 35, 48, 160)
+        draw.RoundedBox(2, segX, curY + tileH - 8, efW, 3, segCol)
+    end
 
-    draw.SimpleText("ALTITUDE", "DermaDefault", lm, y, Color(150, 150, 150))
-    draw.SimpleText(math.floor(altitude) .. " u", "DermaDefaultBold",
-        rm, y, Color(180, 180, 200), TEXT_ALIGN_RIGHT)
-    y = y + lineH
+    -- --- TILE 2: GROUND SPEED ---
+    draw.RoundedBox(5, speedX, curY, speedW, tileH, Color(18, 24, 34, 200))
+    surface.SetDrawColor(38, 48, 66, 160)
+    surface.DrawOutlinedRect(speedX, curY, speedW, tileH)
 
-    draw.SimpleText("ANCHORS", "DermaDefault", lm, y, Color(150, 150, 150))
-    local anchorCol  = activeConstraints > 0 and Color(50, 255, 100) or Color(100, 100, 100)
-    local anchorText = activeConstraints > 0
-        and (activeConstraints .. " HOLDING") or "NONE"
-    draw.SimpleText(anchorText, "DermaDefaultBold", rm, y, anchorCol, TEXT_ALIGN_RIGHT)
-    y = y + lineH
+    draw.SimpleText("GROUND SPEED", "TIV_HUD_Label", speedX + 8, curY + 5, Color(140, 155, 175), TEXT_ALIGN_LEFT)
 
-    surface.SetDrawColor(40, 40, 50)
-    surface.DrawLine(lm, y, rm, y)
-    y = y + 5
+    local vehVal = math.floor(vehicleSpeed * unitScale)
+    local vehStr = tostring(vehVal)
+    draw.SimpleText(vehStr, "TIV_HUD_Hero", speedX + 8, curY + 16, Color(210, 230, 255), TEXT_ALIGN_LEFT)
+    draw.SimpleText(unitSuffix, "TIV_HUD_Unit", speedX + 8 + string.len(vehStr) * 16 + 4, curY + 28, Color(150, 170, 190), TEXT_ALIGN_LEFT)
 
-    -- Spike overall + per-spike row
-    draw.SimpleText("SPIKES", "DermaDefault", lm, y, Color(150, 150, 150))
-    local spikeState  = data.spikeState or "idle"
-    local spikeTxts   = {
-        idle       = "ON VEHICLE",
-        deploying  = "DRIVING IN",
-        deployed   = "IN GROUND",
-        retracting = "PULLING OUT",
-        released   = "RELEASED",
-        none       = "-",
-    }
-    local spikeColMap = {
-        idle       = Color(120, 120, 120),
-        deploying  = Color(255, 150, 50),
-        deployed   = Color(50,  255, 50),
-        retracting = Color(200, 200, 100),
-        released   = Color(255, 80,  80),
-        none       = Color(80, 80, 80),
-    }
-    draw.SimpleText(spikeTxts[spikeState] or spikeState, "DermaDefaultBold",
-        rm, y, spikeColMap[spikeState] or Color(120, 120, 120), TEXT_ALIGN_RIGHT)
-    y = y + lineH + 3
+    -- Mobile / Parked Tag
+    local motionTag = vehicleSpeed < 3 and "PARKED" or "CRUISING"
+    local motionCol = vehicleSpeed < 3 and Color(120, 210, 150) or Color(110, 180, 240)
+    draw.SimpleText(motionTag, "TIV_HUD_Unit", speedX + speedW - 8, curY + tileH - 10, motionCol, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
 
-    -- Per-spike grid (uses TIV.SpikeAnim.ActiveAnims phases)
-    do
-        local animData = TIV.SpikeAnim and TIV.SpikeAnim.ActiveAnims
-            and TIV.SpikeAnim.ActiveAnims[veh:EntIndex()]
-        if animData and animData.phases then
-            local cellW = (panelW - 30) / 6
-            for i = 1, 6 do
-                local phase = animData.phases[i]
-                local c = spikeColMap[phase] or Color(60, 60, 70)
-                local cx = lm + (i - 1) * cellW
-                draw.RoundedBox(3, cx + 2, y, cellW - 4, 16, c)
-                draw.SimpleText(SPIKE_NAMES[i] or tostring(i), "DermaDefault",
-                    cx + cellW / 2, y + 8,
-                    Color(0, 0, 0, 200), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+    curY = curY + tileH + 7
+
+    -- ------------------------------------------------------------------------
+    -- 3. DEPLOYMENT & ANCHOR ARRAY STATUS
+    -- ------------------------------------------------------------------------
+    local stateH = 36
+    draw.RoundedBox(5, panelX + padX, curY, totalW, stateH, Color(18, 24, 34, 200))
+    surface.SetDrawColor(stateColor.r * 0.4, stateColor.g * 0.4, stateColor.b * 0.4, 180)
+    surface.DrawOutlinedRect(panelX + padX, curY, totalW, stateH)
+
+    -- Status Label
+    local stateTitle = STATE_LABELS[state] or string.upper(state)
+    draw.SimpleText(stateTitle, "TIV_HUD_Bold", panelX + padX + 10, curY + 6, stateColor, TEXT_ALIGN_LEFT)
+
+    -- Key Action Prompt Pill Button
+    local actionText = STATE_ACTIONS[state] or "[B]"
+    local actPillW   = 76
+    local actPillX   = panelX + padX + totalW - actPillW - 8
+    local actPillCol = (state == "idle" or state == "anchored") and stateColor or Color(140, 150, 165)
+
+    draw.RoundedBox(3, actPillX, curY + 5, actPillW, 16, Color(actPillCol.r * 0.2, actPillCol.g * 0.2, actPillCol.b * 0.2, 180))
+    surface.SetDrawColor(actPillCol.r, actPillCol.g, actPillCol.b, 120)
+    surface.DrawOutlinedRect(actPillX, curY + 5, actPillW, 16)
+    draw.SimpleText(actionText, "TIV_HUD_Unit", actPillX + actPillW / 2, curY + 13, actPillCol, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+
+    -- 6 Minimalist Anchor Array Pips (FL, FR, ML, MR, RL, RR)
+    local pipStartX = panelX + padX + 10
+    local pipW = 14
+    local pipH = 3
+    local pipGap = 4
+
+    local animData = TIV.SpikeAnim and TIV.SpikeAnim.ActiveAnims and TIV.SpikeAnim.ActiveAnims[veh:EntIndex()]
+    for i = 1, 6 do
+        local pipX = pipStartX + (i - 1) * (pipW + pipGap)
+        local pipCol = Color(40, 48, 62)
+
+        if animData and animData.phases and animData.phases[i] then
+            local phase = animData.phases[i]
+            if phase == "deployed" then
+                pipCol = Color(60, 220, 180)
+            elseif phase == "deploying" or phase == "retracting" then
+                pipCol = Color(245, 165, 40)
+            elseif phase == "released" then
+                pipCol = Color(240, 60, 60)
             end
-            y = y + 18
+        elseif state == "anchored" and i <= activeConstraints then
+            pipCol = Color(60, 220, 180)
+        end
+
+        draw.RoundedBox(1, pipX, curY + 26, pipW, pipH, pipCol)
+    end
+
+    local anchorCountText = activeConstraints > 0 and (activeConstraints .. "/6 ENGAGED") or "DISENGAGED"
+    local anchorCountCol  = activeConstraints > 0 and Color(80, 220, 180) or Color(130, 140, 155)
+    draw.SimpleText("ANCHORS: " .. anchorCountText, "TIV_HUD_Sub", panelX + padX + totalW - 8, curY + 26, anchorCountCol, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+
+    curY = curY + stateH + 7
+
+    -- ------------------------------------------------------------------------
+    -- 4. ANCHOR STRESS & VORTEX LOAD METER
+    -- ------------------------------------------------------------------------
+    local stressFrac = math.Clamp(stress or 0, 0, 1)
+    local stressPct  = math.floor(stressFrac * 100)
+
+    draw.SimpleText("ANCHOR LOAD", "TIV_HUD_Label", panelX + padX, curY, Color(140, 155, 175), TEXT_ALIGN_LEFT)
+    local stressCol = Color(90, 220, 120)
+    if stressFrac >= 0.6  then stressCol = Color(240, 180, 40) end
+    if stressFrac >= 0.85 then stressCol = Color(255, 60, 60)  end
+
+    draw.SimpleText(stressPct .. "%", "TIV_HUD_Bold", panelX + padX + totalW, curY, stressCol, TEXT_ALIGN_RIGHT)
+
+    curY = curY + 14
+
+    -- Stress Bar Track
+    local barH = 6
+    draw.RoundedBox(3, panelX + padX, curY, totalW, barH, Color(20, 26, 36, 220))
+    surface.SetDrawColor(40, 50, 70, 140)
+    surface.DrawOutlinedRect(panelX + padX, curY, totalW, barH)
+
+    local fillW = math.floor(totalW * stressFrac)
+    if fillW > 2 then
+        draw.RoundedBox(2, panelX + padX + 1, curY + 1, fillW - 2, barH - 2, stressCol)
+        if stressFrac > 0.7 then
+            local sPulse = math.abs(math.sin(CurTime() * 8)) * 80
+            draw.RoundedBox(2, panelX + padX + 1, curY + 1, fillW - 2, barH - 2, Color(255, 255, 255, sPulse))
         end
     end
 
-    -- Stress bar
-    draw.SimpleText("ANCHOR STRESS", "DermaDefault", lm, y, Color(150, 150, 150))
-    y = y + 16
+    -- 70% Safe Threshold Marker
+    local threshX = panelX + padX + math.floor(totalW * 0.7)
+    surface.SetDrawColor(240, 80, 80, 220)
+    surface.DrawLine(threshX, curY - 2, threshX, curY + barH + 2)
 
-    local barW = panelW - 80
-    local barH = 18
-    local barX = lm
+    curY = curY + barH + 7
 
-    draw.RoundedBox(4, barX, y, barW, barH, Color(20, 20, 25))
-    draw.RoundedBox(4, barX + 1, y + 1, barW - 2, barH - 2, Color(30, 30, 35))
+    -- ------------------------------------------------------------------------
+    -- 5. CRITICAL WARNING BANNER (Shows only during storm alerts)
+    -- ------------------------------------------------------------------------
+    if hasAlert then
+        local alertH = 22
+        local alertBlink = math.abs(math.sin(CurTime() * (warningLevel == 2 and 7 or 4)))
+        local alertBg = (warningLevel == 2)
+            and Color(140, 20, 20, 180 + alertBlink * 60)
+            or  Color(150, 90, 20, 180 + alertBlink * 60)
+        local alertBorder = (warningLevel == 2)
+            and Color(255, 60, 60, 220)
+            or  Color(255, 170, 40, 220)
 
-    local stressW = (barW - 2) * math.Clamp(stress, 0, 1)
-    local sr = math.Clamp(stress * 2, 0, 1) * 255
-    local sg = math.Clamp(2 - stress * 2, 0, 1) * 255
+        draw.RoundedBox(4, panelX + padX, curY, totalW, alertH, alertBg)
+        surface.SetDrawColor(alertBorder)
+        surface.DrawOutlinedRect(panelX + padX, curY, totalW, alertH)
 
-    if stressW > 2 then
-        draw.RoundedBox(3, barX + 1, y + 1, stressW, barH - 2, Color(sr, sg, 0))
-        if stress > (TIV.Config.Stress.HUDPulse or 0.7) then
-            local pulse = math.abs(math.sin(CurTime() * 6)) * 50
-            draw.RoundedBox(3, barX + 1, y + 1, stressW, barH - 2,
-                Color(255, 255, 255, pulse))
-        end
-    end
-
-    draw.SimpleText(math.floor(stress * 100) .. "%", "DermaDefaultBold",
-        barX + barW / 2, y + 1, Color(255, 255, 255, 200), TEXT_ALIGN_CENTER)
-
-    -- Marker matches pulse threshold (was 0.8 vs pulse 0.7 -- inconsistent).
-    local markerFrac = TIV.Config.Stress.HUDMarker or 0.7
-    local threshX    = barX + barW * markerFrac
-    surface.SetDrawColor(255, 50, 50, 180)
-    surface.DrawLine(threshX, y, threshX, y + barH)
-
-    local vvX = barX + barW + 5
-    local vvW = panelW - barW - 25
-    DrawVerticalVelocityBar(vvX, y, vvW, barH, verticalVelocity)
-
-    y = y + barH + 10
-
-    surface.SetDrawColor(40, 40, 50)
-    surface.DrawLine(lm, y, rm, y)
-    y = y + 5
-
-    -- Warning dot + beep (was wired to nothing -- beep code dead).
-    local warningLevel = 0
-    if windSpeed >= threshold then
-        warningLevel = 2
-    elseif windSpeed >= 150 then
-        warningLevel = 1
-    end
-
-    local anchorFail = TIV.Instruments.GetAnchorFail and TIV.Instruments.GetAnchorFail(veh)
-    if anchorFail then
-        warningLevel = 2
-    end
-
-    if warningLevel > 0 then
-        local dotAreaW = panelW - 30
-        local dotAreaH = 30
-        local dotAreaX = lm
-        local dotAreaY = y
-        draw.RoundedBox(4, dotAreaX, dotAreaY, dotAreaW, dotAreaH,
-            Color(15, 15, 20, 200))
-
-        local dotColor, dotLabel
-        if warningLevel == 2 then
-            local blink  = math.abs(math.sin(CurTime() * 6))
-            dotColor     = Color(255, 20, 20, 155 + blink * 100)
-            -- Latch failure label even if wind also extreme.
-            dotLabel     = anchorFail and "ANCHOR FAILURE" or "EXTREME WIND"
-        else
-            local blink  = math.abs(math.sin(CurTime() * 3))
-            dotColor     = Color(255, 160, 30, 155 + blink * 100)
-            dotLabel     = "HIGH WIND"
-        end
-
-        local dotX = dotAreaX + 18
-        local dotY = dotAreaY + dotAreaH / 2
-        local dotR = 8
-        local glowPulse = math.abs(math.sin(CurTime() * (warningLevel == 2 and 8 or 4)))
-        local glowR     = dotR + 4 + glowPulse * 4
-
-        draw.RoundedBox(glowR, dotX - glowR, dotY - glowR, glowR * 2, glowR * 2,
-            Color(dotColor.r, dotColor.g, dotColor.b, 30 + glowPulse * 40))
-        draw.RoundedBox(dotR, dotX - dotR, dotY - dotR, dotR * 2, dotR * 2, dotColor)
-        local iR = dotR * 0.5
-        draw.RoundedBox(iR, dotX - iR, dotY - iR, iR * 2, iR * 2,
-            Color(255, 255, 255, dotColor.a * 0.5))
-
-        draw.SimpleText(dotLabel, "DermaDefaultBold",
-            dotX + dotR + 8, dotY,
-            dotColor, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-
-        local speedWarningText = isOverLimit and "ERROR" or (math.floor(windSpeed * unitScale) .. unitSuffix)
-        draw.SimpleText(speedWarningText, "DermaDefaultBold",
-            dotAreaX + dotAreaW - 6, dotY,
-            dotColor, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
-
-        y = dotAreaY + dotAreaH + 5
-    end
-
-    -- Hint
-    if state == "idle" then
-        draw.SimpleText("[B] DEPLOY", "DermaDefault",
-            panelX + panelW / 2, y, Color(200, 200, 100), TEXT_ALIGN_CENTER)
-    elseif state == "anchored" then
-        draw.SimpleText("[B] RETRACT", "DermaDefault",
-            panelX + panelW / 2, y, Color(200, 200, 100), TEXT_ALIGN_CENTER)
-    elseif state == "deploying_spikes" then
-        draw.SimpleText("DRIVING INTO GROUND...", "DermaDefault",
-            panelX + panelW / 2, y, Color(255, 150, 50), TEXT_ALIGN_CENTER)
-    elseif state == "lowering" or state == "raising" or state == "retracting" then
-        draw.SimpleText("PLEASE WAIT...", "DermaDefault",
-            panelX + panelW / 2, y, Color(200, 200, 100), TEXT_ALIGN_CENTER)
-    elseif state == "lofted" then
-        draw.SimpleText("VEHICLE DETACHED", "DermaDefaultBold",
-            panelX + panelW / 2, y, Color(255, 80, 80), TEXT_ALIGN_CENTER)
+        draw.SimpleText(warningText, "TIV_HUD_Alert", panelX + padX + totalW / 2, curY + alertH / 2,
+            Color(255, 255, 255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
     end
 end)
 
-print("[TIV] HUD loaded")
+print("[TIV] Modern cockpit instruments HUD loaded")
