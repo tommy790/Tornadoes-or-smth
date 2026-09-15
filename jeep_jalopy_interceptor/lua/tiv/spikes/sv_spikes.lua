@@ -30,7 +30,9 @@ function TIV.Spikes.Deploy(veh, data, callback)
 
     -- Instant fallback (anim module missing). Filters all spikes, not just veh.
     local function spikeFilter(ent)
-        if ent == veh then return false end
+        if ent == veh or ent:GetParent() == veh or ent.TIV_OwnerVehicle == veh or ent.IsTIVArmor or ent.IsTIVSpike then
+            return false
+        end
         if data and data.spikes then
             for _, sd in ipairs(data.spikes) do
                 if sd.entity == ent then return false end

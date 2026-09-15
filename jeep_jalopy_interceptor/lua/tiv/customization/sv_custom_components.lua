@@ -84,13 +84,20 @@ function TIV.CustomComponents.SpawnArmorProps(veh, config, unlockedUpgrades)
 
                     local phys = prop:GetPhysicsObject()
                     if IsValid(phys) then
-                        phys:SetMass(100)
+                        phys:SetMass(1)
                         phys:EnableMotion(false)
                         phys:EnableGravity(false)
                     end
 
                     if constraint and constraint.NoCollide then
                         constraint.NoCollide(veh, prop, 0, 0)
+                        if data and data.spikes then
+                            for _, sd in ipairs(data.spikes) do
+                                if IsValid(sd.entity) then
+                                    constraint.NoCollide(sd.entity, prop, 0, 0)
+                                end
+                            end
+                        end
                     end
 
                     prop:SetParent(veh)
@@ -201,19 +208,40 @@ function TIV.CustomComponents.ApplyVehicleBonuses(veh)
         if prof then unlocked = prof.unlocked_upgrades or {} end
     end
 
-    local config = veh._TIVConfig or TIV.CustomConfig.GetDefaultConfig(veh:GetModel())
+    local config = veh._TIVConfig or TIV.CustomConfig.GetDefaultConfig(veh:GetModel(), unlocked["angled_spikes"] == true)
     local stats  = TIV.CustomConfig.CalculateVehicleStats(config, unlocked)
 
     veh._TIVEffectiveStats = stats
 
-    -- Apply mass ballast to physics object
+    -- Apply mass ballast to physics object safely without crushing suspension
     local phys = veh:GetPhysicsObject()
     if IsValid(phys) then
         if not veh._TIVBaseMass then
             veh._TIVBaseMass = phys:GetMass()
         end
-        local newMass = math.Clamp((veh._TIVBaseMass or 1500) + (stats.total_ballast_mass or 0), 500, 10000)
+        -- Keep physical VPhysics mass addition gentle (max 60 kg) so suspension springs don't sag to the ground.
+        -- Full calculated ballast remains in stats.total_ballast_mass for aerodynamic/loft/telemetry modeling.
+        local ballastPhys = math.Clamp((stats.total_ballast_mass or 0) * 0.05, 0, 60)
+        local newMass = (veh._TIVBaseMass or 1500) + ballastPhys
         phys:SetMass(newMass)
+    end
+
+    -- Compensate suspension spring stiffness if VehicleParams is supported
+    if isfunction(veh.GetVehicleParams) and isfunction(veh.SetVehicleParams) then
+        local params = veh:GetVehicleParams()
+        if params and params.wheels then
+            for i = 0, #params.wheels do
+                local w = params.wheels[i]
+                if w and w.suspension then
+                    if not w.suspension._TIVBaseSpring then
+                        w.suspension._TIVBaseSpring = w.suspension.springConstant
+                    end
+                    -- Stiffen springs by 25% to support armor panels and maintain crisp ride height
+                    w.suspension.springConstant = (w.suspension._TIVBaseSpring or 100) * 1.25
+                end
+            end
+            veh:SetVehicleParams(params)
+        end
     end
 
     -- Trigger Wire output update

@@ -68,19 +68,23 @@ local function TraceGroundForSpike(veh, mountWorldPos, spikeAng, data)
         downDir = worldAng:Forward()
     end
 
+    local function traceFilter(ent)
+        if ent == veh or ent:GetParent() == veh or ent.TIV_OwnerVehicle == veh or ent.IsTIVArmor or ent.IsTIVSpike then
+            return false
+        end
+        if data and data.spikes then
+            for _, sd in ipairs(data.spikes) do
+                if sd.entity == ent then return false end
+            end
+        end
+        return true
+    end
+
     local tr = util.TraceLine({
         start  = mountWorldPos,
         endpos = mountWorldPos + (downDir * 240),
-        filter = function(ent)
-            if ent == veh or ent:GetParent() == veh then return false end
-            if data and data.spikes then
-                for _, sd in ipairs(data.spikes) do
-                    if sd.entity == ent then return false end
-                end
-            end
-            return true
-        end,
-        mask = MASK_SOLID,
+        filter = traceFilter,
+        mask   = MASK_SOLID,
     })
 
     -- Fallback 1: trace along vehicle down vector
@@ -88,16 +92,8 @@ local function TraceGroundForSpike(veh, mountWorldPos, spikeAng, data)
         tr = util.TraceLine({
             start  = mountWorldPos,
             endpos = mountWorldPos + (-veh:GetUp() * 240),
-            filter = function(ent)
-                if ent == veh or ent:GetParent() == veh then return false end
-                if data and data.spikes then
-                    for _, sd in ipairs(data.spikes) do
-                        if sd.entity == ent then return false end
-                    end
-                end
-                return true
-            end,
-            mask = MASK_SOLID,
+            filter = traceFilter,
+            mask   = MASK_SOLID,
         })
     end
 
@@ -107,16 +103,8 @@ local function TraceGroundForSpike(veh, mountWorldPos, spikeAng, data)
         tr = util.TraceLine({
             start  = mountWorldPos,
             endpos = mountWorldPos + (worldDown * 240),
-            filter = function(ent)
-                if ent == veh or ent:GetParent() == veh then return false end
-                if data and data.spikes then
-                    for _, sd in ipairs(data.spikes) do
-                        if sd.entity == ent then return false end
-                    end
-                end
-                return true
-            end,
-            mask = MASK_SOLID,
+            filter = traceFilter,
+            mask   = MASK_SOLID,
         })
     end
 
@@ -296,9 +284,20 @@ function TIV.SpikeAnim.CreateSpikes(veh, data)
 
                     local spikePhys = spike:GetPhysicsObject()
                     if IsValid(spikePhys) then
-                        spikePhys:SetMass(50)
+                        spikePhys:SetMass(1)
                         spikePhys:EnableMotion(false)
                         spikePhys:EnableGravity(false)
+                    end
+
+                    if constraint and constraint.NoCollide then
+                        constraint.NoCollide(veh, spike, 0, 0)
+                        if veh._TIVArmorProps then
+                            for _, ap in ipairs(veh._TIVArmorProps) do
+                                if IsValid(ap) then
+                                    constraint.NoCollide(ap, spike, 0, 0)
+                                end
+                            end
+                        end
                     end
 
                     spike:SetParent(veh)
