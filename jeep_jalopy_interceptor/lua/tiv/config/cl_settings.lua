@@ -67,6 +67,13 @@ hook.Add("PopulateToolMenu", "TIV_AddSettingsPanel", function()
                 "tiv_compat_recovery_cooldown",
                 TIV.Config.CompatRecoveryCooldownMin or 0,
                 TIV.Config.CompatRecoveryCooldownMax or 30, 1)
+
+            panel:Help("Wiremod integration settings:")
+            panel:CheckBox("Auto-attach Wire Controller", "tiv_wire_auto_controller")
+                :SetTooltip("Automatically attaches a Wiremod controller entity to spawned TIVs.")
+
+            panel:CheckBox("Hide Wire Controller Model", "tiv_wire_hide_controller")
+                :SetTooltip("Hides the physical model of the auto-attached Wire controller.")
         end
     )
 end)

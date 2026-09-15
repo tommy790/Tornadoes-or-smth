@@ -159,6 +159,20 @@ CreateConVar(
     TIV.Config.WindMaxSimulated or 350
 )
 
+CreateConVar(
+    "tiv_wire_auto_controller",
+    "1",
+    { FCVAR_ARCHIVE, FCVAR_NOTIFY, FCVAR_REPLICATED },
+    "Automatically attach a Wiremod controller entity to TIV vehicles when Wiremod is installed."
+)
+
+CreateConVar(
+    "tiv_wire_hide_controller",
+    "0",
+    { FCVAR_ARCHIVE, FCVAR_NOTIFY, FCVAR_REPLICATED },
+    "Hide the physical model of the auto-attached Wiremod controller."
+)
+
 -- Real bug fix: callbacks had `*,*` paste artifacts (function(_, _, _) is correct).
 cvars.AddChangeCallback("tiv_spike_count", function(_, old, new)
     applyRuntimeSpikeConfig()
@@ -196,6 +210,14 @@ end, "TIV_RuntimeCompatWindScale")
 cvars.AddChangeCallback("tiv_loft_wind_threshold", function(_, _, _)
     applyRuntimeLoftConfig()
 end, "TIV_RuntimeLoftThreshold")
+
+cvars.AddChangeCallback("tiv_wire_hide_controller", function(_, _, new)
+    local hide = tobool(new)
+    if TIV.Wire and TIV.Wire.UpdateControllerVisibility then
+        TIV.Wire.UpdateControllerVisibility(hide)
+    end
+end, "TIV_RuntimeWireHideController")
+
 
 -- Single init path (was duplicated: Initialize hook + 3 timer.Simple calls).
 hook.Add("Initialize", "TIV_ApplyRuntimeCvars", function()

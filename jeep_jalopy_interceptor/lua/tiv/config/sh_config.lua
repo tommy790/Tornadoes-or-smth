@@ -157,3 +157,23 @@ TIV.Config.SpikeOffsets = {
         { pos = Vector(-35, -110, 0), name = "Rear Left",   group = "rear"  },
     },
 }
+
+-- ============================================================================
+-- WIRE CONTROLLER OFFSETS PER VEHICLE MODEL
+-- Placement offsets for the auto-attached Wiremod controller entity.
+-- ============================================================================
+TIV.Config.WireControllerOffsets = {
+    jeep = {
+        pos = Vector(0, 15, 36),
+        ang = Angle(0, -90, 0),
+    },
+    jalopy = {
+        pos = Vector(0, 15, 36),
+        ang = Angle(0, -90, 0),
+    },
+    prop_vehicle_apc = {
+        pos = Vector(0, 35, 50),
+        ang = Angle(0, -90, 0),
+    },
+}
+

@@ -57,6 +57,8 @@ function TIV.Deploy.BroadcastState(veh, state)
         net.WriteEntity(veh)
         net.WriteString(state)
     net.Broadcast()
+
+    hook.Run("TIV_StateChanged", veh, state)
 end
 
 -- ============================================================================
@@ -122,6 +124,10 @@ function TIV.Deploy.EnsureSpikes(veh, data)
 
     TIV.Spikes.Create(veh, data)
     data.spikesCreated = true
+
+    if TIV.Wire and TIV.Wire.EnsureController then
+        TIV.Wire.EnsureController(veh)
+    end
 end
 
 -- ============================================================================
@@ -415,6 +421,11 @@ hook.Add("EntityRemoved", "TIV_VehicleCleanup", function(ent)
     TIV.Anchor.DetachAll(ent, data)
     TIV.Spikes.RemoveAll(data, entIdx)
     TIV.Deploy.Vehicles[entIdx] = nil
+
+    if TIV.Wire and TIV.Wire.OnVehicleRemoved then
+        TIV.Wire.OnVehicleRemoved(ent)
+    end
+    hook.Run("TIV_VehicleRemoved", ent)
 end)
 
 print("[TIV] Deploy system loaded")

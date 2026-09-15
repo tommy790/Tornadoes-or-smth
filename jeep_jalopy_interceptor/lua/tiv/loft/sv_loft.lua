@@ -164,6 +164,8 @@ function TIV.Loft.FailGroup(veh, data, groupName, duration)
                 net.WriteUInt(spikeIdx, 8)
             net.Broadcast()
 
+            hook.Run("TIV_SpikeFailure", veh, spikeIdx)
+
             if remainingBS == 0 then
                 TIV.Loft.TriggerLoft(veh, data)
             end
@@ -267,6 +269,8 @@ function TIV.Loft.TriggerLoft(veh, data)
     net.Start("TIV_LoftEvent")
         net.WriteEntity(veh)
     net.Broadcast()
+
+    hook.Run("TIV_LoftEvent", veh)
 
     TIV.Deploy.BroadcastState(veh, "lofted")
 

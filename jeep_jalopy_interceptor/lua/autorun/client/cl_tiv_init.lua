@@ -9,5 +9,6 @@ include("tiv/hud/cl_hud.lua")
 include("tiv/instruments/cl_instruments.lua")
 include("tiv/deploy/cl_deploy.lua")
 include("tiv/animation/cl_spike_anim.lua")
+include("tiv/wire/cl_wire.lua")
 
 print("[TIV] Client modules loaded!")
