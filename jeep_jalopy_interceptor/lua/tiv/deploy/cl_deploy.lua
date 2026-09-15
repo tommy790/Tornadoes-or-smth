@@ -146,19 +146,11 @@ end)
 hook.Add("PlayerButtonDown", "TIV_ClientDeployKey", function(ply, button)
     if ply ~= LocalPlayer() then return end
     if not TIV.Config then return end
+    if button ~= TIV.Config.DeployKey then return end
+    if not IsValid(TIV.Deploy.ResolveVehicle(ply)) then return end
 
-    local veh = TIV.Deploy.ResolveVehicle(ply)
-    if not IsValid(veh) then return end
-
-    if button == TIV.Config.DeployKey then
-        net.Start("TIV_DeployRequest")
-        net.SendToServer()
-    elseif button == KEY_R then
-        if veh:GetUp().z < 0.40 then
-            net.Start("TIV_RecoverRequest")
-            net.SendToServer()
-        end
-    end
+    net.Start("TIV_DeployRequest")
+    net.SendToServer()
 end)
 
 print("[TIV] Deploy client loaded")

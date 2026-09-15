@@ -6,7 +6,7 @@ All notable changes, architectural overhauls, and gameplay additions to the Torn
 
 ## [2.0.0] - Major Field Engineering & Customization Update
 
-This major release introduces a full career progression system, an interactive in-game 3D configuration editor, true vector-driven angled spike physics, physical armor plating with debris deflection, an advanced multi-stage aerodynamic lofting and rollover recovery engine, full Wiremod and Expression 2 integration, and modern tactical cockpit instrumentation.
+This major release introduces a full career progression system, an interactive in-game 3D configuration editor, true vector-driven angled spike physics, physical armor plating with debris deflection, staged directional anchor lofting physics, full Wiremod and Expression 2 integration, and modern tactical cockpit instrumentation.
 
 ---
 
@@ -15,7 +15,7 @@ This major release introduces a full career progression system, an interactive i
 2. [Interactive 3D Interceptor Configuration Editor](#2-interactive-3d-interceptor-configuration-editor)
 3. [Physical Armor Plating & Debris Deflection](#3-physical-armor-plating--debris-deflection)
 4. [Dynamic Angled Spike Mechanics & Vector Trajectory](#4-dynamic-angled-spike-mechanics--vector-trajectory)
-5. [Advanced Aerodynamic Lofting & Rollover Recovery](#5-advanced-aerodynamic-lofting--rollover-recovery)
+5. [Storm Aerodynamics & Staged Anchor Lofting](#5-storm-aerodynamics--staged-anchor-lofting)
 6. [GStorms & XTwisters 3 (XT3) Compatibility Engine](#6-gstorms--xtwisters-3-xt3-compatibility-engine)
 7. [Wiremod & Expression 2 (E2) APIs](#7-wiremod--expression-2-e2-apis)
 8. [Tactical Cockpit HUD & Instruments](#8-tactical-cockpit-hud--instruments)
@@ -112,35 +112,23 @@ This major release introduces a full career progression system, an interactive i
 
 ---
 
-### 5. Advanced Aerodynamic Lofting & Rollover Recovery
+### 5. Storm Aerodynamics & Staged Anchor Lofting
 
-#### Rock-Solid Ground Anchoring Physics
-- **Zero Constraint Fighting**: All artificial wind push forces, lateral turbulence impulses, and chassis rocking torques have been eliminated while the vehicle is anchored or deploying (`anchored`, `lowering`, `deploying_spikes`).
-- **Stable Terrain Planting**: Eliminates physics solver conflicts between Source ballsocket constraints and external forces, keeping the interceptor 100% solidly locked to the terrain surface without creeping, sliding, or hovering.
-- **Cockpit Screen Vibration & Strain Audio**: Extreme storm stress is conveyed realistically to occupants via directional metal groaning/creaking sounds and scaled cockpit screen shake (`util.ScreenShake`), providing violent storm atmosphere without physical chassis displacement.
-
-#### Progressive Anchor Failure & Clean Vortex Lofting
+#### Staged Directional Anchor Shear Sequence
 1. **Mechanical Stress Calculation**:
-   - Stress evaluates real-time wind speed squared, vehicle angle of attack, vehicle mass, and active armor drag coefficients.
-2. **Sequential Windward Anchor Shear**:
-   - In winds exceeding 160-240 MPH (scaled by upgrade perks), extreme crosswinds systematically shear anchor balljoints (windward -> mid -> leeward) with metallic shear audio, pneumatic release, and spark bursts.
-   - The chassis remains firmly planted on the ground throughout progressive anchor failure without artificial upward tipping forces displacing the vehicle.
-3. **Instant Constraint Decoupling & Clean Loft**:
-   - As the final anchors give way, all constraints between the vehicle, spikes, and the world brush are severed completely.
-   - Gravity and physics motion are immediately restored, transitioning the vehicle cleanly into full aerodynamic lofting as it is swept into the tornado's vortex updraft and circulation.
+   - Stress evaluates real-time wind speed relative to the vehicle's structural limit (180+ MPH base, dynamically scaled by aerodynamic cowls and armor upgrades).
+   - Dynamic metal groaning and strain audio play as stress rises, warning the crew before anchor failure.
+2. **Sequential Anchor Failure**:
+   - In winds exceeding the threshold, anchors fail sequentially in timed mechanical stages: **Rear -> Mid -> Front**.
+   - Spikes play metallic break sounds, throw spark bursts, and dislodge cleanly.
+3. **Trigger Loft Event**:
+   - When all anchors are severed or anchor integrity is lost, full lofting is triggered immediately.
+   - All remaining vehicle constraints are detached, gravity and motion are restored, and the vehicle is hurled into the air by upward loft force and randomized aerodynamic tumble torque.
+   - An automated 15-second recovery timer resets vehicle systems back to idle once the vehicle returns to earth.
 
-#### Vortex Aerodynamics & Armor Tearing
-- Dynamic lift, lateral drag, and rotational tumbling forces applied directly to the physics object based on wind vectors and vehicle orientation.
-- **Violent Turbulence Armor Tearing**: Extreme vortex turbulence can tear off armor panels if wind force exceeds plate weld limits, launching detached plates as hazardous physical projectiles.
-
-#### Hydraulic Rollover Recovery System
-- Overturned or inverted vehicles can activate a hydraulic self-righting system.
-- Smooth upward and rotational impulse rights the vehicle onto its wheels while clearing inverted physics locks.
-- Accessible via:
-  - In-cabin keybind / rollover prompt.
-  - Console command: `tiv_recover`.
-  - Wiremod input: `Recover` (rising edge).
-  - Expression 2: `Entity:tivRecover()`.
+#### Anchor Guard & Integrity Defense
+- Automatic integrity monitor guards against external tornado mod unwelding scripts (such as GStorms or XT3 prop-unweld routines).
+- Prevents premature detachment and maintains true vehicle-to-ground anchoring stability until structural limits are exceeded.
 
 ---
 
@@ -173,7 +161,6 @@ This major release introduces a full career progression system, an interactive i
 | `ToggleDeploy` | NORMAL | Toggles between Deploy and Retract on rising edge |
 | `EmergencyStop` | NORMAL | Aborts active sequence and safely returns vehicle to idle |
 | `Reset` | NORMAL | Emergency system reset, recreates spikes, and clears failure flags |
-| `Recover` | NORMAL | Activates hydraulic rollover recovery to self-right an overturned vehicle on rising edge (> 0) |
 | `Enable` | NORMAL | Master control lock (1 = enabled, 0 = locked/disabled) |
 | `ManualWind` | NORMAL | Enables manual wind simulation override (1 = manual, 0 = auto) |
 | `WindSpeed` | NORMAL | Manual wind speed override in MPH |
@@ -189,7 +176,6 @@ This major release introduces a full career progression system, an interactive i
 | `IsRetracting` | NORMAL | 1 if in retract sequence, 0 otherwise |
 | `IsAnchored` | NORMAL | 1 if anchored to ground, 0 otherwise |
 | `IsIdle` | NORMAL | 1 if idle and ready, 0 otherwise |
-| `IsOverturned` | NORMAL | 1 if vehicle is rolled over or upside down, 0 otherwise |
 | `Speed` | NORMAL | Ground speed in MPH |
 | `Altitude` | NORMAL | Vehicle altitude (Z coordinate) |
 | `VerticalVelocity`| NORMAL | Vertical velocity in MPH |
@@ -235,12 +221,6 @@ if (TIV:isTIV()) {
         print("TIV: Auto-deploying! Wind speed: " + WindSpd + " MPH")
     }
 
-    # Emergency rollover recovery
-    if (TIV:tivIsOverturned()) {
-        TIV:tivRecover()
-        print("TIV: Activating rollover recovery outriggers!")
-    }
-
     # Telemetry logging
     if (changed(State)) {
         print("TIV State changed to: " + State + " (Armor: " + TIV:tivArmorProtection() + "%)")
@@ -263,7 +243,6 @@ if (TIV:isTIV()) {
   - 261+ MPH: EF5 / Magenta
 - **Individual Spike Status Radar**: 6-point visual schematic showing deployment stage and ground contact of each anchor spike.
 - **Mechanical Stress & Loft Alarm**: Visual warning pulsing when wind strain approaches critical shear thresholds.
-- **Rollover Warning & Recovery Prompt**: Context-sensitive warning displayed when the vehicle overturns with one-key recovery prompt.
 - **Strict No-Emoji Styling**: All icons and typography adhere to professional aerospace/tactical vehicle telemetry styling.
 
 ---
@@ -282,10 +261,7 @@ if (TIV:isTIV()) {
 
 ### 10. Bug Fixes & Codebase Health
 
-- **Chassis Tipping Removal & Anchor Stability**: Completely eliminated the pre-loft offset lifting forces (`ApplyForceOffset` and artificial rolling torque) that previously attempted to simulate vehicle tipping while anchored. Anchored wind force is now strictly lateral ($Z \le 0$), keeping the vehicle firmly clamped to the ground on its suspension until full anchor release occurs.
-- **Anchor Loft Separation Fix**: Resolved an issue where vehicles became stuck hovering mid-air while spikes remained frozen in the ground. The anchor guard now avoids regenerating constraints during active failure sequences, and `TriggerLoft` severs all world/vehicle constraints, ejecting sheared spikes as physics debris and ensuring clean aerodynamic lofting.
-- **Loft Updraft Balance & Landing Detection**: Rebalanced loft aerodynamic lift and height scaling to ensure vehicles tumble, fly, and cleanly crash land back onto terrain rather than hovering indefinitely. Automatic ground detection seamlessly settles the vehicle and mounts fresh spikes on landing.
-- **Failure Sequence Timer Resilience**: Prevented momentary tornado wind dips from prematurely aborting active anchor failure stages, adding a guaranteed 2.6-second loft fail-safe.
+- **Lofting System Reversion**: Reverted experimental aerodynamic flight physics and tipping routines back to the rock-solid, proven staged lofting architecture, eliminating mid-air constraint sticking and vehicle freezing.
 - **Suspension Travel Fix**: Removed artificial dead weight that caused wheels to clip into geometry, preserving authentic suspension lowering distance.
 - **Angled Spikes Vector Fix**: Spikes now drive, settle, and retract along their angled trajectory instead of dropping straight down.
 - **Nil Safety**: Added `LocalPlayer()` and occupant vehicle validity guards across client instruments, progression trackers, and audio net receivers.

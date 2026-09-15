@@ -18,7 +18,6 @@ E2Helper.Descriptions["tivRetract(e:)"] = "Starts retraction of the TIV (unancho
 E2Helper.Descriptions["tivToggle(e:)"] = "Toggles deploy/retract of the TIV."
 E2Helper.Descriptions["tivEmergencyStop(e:)"] = "Aborts the active deploy sequence and recovers the TIV to idle."
 E2Helper.Descriptions["tivReset(e:)"] = "Resets the TIV systems, clears failure states, and restores fresh spikes."
-E2Helper.Descriptions["tivRecover(e:)"] = "Activates hydraulic self-righting rollover recovery on the TIV."
 E2Helper.Descriptions["tivCurrentIntercepts(e:)"] = "Returns the driver's current spendable Intercept points."
 E2Helper.Descriptions["tivTotalIntercepts(e:)"] = "Returns the driver's lifetime total Intercepts earned."
 E2Helper.Descriptions["tivUpgradeCount(e:)"] = "Returns the number of unlocked upgrades for the driver."

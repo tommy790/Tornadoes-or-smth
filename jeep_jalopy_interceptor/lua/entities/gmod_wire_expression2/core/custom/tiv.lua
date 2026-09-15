@@ -160,16 +160,6 @@ e2function number entity:tivReset()
     return 0
 end
 
---- Activates hydraulic self-righting rollover recovery on <this> TIV
-e2function number entity:tivRecover()
-    if not IsValid(this) or not TIV or not TIV.IsSupportedVehicle or not TIV.IsSupportedVehicle(this) then return 0 end
-    if not isOwner(self, this) then return self:throw("You do not own this TIV!", 0) end
-    if TIV.Loft and TIV.Loft.SelfRightVehicle then
-        return TIV.Loft.SelfRightVehicle(this, self.player) and 1 or 0
-    end
-    return 0
-end
-
 __e2setcost(5)
 
 --- Returns the current spendable Intercept points of the driver/owner of <this> TIV
