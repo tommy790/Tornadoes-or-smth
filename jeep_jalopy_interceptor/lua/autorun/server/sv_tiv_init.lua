@@ -29,6 +29,7 @@ include("tiv/wire/sv_wire.lua")
 
 AddCSLuaFile("tiv/hud/cl_hud.lua")
 AddCSLuaFile("tiv/instruments/cl_instruments.lua")
+AddCSLuaFile("tiv/instruments/cl_radar_screen.lua")
 AddCSLuaFile("tiv/deploy/cl_deploy.lua")
 AddCSLuaFile("tiv/animation/cl_spike_anim.lua")
 AddCSLuaFile("tiv/wire/cl_wire.lua")

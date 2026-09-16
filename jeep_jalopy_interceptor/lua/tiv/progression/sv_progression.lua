@@ -294,8 +294,9 @@ end)
 
 -- ============================================================================
 -- STORM INTERCEPT EVALUATION LOOP
--- Monitors anchored vehicles inside high wind fields.
--- Rewards players who successfully hold position against severe tornado winds.
+-- Uses GStorms and XT3 to detect when a tornado is over an anchored vehicle.
+-- Immediately awards 1 intercept upon entry, then points pile up over time
+-- for both side and core intercepts while holding ground.
 -- ============================================================================
 timer.Create("TIV_StormInterceptTracker", 1.0, 0, function()
     local activeVehicles = TIV.Deploy and TIV.Deploy.Vehicles
@@ -309,66 +310,106 @@ timer.Create("TIV_StormInterceptTracker", 1.0, 0, function()
             local tracker = TIV.Progression.ActiveTracking[entIdx]
             if not tracker then
                 tracker = {
-                    timeInCore     = 0,
-                    peakWind       = 0,
-                    lastPointAward = now,
-                    inStorm        = false,
+                    timeInIntercept = 0,
+                    lastPointAward  = now,
+                    interceptActive = false,
+                    interceptType   = nil,
                 }
                 TIV.Progression.ActiveTracking[entIdx] = tracker
             end
 
             local state   = data.state or "idle"
             local windMPH = TIV.Wind and TIV.Wind.GetSpeed and TIV.Wind.GetSpeed(veh) or 0
+
+            -- Gather vehicle occupants (driver and passengers)
+            local occupants = {}
             local driver  = veh.GetDriver and veh:GetDriver() or nil
-            if not IsValid(driver) then
-                -- Check for passengers or parent seat occupants
-                for _, p in ipairs(player.GetAll()) do
-                    if IsValid(p) then
-                        local pVeh = p:GetVehicle()
-                        if IsValid(pVeh) and (pVeh == veh or (IsValid(pVeh:GetParent()) and pVeh:GetParent() == veh)) then
-                            driver = p
-                            break
-                        end
+            if IsValid(driver) then table.insert(occupants, driver) end
+
+            for _, p in ipairs(player.GetAll()) do
+                if IsValid(p) and p ~= driver then
+                    local pVeh = p:GetVehicle()
+                    if IsValid(pVeh) and (pVeh == veh or (IsValid(pVeh:GetParent()) and pVeh:GetParent() == veh)) then
+                        table.insert(occupants, p)
                     end
                 end
             end
 
-            -- Only anchored vehicles earn intercept points
-            if state == "anchored" and IsValid(driver) then
-                if windMPH >= 70 then
-                    tracker.inStorm    = true
-                    tracker.timeInCore = tracker.timeInCore + 1.0
-                    if windMPH > tracker.peakWind then
-                        tracker.peakWind = windMPH
-                    end
+            if #occupants == 0 and IsValid(veh._TIVOwner) and veh._TIVOwner:GetPos():DistToSqr(veh:GetPos()) < 1500 * 1500 then
+                table.insert(occupants, veh._TIVOwner)
+            end
 
-                    -- Threshold: 10s of sustained hold in >= 70 MPH, or 5s if wind is extreme (>= 130 MPH)
-                    local requiredDuration = (windMPH >= 130) and 5.0 or 10.0
-                    if tracker.timeInCore >= requiredDuration and (now - tracker.lastPointAward) >= requiredDuration then
-                        tracker.lastPointAward = now
-                        tracker.timeInCore     = 0
+            -- Evaluate active tornado presence from GStorms & XT3
+            local tInfo = TIV.Wind and TIV.Wind.GetNearestActiveTornado and TIV.Wind.GetNearestActiveTornado(veh:GetPos())
+            local inCore = false
+            local inSide = false
 
-                        local points = (windMPH >= 150) and 2 or 1
-                        local category = (windMPH >= 150) and "Violent EF4+ Core Intercept" or "Severe Tornado Intercept"
-                        TIV.Progression.AwardIntercepts(driver, points, string.format("%s (%.0f MPH)", category, windMPH))
+            if tInfo then
+                local dist = tInfo.dist
+                if dist <= tInfo.coreRadius then
+                    inCore = true
+                    inSide = true
+                elseif dist <= tInfo.outerRadius then
+                    inSide = true
+                end
+            end
+
+            -- Ambient wind fallback check (supports custom weather storms or manual test overrides)
+            if windMPH >= 130 then
+                inCore = true
+                inSide = true
+            elseif windMPH >= 70 then
+                inSide = true
+            end
+
+            local isOverVehicle = inCore or inSide
+            local currentType   = inCore and "core" or (inSide and "side" or nil)
+
+            -- Interception scoring only applies while vehicle is solidly anchored with occupants
+            if state == "anchored" and isOverVehicle and #occupants > 0 then
+                if not tracker.interceptActive then
+                    -- Tornado reached anchored vehicle or vehicle latched under tornado:
+                    -- Immediately award 1 intercept
+                    tracker.interceptActive = true
+                    tracker.interceptType   = currentType
+                    tracker.timeInIntercept = 0
+                    tracker.lastPointAward  = now
+
+                    local label = (currentType == "core")
+                        and "Tornado Core Intercept Initiated (+1)"
+                        or "Tornado Side Intercept Initiated (+1)"
+
+                    for _, ply in ipairs(occupants) do
+                        TIV.Progression.AwardIntercepts(ply, 1, label)
                     end
                 else
-                    -- Wind died down or vehicle exited storm: check if a full vortex passage was completed
-                    if tracker.inStorm and tracker.peakWind >= 95 and windMPH < 35 then
-                        tracker.inStorm = false
-                        TIV.Progression.AwardIntercepts(driver, 2, string.format("Vortex Eye Passage Intercept (Peak %.0f MPH)", tracker.peakWind))
-                        tracker.peakWind = 0
-                    elseif windMPH < 40 then
-                        tracker.inStorm = false
-                        tracker.timeInCore = 0
+                    -- Escalate from side to core if vehicle enters inner eye/core
+                    if tracker.interceptType == "side" and currentType == "core" then
+                        tracker.interceptType = "core"
+                    end
+
+                    tracker.timeInIntercept = tracker.timeInIntercept + 1.0
+
+                    -- Points pile up over time: 5s for Core, 8s for Side
+                    local awardInterval = (tracker.interceptType == "core") and 5.0 or 8.0
+                    if (now - tracker.lastPointAward) >= awardInterval then
+                        tracker.lastPointAward = now
+
+                        local holdLabel = (tracker.interceptType == "core")
+                            and string.format("Core Intercept Hold (+1) [%.0fs]", tracker.timeInIntercept)
+                            or string.format("Side Intercept Hold (+1) [%.0fs]", tracker.timeInIntercept)
+
+                        for _, ply in ipairs(occupants) do
+                            TIV.Progression.AwardIntercepts(ply, 1, holdLabel)
+                        end
                     end
                 end
             else
-                -- Vehicle unanchored or lofted
-                tracker.timeInCore = 0
-                if state == "lofted" then
-                    tracker.inStorm = false
-                    tracker.peakWind = 0
+                -- Vehicle left tornado or unanchored/lofted
+                if tracker.interceptActive then
+                    tracker.interceptActive = false
+                    tracker.timeInIntercept = 0
+                    tracker.interceptType   = nil
                 end
             end
         else

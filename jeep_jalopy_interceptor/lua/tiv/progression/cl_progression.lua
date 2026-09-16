@@ -40,8 +40,6 @@ net.Receive("TIV_InterceptAwarded", function()
     TIV.Progression.CurrentIntercepts = current
     TIV.Progression.TotalIntercepts   = total
 
-    surface.PlaySound("garrysmod/save_load1.wav")
-
     activeToast = {
         amount    = amount,
         reason    = reason,

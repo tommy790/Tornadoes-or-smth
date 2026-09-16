@@ -133,12 +133,26 @@ TIV.Wire.Outputs = {
     { name = "HasAngledSpikes",      type = "NORMAL", desc = "1 if Angled Spikes upgrade unlocked, 0 otherwise" },
     { name = "HasSideArmor",         type = "NORMAL", desc = "1 if Side Armor Panels upgrade unlocked, 0 otherwise" },
     { name = "HasFrontArmor",        type = "NORMAL", desc = "1 if Front Armor Panels upgrade unlocked, 0 otherwise" },
+    { name = "HasPathScreen",        type = "NORMAL", desc = "1 if Tactical Path Prediction Screen upgrade unlocked, 0 otherwise" },
 
     -- Armor & protection
     { name = "ArmorCount",           type = "NORMAL", desc = "Number of active armor panels installed on vehicle" },
     { name = "ArmorProtection",      type = "NORMAL", desc = "Total kinetic impact protection percentage (0 to 100)" },
     { name = "LoftThreshold",        type = "NORMAL", desc = "Effective loft wind threshold in MPH including all upgrades and armor" },
     { name = "WindResistanceScale",  type = "NORMAL", desc = "Effective aerodynamic wind resistance drag factor (lower = better)" },
+
+    -- Tornado path & radar tracking
+    { name = "TornadoDetected",      type = "NORMAL", desc = "1 if an active tornado is within detection range, 0 otherwise" },
+    { name = "TornadoDistance",      type = "NORMAL", desc = "Distance to nearest tornado in Source hammer units" },
+    { name = "TornadoDistanceM",     type = "NORMAL", desc = "Distance to nearest tornado in meters" },
+    { name = "TornadoBearing",       type = "NORMAL", desc = "Compass bearing from vehicle to tornado (0-360 degrees)" },
+    { name = "TornadoSpeed",         type = "NORMAL", desc = "Translational movement speed of tornado in MPH" },
+    { name = "TornadoETA",           type = "NORMAL", desc = "Estimated seconds until tornado closest point of approach" },
+    { name = "TornadoCoreRadius",    type = "NORMAL", desc = "Radius of tornado core / maximum wind zone in units" },
+    { name = "TornadoOuterRadius",   type = "NORMAL", desc = "Radius of tornado outer circulation in units" },
+    { name = "TornadoImpactType",    type = "NORMAL", desc = "Impact classification: 0=receding/clear, 1=miss, 2=side sweep, 3=direct core hit" },
+    { name = "TornadoPathX",         type = "NORMAL", desc = "Predicted trajectory vector X component" },
+    { name = "TornadoPathY",         type = "NORMAL", desc = "Predicted trajectory vector Y component" },
 }
 
 -- Pre-build formatted port and desc lists for WireLib
@@ -555,6 +569,7 @@ function TIV.Wire.UpdateOutputs(veh)
         local hasAngled         = 0
         local hasSideArmor      = 0
         local hasFrontArmor     = 0
+        local hasPathScreen     = 0
 
         if IsValid(driver) and TIV.Progression and TIV.Progression.GetPlayerProfile then
             local prof = TIV.Progression.GetPlayerProfile(driver)
@@ -572,6 +587,7 @@ function TIV.Wire.UpdateOutputs(veh)
                 hasAngled     = (prof.unlocked_upgrades and prof.unlocked_upgrades["angled_spikes"]) and 1 or 0
                 hasSideArmor  = (prof.unlocked_upgrades and prof.unlocked_upgrades["side_armor"]) and 1 or 0
                 hasFrontArmor = (prof.unlocked_upgrades and prof.unlocked_upgrades["front_armor"]) and 1 or 0
+                hasPathScreen = (prof.unlocked_upgrades and prof.unlocked_upgrades["path_screen"]) and 1 or 0
             end
         end
 
@@ -588,11 +604,41 @@ function TIV.Wire.UpdateOutputs(veh)
         trigger(target, "HasAngledSpikes",     hasAngled)
         trigger(target, "HasSideArmor",        hasSideArmor)
         trigger(target, "HasFrontArmor",       hasFrontArmor)
+        trigger(target, "HasPathScreen",       hasPathScreen)
 
         trigger(target, "ArmorCount",          armorCount)
         trigger(target, "ArmorProtection",     armorProt)
         trigger(target, "LoftThreshold",       loftThreshold)
         trigger(target, "WindResistanceScale", windResistScale)
+
+        -- Tornado path & radar tracking
+        local tInfo = TIV.Wind and TIV.Wind.GetNearestActiveTornado and TIV.Wind.GetNearestActiveTornado(veh:GetPos())
+        if tInfo then
+            trigger(target, "TornadoDetected", 1)
+            trigger(target, "TornadoDistance", tInfo.dist)
+            trigger(target, "TornadoDistanceM", math.Round(tInfo.dist * 0.01905, 1))
+            trigger(target, "TornadoBearing", math.Round(tInfo.bearing, 1))
+            trigger(target, "TornadoSpeed", math.Round(tInfo.speedMPH, 1))
+            trigger(target, "TornadoETA", math.Round(tInfo.eta, 1))
+            trigger(target, "TornadoCoreRadius", math.Round(tInfo.coreRadius, 1))
+            trigger(target, "TornadoOuterRadius", math.Round(tInfo.outerRadius, 1))
+            local impactCode = (tInfo.impactType == "core") and 3 or ((tInfo.impactType == "side") and 2 or ((tInfo.impactType == "miss") and 1 or 0))
+            trigger(target, "TornadoImpactType", impactCode)
+            trigger(target, "TornadoPathX", tInfo.heading.x)
+            trigger(target, "TornadoPathY", tInfo.heading.y)
+        else
+            trigger(target, "TornadoDetected", 0)
+            trigger(target, "TornadoDistance", 0)
+            trigger(target, "TornadoDistanceM", 0)
+            trigger(target, "TornadoBearing", 0)
+            trigger(target, "TornadoSpeed", 0)
+            trigger(target, "TornadoETA", 0)
+            trigger(target, "TornadoCoreRadius", 0)
+            trigger(target, "TornadoOuterRadius", 0)
+            trigger(target, "TornadoImpactType", 0)
+            trigger(target, "TornadoPathX", 0)
+            trigger(target, "TornadoPathY", 0)
+        end
     end
 end
 

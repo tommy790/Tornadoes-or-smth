@@ -235,3 +235,46 @@ e2function number entity:tivWindResistanceScale()
     local stats = this._TIVEffectiveStats
     return (stats and stats.wind_force_mult) and math.Round(stats.wind_force_mult, 2) or 1
 end
+
+--- Returns 1 if an active tornado is within tracking range of <this> TIV, 0 otherwise
+e2function number entity:tivTornadoDetected()
+    if not IsValid(this) or not TIV or not TIV.Wind or not TIV.Wind.GetNearestActiveTornado then return 0 end
+    local info = TIV.Wind.GetNearestActiveTornado(this:GetPos())
+    return info and 1 or 0
+end
+
+--- Returns distance to the nearest active tornado from <this> TIV in hammer units
+e2function number entity:tivTornadoDistance()
+    if not IsValid(this) or not TIV or not TIV.Wind or not TIV.Wind.GetNearestActiveTornado then return 0 end
+    local info = TIV.Wind.GetNearestActiveTornado(this:GetPos())
+    return info and info.dist or 0
+end
+
+--- Returns bearing in degrees (0-360) from <this> TIV to the nearest tornado
+e2function number entity:tivTornadoBearing()
+    if not IsValid(this) or not TIV or not TIV.Wind or not TIV.Wind.GetNearestActiveTornado then return 0 end
+    local info = TIV.Wind.GetNearestActiveTornado(this:GetPos())
+    return info and info.bearing or 0
+end
+
+--- Returns translational movement speed of the nearest tornado in MPH
+e2function number entity:tivTornadoSpeed()
+    if not IsValid(this) or not TIV or not TIV.Wind or not TIV.Wind.GetNearestActiveTornado then return 0 end
+    local info = TIV.Wind.GetNearestActiveTornado(this:GetPos())
+    return info and info.speedMPH or 0
+end
+
+--- Returns estimated time to closest approach (ETA in seconds) of the nearest tornado to <this> TIV
+e2function number entity:tivTornadoETA()
+    if not IsValid(this) or not TIV or not TIV.Wind or not TIV.Wind.GetNearestActiveTornado then return 0 end
+    local info = TIV.Wind.GetNearestActiveTornado(this:GetPos())
+    return info and info.eta or 0
+end
+
+--- Returns tornado impact classification: 0=receding/clear, 1=miss, 2=side sweep, 3=direct core hit
+e2function number entity:tivTornadoImpactType()
+    if not IsValid(this) or not TIV or not TIV.Wind or not TIV.Wind.GetNearestActiveTornado then return 0 end
+    local info = TIV.Wind.GetNearestActiveTornado(this:GetPos())
+    if not info then return 0 end
+    return (info.impactType == "core") and 3 or ((info.impactType == "side") and 2 or ((info.impactType == "miss") and 1 or 0))
+end

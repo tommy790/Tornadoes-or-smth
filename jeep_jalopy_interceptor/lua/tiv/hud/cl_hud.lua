@@ -192,7 +192,9 @@ hook.Add("HUDPaint", "TIV_DrawHUD", function()
     local scale  = math.Clamp(cvarHudScale:GetFloat(), 0.75, 1.5)
     local panelW = 340 * scale
     local hasAlert = (warningLevel > 0)
-    local baseH  = hasAlert and 220 or 192
+    local hasRadar = (TIV.Progression and TIV.Progression.IsUnlocked and TIV.Progression.IsUnlocked("path_screen"))
+        or (TIV.Instruments and TIV.Instruments.RadarData and TIV.Instruments.RadarData.active)
+    local baseH  = (hasAlert and 220 or 192) + (hasRadar and 42 or 0)
     local panelH = baseH * scale
 
     local posMode = cvarHudPos:GetInt()
@@ -471,6 +473,46 @@ hook.Add("HUDPaint", "TIV_DrawHUD", function()
 
         draw.SimpleText(warningText, "TIV_HUD_Alert", panelX + padX + totalW / 2, curY + alertH / 2,
             Color(255, 255, 255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+        curY = curY + alertH + 6
+    end
+
+    -- ------------------------------------------------------------------------
+    -- 6. TACTICAL DOPPLER RADAR TELEMETRY (If path_screen upgrade is active)
+    -- ------------------------------------------------------------------------
+    if hasRadar then
+        local radarH = 34
+        draw.RoundedBox(4, panelX + padX, curY, totalW, radarH, Color(12, 18, 28, 220))
+        surface.SetDrawColor(0, 180, 220, 140)
+        surface.DrawOutlinedRect(panelX + padX, curY, totalW, radarH)
+
+        local rData = TIV.Instruments and TIV.Instruments.RadarData
+        if rData and rData.active then
+            local distM = math.Round(rData.dist * 0.01905)
+            local statusCol = Color(0, 230, 255)
+            local statusTxt = "TRACKING"
+            if rData.impactType == "core" then
+                statusCol = Color(255, 60, 60)
+                statusTxt = "CORE IMPACT"
+            elseif rData.impactType == "side" then
+                statusCol = Color(255, 180, 40)
+                statusTxt = "SIDE SWEEP"
+            elseif rData.impactType == "miss" then
+                statusCol = Color(60, 230, 120)
+                statusTxt = "PASSING"
+            else
+                statusCol = Color(140, 180, 240)
+                statusTxt = "RECEDING"
+            end
+
+            draw.SimpleText("DOPPLER TRACK: " .. statusTxt, "TIV_HUD_Bold", panelX + padX + 8, curY + 4, statusCol, TEXT_ALIGN_LEFT)
+            draw.SimpleText(string.format("ETA: %.0fs", rData.eta), "TIV_HUD_Bold", panelX + padX + totalW - 8, curY + 4, Color(255, 255, 255), TEXT_ALIGN_RIGHT)
+
+            draw.SimpleText(string.format("DIST: %dm | SPD: %.0f MPH | BRG: %.0f°", distM, rData.speedMPH, rData.bearing),
+                "TIV_HUD_Unit", panelX + padX + 8, curY + 18, Color(160, 180, 200), TEXT_ALIGN_LEFT)
+        else
+            draw.SimpleText("DOPPLER RADAR: SCANNING", "TIV_HUD_Bold", panelX + padX + 8, curY + 4, Color(0, 200, 230), TEXT_ALIGN_LEFT)
+            draw.SimpleText("NO ACTIVE TORNADO IN RANGE", "TIV_HUD_Unit", panelX + padX + 8, curY + 18, Color(130, 150, 170), TEXT_ALIGN_LEFT)
+        end
     end
 end)
 

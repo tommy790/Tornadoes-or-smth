@@ -86,6 +86,16 @@ TIV.Progression.Upgrades = {
             anchor_hold_mult = 1.40,  -- 40% higher anchor capacity
         },
     },
+    {
+        id       = "path_screen",
+        name     = "Tactical Path Prediction Screen",
+        category = "Electronics",
+        cost     = 3,
+        desc     = "Mounts an in-cabin tactical digital screen (using Wiremod screen display) that tracks the nearest active tornado and renders its real-time position, core radius, and predicted forward path directly in your vehicle.",
+        bonuses  = {
+            radar_screen = true,
+        },
+    },
 }
 
 -- Lookup index by ID

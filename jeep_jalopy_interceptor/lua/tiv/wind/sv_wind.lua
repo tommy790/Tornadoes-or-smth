@@ -264,6 +264,202 @@ TIV.Wind.SampleXT3WindAt          = SampleXT3WindAt
 TIV.Wind.SampleWorldWindAt        = SampleWorldWindAt
 
 -- ============================================================================
+-- ACTIVE TORNADO TRACKING & PATH PREDICTION (GSTORMS & XTWISTERS 3)
+-- Locates the active tornado entity to evaluate real-time core/side interception
+-- and generate forward trajectory path prediction waypoints.
+-- ============================================================================
+function TIV.Wind.GetNearestActiveTornado(pos, maxDist)
+    maxDist = maxDist or 45000
+    local maxDistSqr = maxDist * maxDist
+    local bestEnt = nil
+    local bestDistSqr = maxDistSqr
+
+    local candidates = {}
+    local seen = {}
+
+    local function addCandidate(e)
+        if IsValid(e) and not seen[e] then
+            seen[e] = true
+            table.insert(candidates, e)
+        end
+    end
+
+    -- XT3 tornado entities
+    for _, e in ipairs(ents.FindByClass("xt3_tornadoes*")) do addCandidate(e) end
+    for _, e in ipairs(ents.FindByClass("xtwisters3vortexbase")) do addCandidate(e) end
+
+    -- GStorms weather entities
+    for _, e in ipairs(ents.FindByClass("gstorms_weather_*")) do addCandidate(e) end
+    for _, e in ipairs(ents.FindByClass("gstorms_base_entity")) do addCandidate(e) end
+    if gs_weatherEntityList and gs_weatherEntityList.server then
+        for _, e in pairs(gs_weatherEntityList.server) do
+            if isentity(e) then addCandidate(e) end
+        end
+    end
+
+    for _, ent in ipairs(candidates) do
+        local cls = string.lower(ent:GetClass() or "")
+        local isExcluded = string.find(cls, "earthquake", 1, true)
+            or string.find(cls, "probe", 1, true)
+            or string.find(cls, "seismograph", 1, true)
+            or string.find(cls, "thermometer", 1, true)
+            or string.find(cls, "computer", 1, true)
+            or string.find(cls, "siren", 1, true)
+            or string.find(cls, "volcano", 1, true)
+            or string.find(cls, "anemometer", 1, true)
+            or string.find(cls, "barometer", 1, true)
+
+        local isVortex = false
+        if not isExcluded then
+            if string.find(cls, "xt3_tornadoes", 1, true)
+                or string.find(cls, "xtwisters3vortexbase", 1, true)
+                or string.find(cls, "gstorms_weather_ef", 1, true)
+                or string.find(cls, "gstorms_weather_spout", 1, true)
+                or string.find(cls, "gstorms_weather_dust_devil", 1, true)
+                or string.find(cls, "gstorms_weather_hurricane", 1, true)
+                or ent.VortexWindspeed ~= nil
+                or ent.VortexCoreSize ~= nil
+                or ent.Tornado == true
+                or (ent.GetTornado and ent:GetTornado() == true)
+                or ent.IsXT3Vortex == true or ent.IsVortex == true then
+                isVortex = true
+            end
+        end
+
+        if isVortex then
+            local tPos = ent:GetPos()
+            local dSqr = Vector(pos.x - tPos.x, pos.y - tPos.y, 0):LengthSqr()
+            if dSqr < bestDistSqr then
+                bestDistSqr = dSqr
+                bestEnt = ent
+            end
+        end
+    end
+
+    if not IsValid(bestEnt) then return nil end
+
+    local tPos = bestEnt:GetPos()
+    local now = CurTime()
+    local dist2D = math.sqrt(bestDistSqr)
+
+    -- Universal track smoothing for translation vector
+    if not bestEnt._TIV_LastPos then
+        bestEnt._TIV_LastPos = tPos
+        bestEnt._TIV_LastTime = now
+        bestEnt._TIV_TrackDir = Vector(1, 0, 0)
+        bestEnt._TIV_TrackSpeed = 25
+    else
+        local dt = now - bestEnt._TIV_LastTime
+        if dt >= 0.25 then
+            local dPos = tPos - bestEnt._TIV_LastPos
+            local dLen = dPos:Length2D()
+            if dLen > 2.0 then
+                bestEnt._TIV_TrackDir = Vector(dPos.x, dPos.y, 0):GetNormalized()
+                bestEnt._TIV_TrackSpeed = math.Clamp((dLen / dt) * 0.0568182, 5, 120)
+            end
+            bestEnt._TIV_LastPos = tPos
+            bestEnt._TIV_LastTime = now
+        end
+    end
+
+    -- Direction derivation
+    local rawDir = bestEnt.MovementDirection or bestEnt.MovementVector
+        or (bestEnt:GetVelocity():Length2D() > 15 and bestEnt:GetVelocity():GetNormalized())
+        or bestEnt._TIV_TrackDir or Vector(1, 0, 0)
+    local heading = Vector(rawDir.x, rawDir.y, 0):GetNormalized()
+    if heading:LengthSqr() < 0.01 then heading = Vector(1, 0, 0) end
+
+    -- Speed derivation (MPH & hammer units/sec)
+    local speedMPH = bestEnt._TIV_TrackSpeed or 25
+    if bestEnt.MovementSpeed and bestEnt.MovementSpeed > 0 then
+        speedMPH = bestEnt.MovementSpeed * 2.23694
+    elseif bestEnt:GetVelocity():Length2D() > 15 then
+        speedMPH = bestEnt:GetVelocity():Length() * 0.0568182
+    end
+    speedMPH = math.Clamp(speedMPH, 8, 90)
+    local speedUnits = speedMPH / 0.0568182
+
+    -- Core radius (RMW / maximum wind zone)
+    local coreRadius = bestEnt.VortexRMWSize
+        or (bestEnt.GetNW2Float and bestEnt:GetNW2Float("VortexRMWSize", 0) > 0 and bestEnt:GetNW2Float("VortexRMWSize"))
+        or bestEnt.VortexCoreSize
+        or (bestEnt.GetNW2Float and bestEnt:GetNW2Float("VortexCoreSize", 0) > 0 and bestEnt:GetNW2Float("VortexCoreSize"))
+        or 600
+
+    -- Outer vortex radius
+    local outerRadius = bestEnt.VortexSize
+        or (bestEnt.GetVortexSize and bestEnt:GetVortexSize())
+        or (bestEnt.GetNW2Float and bestEnt:GetNW2Float("VortexSize", 0) > 0 and bestEnt:GetNW2Float("VortexSize"))
+        or (coreRadius * 4.5)
+        or 3500
+
+    -- Predicted waypoints calculation (using GStorms pathing curve or vector integration)
+    local waypoints = {}
+    if bestEnt.PathingData and istable(bestEnt.PathingData.edgePoints) and #bestEnt.PathingData.edgePoints > 0 then
+        local startIdx = bestEnt.PathingData.edgePointIndex or 1
+        for i = startIdx, math.min(#bestEnt.PathingData.edgePoints, startIdx + 8) do
+            local pt = bestEnt.PathingData.edgePoints[i]
+            if pt then
+                table.insert(waypoints, { pos = Vector(pt.x, pt.y, pt.z or tPos.z) })
+            end
+        end
+    end
+
+    if #waypoints == 0 then
+        local intervals = { 5, 10, 15, 20, 30, 45, 60 }
+        for _, sec in ipairs(intervals) do
+            table.insert(waypoints, {
+                time = sec,
+                pos  = tPos + heading * (speedUnits * sec),
+            })
+        end
+    end
+
+    -- Closest Point of Approach (CPA)
+    local rel = Vector(pos.x - tPos.x, pos.y - tPos.y, 0)
+    local proj = rel:Dot(heading)
+    local eta = 0
+    local cpaDist = dist2D
+    local impactType = "receding"
+
+    if proj > 0 then
+        eta = proj / speedUnits
+        local cpaPos = tPos + heading * proj
+        cpaDist = (Vector(pos.x, pos.y, 0) - cpaPos):Length()
+
+        if cpaDist <= coreRadius then
+            impactType = "core"
+        elseif cpaDist <= outerRadius then
+            impactType = "side"
+        else
+            impactType = "miss"
+        end
+    else
+        impactType = "receding"
+        eta = 0
+    end
+
+    local bearing = math.deg(math.atan2(tPos.y - pos.y, tPos.x - pos.x))
+    if bearing < 0 then bearing = bearing + 360 end
+
+    return {
+        ent         = bestEnt,
+        pos         = tPos,
+        heading     = heading,
+        speedMPH    = speedMPH,
+        speedUnits  = speedUnits,
+        coreRadius  = coreRadius,
+        outerRadius = outerRadius,
+        dist        = dist2D,
+        bearing     = bearing,
+        eta         = math.Round(eta, 1),
+        cpaDist     = math.Round(cpaDist, 1),
+        impactType  = impactType,
+        waypoints   = waypoints,
+    }
+end
+
+-- ============================================================================
 -- PUBLIC API
 -- ============================================================================
 local function ManualActive()

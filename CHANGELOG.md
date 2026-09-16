@@ -27,23 +27,27 @@ This major release introduces a full career progression system, an interactive i
 ### 1. Career Progression & Intercept Economy
 
 #### Core Mechanics
-- **Dynamic Intercept Scoring**: Players earn Intercept points by positioning and anchoring their vehicle inside active tornado wind fields (>= 70 MPH).
-  - Points accumulate progressively based on real-time ambient wind speed, proximity to tornado funnels, and duration spent anchored.
-  - Core Vortex Survivor Bonus: Extra rewards for surviving violent tornado core passages (EF3+ winds exceeding 135+ MPH).
+- **GStorms & XT3 Tornado Presence Detection**: The progression system continuously samples active GStorms and XTwisters 3 storm entities to detect when a tornado is directly over an interceptor.
+  - **Immediate Intercept Point**: When an intercept begins—either when a tornado rolls over an anchored vehicle or when a vehicle deploys its anchors directly beneath a tornado—the driver and crew immediately receive **1 Intercept**.
+  - **Continuous Intercept Point Accumulation Over Time**: As long as the vehicle remains anchored and survives inside the vortex, points steadily pile up over time:
+    - **Core Intercept Hold**: +1 Intercept every 5 seconds inside the violent inner core.
+    - **Side Intercept Hold**: +1 Intercept every 8 seconds inside the circulating inflow / side vortex.
+  - **Clean Cockpit Audio**: Removed the audio chime on point awards, ensuring players can listen to authentic, roaring tornado soundscapes without disruptive audio clutter while points accumulate.
 - **Persistent Career Profiles**: Player profiles are saved server-side in `garrysmod/data/tiv/progression/<steamid64>.json`.
   - Tracks lifetime intercepts, spendable intercept points, unlocked upgrade tiers, and storm statistics across server restarts.
 - **Client Toast HUD Notifications**: Sleek, animated on-screen alerts display earned intercepts and milestone achievements in real time.
 - **Interactive Upgrade Tree UI**: Accessible via Spawnmenu (`Q -> Options -> Tornado Interceptor -> Progression`) or chat/console (`tiv_menu`). Features visual progression tiers, cost requirements, and real-time unlock statuses.
 
 #### Upgrade Registry
-| Upgrade ID | Title | Cost | Prerequisites | Effects & Stat Multipliers |
+| Upgrade ID | Title | Cost | Category | Effects & Stat Multipliers |
 | :--- | :--- | :--- | :--- | :--- |
-| `angled_spikes` | Angled Anchor Spikes | 75 Pts | None | Splayed outward spike geometry, +15% anchor force, +15 MPH loft threshold |
-| `heavy_hydraulics` | Heavy Hydraulics | 120 Pts | None | +30% deployment drive speed, +25% lowering force |
-| `side_armor` | Reinforced Side Skirts | 90 Pts | None | 2x PHX heavy metal side plates, -25% debris damage, +10 MPH loft threshold |
-| `front_armor` | V-Shape Storm Cowl | 110 Pts | `side_armor` | Front PHX deflector cowl, -35% frontal wind drag, -30% debris damage |
-| `aero_cowls` | Aerodynamic Cowls | 140 Pts | `front_armor` | Streamlined profile, -20% wind resistance, +20 MPH loft threshold |
-| `reinforced_joints` | Titanium Balljoints | 180 Pts | `angled_spikes`, `heavy_hydraulics` | Heavy-duty anchor balljoints, +50% anchor tensile strength, +25 MPH loft threshold |
+| `angled_spikes` | Angled Spikes | 2 Pts | Spikes | Splayed outward spike geometry, +30% anchor capacity, +25 MPH loft threshold |
+| `side_armor` | Side Armor Panels | 3 Pts | Armor | 2x PHX heavy metal side plates, -20% debris damage, +25 MPH loft threshold |
+| `front_armor` | Front Armor Panels | 3 Pts | Armor | Front PHX deflector cowl, -15% wind drag, -25% frontal collision damage |
+| `reinforced_hydraulics` | Reinforced Hydraulic Rams | 4 Pts | Hydraulics | +50% anchor breaking force tolerance, +6 units spike drive depth |
+| `roof_spoiler` | Aerodynamic Roof Cowl | 5 Pts | Aerodynamics | Streamlined roof deflector, -20% wind drag, +25 MPH loft threshold |
+| `heavy_cluster_spikes` | Heavy Anchor Array | 6 Pts | Spikes | Up to 8 independent hydraulic anchors, +40% anchor hold, +30 MPH loft threshold |
+| `path_screen` | Tactical Path Prediction Screen | 3 Pts | Electronics | Mounts in-cabin Wiremod monitor rendering real-time tornado tracking & predicted forward trajectory path |
 
 #### Sandbox & Admin Tools
 - Added admin console commands for progression management:
@@ -202,6 +206,17 @@ This major release introduces a full career progression system, an interactive i
 | `ArmorProtection`| NORMAL | Kinetic debris damage deflection percentage (0 to 100) |
 | `LoftThreshold` | NORMAL | Effective wind loft threshold in MPH |
 | `WindResistanceScale` | NORMAL | Aerodynamic drag multiplier (lower = more aerodynamic) |
+| `TornadoDetected`| NORMAL | 1 if active tornado is tracked within radar range, 0 otherwise |
+| `TornadoDistance`| NORMAL | Distance to nearest tornado in Source hammer units |
+| `TornadoDistanceM`| NORMAL | Distance to nearest tornado in meters |
+| `TornadoBearing` | NORMAL | Compass bearing to tornado (0-360 degrees) |
+| `TornadoSpeed`   | NORMAL | Forward translation speed of tornado in MPH |
+| `TornadoETA`     | NORMAL | Estimated seconds until tornado closest point of approach |
+| `TornadoCoreRadius` | NORMAL | Radius of tornado core / maximum wind zone in units |
+| `TornadoOuterRadius` | NORMAL | Radius of tornado outer circulation in units |
+| `TornadoImpactType` | NORMAL | Impact classification: 0=receding/clear, 1=miss, 2=side sweep, 3=direct core hit |
+| `TornadoPathX`   | NORMAL | Predicted trajectory vector X component |
+| `TornadoPathY`   | NORMAL | Predicted trajectory vector Y component |
 
 #### Expression 2 (E2) Extension Library (`tiv`)
 Comprehensive E2 functions registered under E2Lib with autocomplete syntax helpers in `cl_tiv.lua`:
@@ -247,6 +262,11 @@ if (TIV:isTIV()) {
   - 207-260 MPH: EF4 / Crimson
   - 261+ MPH: EF5 / Magenta
 - **Individual Spike Status Radar**: 6-point visual schematic showing deployment stage and ground contact of each anchor spike.
+- **Tactical Doppler Radar Screen**:
+  - Mounted directly onto in-cabin Wiremod screens / dashboard monitors (`models/kobilica/wiremonitorsmall.mdl`).
+  - High-resolution 3D2D CRT vector display showing real-time radar sweep beam, vehicle heading, tornado center, core boundary, outer windfield, and forward predicted path with timestamped waypoints (+10s, +20s, +30s, +60s).
+  - Closest Point of Approach (CPA) warnings: instant color-coded alert banners for Direct Core Hits, Side Vortex Sweeps, Flank Passes, and Receding Storms.
+  - Mirrored directly into the cockpit HUD instruments overlay with live ETA, distance, and bearing telemetry.
 - **Mechanical Stress & Loft Alarm**: Visual warning pulsing when wind strain approaches critical shear thresholds.
 - **Strict No-Emoji Styling**: All icons and typography adhere to professional aerospace/tactical vehicle telemetry styling.
 

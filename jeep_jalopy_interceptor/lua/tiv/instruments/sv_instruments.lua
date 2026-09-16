@@ -1,11 +1,13 @@
 -- ============================================================================
 -- TIV INSTRUMENTS SERVER
 -- Reindented for clarity. Wind is per-vehicle (TIV.Wind.GetSpeed(veh)).
+-- Streams live flight telemetry and tactical Doppler radar path data.
 -- ============================================================================
 
 TIV.Instruments = TIV.Instruments or {}
 
 util.AddNetworkString("TIV_InstrumentData")
+util.AddNetworkString("TIV_RadarPathData")
 
 local UNITS_TO_MPH = 0.0568182  -- 1 source unit/sec ~= 0.0568182 MPH
 
@@ -69,6 +71,51 @@ timer.Create("TIV_InstrumentUpdate", TIV.Config.InstrumentUpdateRate, 0, functio
                 net.WriteFloat(packet.stress)
                 net.WriteString(packet.spikeState)
                 net.WriteFloat(packet.verticalVelocity)
+            net.Send(ply)
+        end
+    end
+end)
+
+-- ============================================================================
+-- TACTICAL DOPPLER RADAR & PATH PREDICTION STREAM
+-- Streams real-time tornado tracking, core/side bounds, and predicted path
+-- waypoints to in-cabin dashboard screens and client HUDs.
+-- ============================================================================
+timer.Create("TIV_RadarPathUpdate", 0.35, 0, function()
+    local cachedRadar = {}
+
+    for _, ply in ipairs(player.GetAll()) do
+        local veh = (TIV.ResolveVehicle and TIV.ResolveVehicle(ply)) or ply:GetVehicle()
+        if IsValid(veh) and TIV.Deploy.IsJeep(veh) then
+            local tInfo = cachedRadar[veh]
+            if tInfo == nil then
+                tInfo = TIV.Wind and TIV.Wind.GetNearestActiveTornado and TIV.Wind.GetNearestActiveTornado(veh:GetPos()) or false
+                cachedRadar[veh] = tInfo
+            end
+
+            net.Start("TIV_RadarPathData")
+                net.WriteEntity(veh)
+                if tInfo and istable(tInfo) then
+                    net.WriteBool(true)
+                    net.WriteVector(tInfo.pos)
+                    net.WriteVector(tInfo.heading)
+                    net.WriteFloat(tInfo.speedMPH or 0)
+                    net.WriteFloat(tInfo.coreRadius or 600)
+                    net.WriteFloat(tInfo.outerRadius or 3500)
+                    net.WriteFloat(tInfo.dist or 0)
+                    net.WriteFloat(tInfo.bearing or 0)
+                    net.WriteFloat(tInfo.eta or 0)
+                    net.WriteString(tInfo.impactType or "receding")
+
+                    local waypoints = tInfo.waypoints or {}
+                    local wpCount = math.min(#waypoints, 8)
+                    net.WriteUInt(wpCount, 4)
+                    for i = 1, wpCount do
+                        net.WriteVector(waypoints[i].pos or Vector(0, 0, 0))
+                    end
+                else
+                    net.WriteBool(false)
+                end
             net.Send(ply)
         end
     end

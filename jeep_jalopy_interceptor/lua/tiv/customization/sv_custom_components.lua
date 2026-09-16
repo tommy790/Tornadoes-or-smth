@@ -45,24 +45,35 @@ function TIV.CustomComponents.SpawnArmorProps(veh, config, unlockedUpgrades)
     local entIdx = veh:EntIndex()
     local spawnedProps = {}
 
-    local hasSideUpgrade  = unlockedUpgrades["side_armor"] == true
-    local hasFrontUpgrade = unlockedUpgrades["front_armor"] == true
-    local hasRoofUpgrade  = unlockedUpgrades["roof_spoiler"] == true
+    local hasSideUpgrade   = unlockedUpgrades["side_armor"] == true
+    local hasFrontUpgrade  = unlockedUpgrades["front_armor"] == true
+    local hasRoofUpgrade   = unlockedUpgrades["roof_spoiler"] == true
+    local hasScreenUpgrade = unlockedUpgrades["path_screen"] == true
 
     for i, comp in ipairs(config.components) do
         local ctype = comp.type or ""
         local isArmor = (ctype == "armor_side" or ctype == "armor_front" or ctype == "armor_roof")
+        local isScreen = (ctype == "radar_screen" or ctype == "screen")
 
-        if isArmor then
+        if isArmor or isScreen then
             local allowed = true
             if ctype == "armor_side" and not hasSideUpgrade then allowed = false end
             if ctype == "armor_front" and not hasFrontUpgrade then allowed = false end
             if ctype == "armor_roof" and not hasRoofUpgrade then allowed = false end
+            if isScreen and not hasScreenUpgrade then allowed = false end
 
             if allowed then
-                local model = comp.model or "models/props_phx/construct/metal_plate1x2.mdl"
-                if not util.IsValidModel(model) then
-                    model = "models/props_phx/construct/metal_plate1x2.mdl"
+                local model = comp.model
+                if isScreen then
+                    model = model or "models/kobilica/wiremonitorsmall.mdl"
+                    if not util.IsValidModel(model) then
+                        model = "models/props_lab/monitor01b.mdl"
+                    end
+                else
+                    model = model or "models/props_phx/construct/metal_plate1x2.mdl"
+                    if not util.IsValidModel(model) then
+                        model = "models/props_phx/construct/metal_plate1x2.mdl"
+                    end
                 end
 
                 local localPos = comp.pos or Vector(0, 0, 0)
@@ -80,7 +91,9 @@ function TIV.CustomComponents.SpawnArmorProps(veh, config, unlockedUpgrades)
 
                     prop:SetCollisionGroup(COLLISION_GROUP_DEBRIS)
                     prop:SetCustomCollisionCheck(true)
-                    prop:SetColor(Color(180, 185, 195, 255))
+                    if not isScreen then
+                        prop:SetColor(Color(180, 185, 195, 255))
+                    end
                     prop:SetRenderMode(RENDERMODE_NORMAL)
 
                     local phys = prop:GetPhysicsObject()
@@ -105,12 +118,19 @@ function TIV.CustomComponents.SpawnArmorProps(veh, config, unlockedUpgrades)
                     prop:SetLocalPos(localPos)
                     prop:SetLocalAngles(localAng)
 
-                    prop:SetNWBool("TIV_Armor", true)
+                    if isScreen then
+                        prop:SetNWBool("TIV_RadarScreen", true)
+                        prop.IsTIVRadarScreen = true
+                        veh._TIVRadarScreen = prop
+                    else
+                        prop:SetNWBool("TIV_Armor", true)
+                        prop.IsTIVArmor = true
+                    end
+
                     if IsValid(veh) then prop:SetNWEntity("TIV_OwnerVehicle", veh) end
                     prop:SetNWBool("GStormsIgnore", true)
                     prop:SetNWBool("XT3Ignore", true)
 
-                    prop.IsTIVArmor           = true
                     prop.GStormsIgnore        = true
                     prop.XT3Ignore            = true
                     prop.XT3DoNotApplyPhysics = true
