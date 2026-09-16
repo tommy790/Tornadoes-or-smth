@@ -27,11 +27,13 @@ net.Receive("TIV_RadarPathData", function()
         local bearing     = net.ReadFloat()
         local eta         = net.ReadFloat()
         local impactType  = net.ReadString()
-        local wpCount     = net.ReadUInt(4)
+        local wpCount     = net.ReadUInt(5)
 
         local waypoints = {}
         for i = 1, wpCount do
-            table.insert(waypoints, net.ReadVector())
+            local wpPos  = net.ReadVector()
+            local wpTime = net.ReadUInt(8)
+            table.insert(waypoints, { pos = wpPos, time = wpTime })
         end
 
         TIV.Instruments.RadarData = {
@@ -231,7 +233,8 @@ local function DrawRadarScreen(screenEnt, veh, rData)
         local waypoints = rData.waypoints or {}
 
         for idx, wp in ipairs(waypoints) do
-            local wRel = wp - vehPos
+            local wPos = wp.pos or wp
+            local wRel = wPos - vehPos
             local wx = wRel.x * cosA - wRel.y * sinA
             local wy = wRel.x * sinA + wRel.y * cosA
             local currX = cx + wx * scalePx
@@ -245,10 +248,12 @@ local function DrawRadarScreen(screenEnt, veh, rData)
             if currX >= CLIP_MIN_X + 6 and currX <= CLIP_MAX_X - 28
                and currY >= CLIP_MIN_Y + 6 and currY <= CLIP_MAX_Y - 10 then
                 surface.SetDrawColor(0, 235, 255, pulseAlpha)
-                surface.DrawRect(currX - 3, currY - 3, 6, 6)
+                surface.DrawRect(currX - 2, currY - 2, 5, 5)
 
-                local tSec = idx * 10
-                draw.SimpleText("+" .. tSec .. "s", "DefaultFixed", currX + 6, currY - 5, Color(0, 230, 255, 220), TEXT_ALIGN_LEFT)
+                local tSec = wp.time or (idx * 4)
+                if tSec == 10 or tSec == 20 or tSec == 30 or tSec == 45 or tSec == 60 or idx == #waypoints then
+                    draw.SimpleText("+" .. tSec .. "s", "DefaultFixed", currX + 6, currY - 5, Color(0, 230, 255, 220), TEXT_ALIGN_LEFT)
+                end
             end
 
             prevX, prevY = currX, currY

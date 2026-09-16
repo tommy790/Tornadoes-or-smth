@@ -108,10 +108,11 @@ timer.Create("TIV_RadarPathUpdate", 0.35, 0, function()
                     net.WriteString(tInfo.impactType or "receding")
 
                     local waypoints = tInfo.waypoints or {}
-                    local wpCount = math.min(#waypoints, 8)
-                    net.WriteUInt(wpCount, 4)
+                    local wpCount = math.min(#waypoints, 16)
+                    net.WriteUInt(wpCount, 5)
                     for i = 1, wpCount do
                         net.WriteVector(waypoints[i].pos or Vector(0, 0, 0))
+                        net.WriteUInt(math.Clamp(math.Round(waypoints[i].time or (i * 4)), 0, 255), 8)
                     end
                 else
                     net.WriteBool(false)

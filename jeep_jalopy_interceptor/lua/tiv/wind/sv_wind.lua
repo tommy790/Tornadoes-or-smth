@@ -264,6 +264,157 @@ TIV.Wind.SampleXT3WindAt          = SampleXT3WindAt
 TIV.Wind.SampleWorldWindAt        = SampleWorldWindAt
 
 -- ============================================================================
+-- FORWARD TRAJECTORY PREDICTION ENGINE
+-- Accurately calculates where the tornado will travel into the future by simulating
+-- mod physics (GStorms noise & edge bias, XT3 deviation & wall reflection,
+-- turning momentum, and terrain elevation tracking) instead of drawing a straight line.
+-- ============================================================================
+function TIV.Wind.CalculateTornadoFuturePath(bestEnt, tPos, heading, speedUnits, speedMPH, coreRadius, outerRadius, vehiclePos)
+    local waypoints = {}
+    local now = CurTime()
+
+    -- 1. If GStorms PathingData spline nodes are active, trace along the actual spline graph
+    if bestEnt.PathingData and istable(bestEnt.PathingData.edgePoints) and #bestEnt.PathingData.edgePoints > 0 then
+        local edgePoints = bestEnt.PathingData.edgePoints
+        local startIdx = bestEnt.PathingData.edgePointIndex or 1
+        local cumDist = 0
+        local lastPt = Vector(tPos.x, tPos.y, tPos.z)
+
+        for i = startIdx, #edgePoints do
+            local pt = edgePoints[i]
+            if pt then
+                local ptPos = Vector(pt.x, pt.y, pt.z or tPos.z)
+                cumDist = cumDist + (ptPos - lastPt):Length2D()
+                lastPt = ptPos
+                local estTime = math.Round(cumDist / math.max(speedUnits, 100), 1)
+                table.insert(waypoints, {
+                    time = estTime,
+                    pos  = ptPos,
+                })
+                if #waypoints >= 16 then break end
+            end
+        end
+
+        if #waypoints >= 4 then
+            return waypoints
+        end
+    end
+
+    -- 2. Dynamic Physics & Environmental Simulation
+    -- Simulates the tornado's forward path taking into account turning momentum,
+    -- mod-specific wandering algorithms, map boundary repulsion, and obstacle reflection.
+    local simPos   = Vector(tPos.x, tPos.y, tPos.z)
+    local simDir   = Vector(heading.x, heading.y, 0):GetNormalized()
+    local turnRate = bestEnt._TIV_TurnRate or 0 -- degrees per second
+
+    local isXT3     = (bestEnt.MovementDirection ~= nil)
+    local isGStorms = (bestEnt.MovementVector ~= nil)
+
+    local w = game.GetWorld()
+    local wMins, wMaxs
+    if IsValid(w) then
+        wMins, wMaxs = w:GetModelBounds()
+    else
+        wMins, wMaxs = Vector(-15000, -15000, -1000), Vector(15000, 15000, 1000)
+    end
+    local wCenter = (wMins + wMaxs) * 0.5
+    wCenter.z = 0
+
+    local totalSimTime = 60
+    local dt = 0.5
+    local steps = math.floor(totalSimTime / dt)
+
+    local sampleInterval = 3.5 -- Record a waypoint every 3.5 seconds
+    local nextSampleTime = 3.5
+
+    for s = 1, steps do
+        local t = s * dt
+
+        -- A. Angular Momentum / Turning Extrapolation with natural turbulent decay
+        local currentTurn = turnRate * math.exp(-t * 0.05)
+        if math.abs(currentTurn) > 0.05 then
+            local rotAngle = math.rad(currentTurn * dt)
+            local cosA, sinA = math.cos(rotAngle), math.sin(rotAngle)
+            local nx = simDir.x * cosA - simDir.y * sinA
+            local ny = simDir.x * sinA + simDir.y * cosA
+            simDir = Vector(nx, ny, 0):GetNormalized()
+        end
+
+        -- B. Mod-specific wandering algorithms
+        if isGStorms and _G.GSNoise then
+            local _, sinX, sinY = _G.GSNoise(simPos.x, simPos.y, simDir.x, simDir.y, 0, 0, 0, 7500, 30000, -45, 45, 1, now + t)
+            local gNoise = Vector(sinX, sinY, 0) * (0.000375 * speedMPH * dt * 25)
+            simDir = (simDir + gNoise):GetNormalized()
+        elseif isXT3 then
+            if _G.perlinNoise3D then
+                local NoiseSize = 300
+                local simT = now + t
+                local devTime = simT / Lerp((_G.perlinNoise3D(simPos.x / NoiseSize, simT, simPos.y / NoiseSize) or 0) + 0.5, 3, 30)
+                local devOffset = Vector(math.cos(devTime), math.sin(devTime), 0) * (0.035 * dt * 15)
+                simDir = (simDir + devOffset):GetNormalized()
+            end
+            if IsValid(bestEnt.SmartTarget) then
+                local stPos = bestEnt.SmartTarget:GetPos()
+                local smartDir = Vector(stPos.x - simPos.x, stPos.y - simPos.y, 0):GetNormalized()
+                simDir = LerpVector(0.002 * dt * 20, simDir, smartDir):GetNormalized()
+            end
+        end
+
+        -- C. Map Edge Repulsion (Prevents path from projecting off the playable map)
+        local edgeDistX = math.min(simPos.x - wMins.x, wMaxs.x - simPos.x)
+        local edgeDistY = math.min(simPos.y - wMins.y, wMaxs.y - simPos.y)
+        local minEdgeDist = math.min(edgeDistX, edgeDistY)
+        if minEdgeDist < 2500 then
+            local edgeFactor = math.Clamp((2500 - minEdgeDist) / 2500, 0, 1) ^ 2
+            local toCenter = (wCenter - simPos):GetNormalized()
+            toCenter.z = 0
+            simDir = LerpVector(edgeFactor * 0.35, simDir, toCenter):GetNormalized()
+        end
+
+        -- D. Obstacle / Cliff / Wall Deflection (TraceLine check ahead)
+        local checkDist = math.max(speedUnits * dt * 1.5, coreRadius * 0.65, 350)
+        local wallTr = util.TraceLine({
+            start = simPos + Vector(0, 0, 250),
+            endpos = simPos + Vector(0, 0, 250) + simDir * checkDist,
+            mask = MASK_SOLID_BRUSHONLY,
+        })
+        if wallTr.Hit and not wallTr.StartSolid then
+            local hitNorm = Vector(wallTr.HitNormal.x, wallTr.HitNormal.y, 0):GetNormalized()
+            if hitNorm:LengthSqr() > 0.05 then
+                simDir = (simDir - 2 * simDir:Dot(hitNorm) * hitNorm):GetNormalized()
+                simDir.z = 0
+                simDir:Normalize()
+            end
+        end
+
+        -- E. Terrain Elevation Tracking
+        local groundTr = util.TraceLine({
+            start = simPos + Vector(0, 0, 600),
+            endpos = simPos - Vector(0, 0, 3000),
+            mask = MASK_SOLID_BRUSHONLY,
+        })
+        if groundTr.Hit then
+            simPos.z = groundTr.HitPos.z
+        end
+
+        -- F. Advance Position
+        simPos = simPos + simDir * (speedUnits * dt)
+
+        -- G. Sample Waypoint
+        if t >= nextSampleTime then
+            table.insert(waypoints, {
+                time = math.Round(t),
+                pos  = Vector(simPos.x, simPos.y, simPos.z),
+            })
+            nextSampleTime = nextSampleTime + sampleInterval
+            if #waypoints >= 16 then break end
+        end
+    end
+
+    return waypoints
+end
+
+-- ============================================================================
 -- ACTIVE TORNADO TRACKING & PATH PREDICTION (GSTORMS & XTWISTERS 3)
 -- Locates the active tornado entity to evaluate real-time core/side interception
 -- and generate forward trajectory path prediction waypoints.
@@ -342,22 +493,34 @@ function TIV.Wind.GetNearestActiveTornado(pos, maxDist)
     local now = CurTime()
     local dist2D = math.sqrt(bestDistSqr)
 
-    -- Universal track smoothing for translation vector
+    -- Universal track smoothing for translation vector and angular turning rate
     if not bestEnt._TIV_LastPos then
-        bestEnt._TIV_LastPos = tPos
-        bestEnt._TIV_LastTime = now
-        bestEnt._TIV_TrackDir = Vector(1, 0, 0)
+        bestEnt._TIV_LastPos    = tPos
+        bestEnt._TIV_LastTime   = now
+        bestEnt._TIV_TrackDir   = Vector(1, 0, 0)
         bestEnt._TIV_TrackSpeed = 25
+        bestEnt._TIV_TurnRate   = 0
     else
         local dt = now - bestEnt._TIV_LastTime
-        if dt >= 0.25 then
+        if dt >= 0.20 then
             local dPos = tPos - bestEnt._TIV_LastPos
             local dLen = dPos:Length2D()
-            if dLen > 2.0 then
-                bestEnt._TIV_TrackDir = Vector(dPos.x, dPos.y, 0):GetNormalized()
+            if dLen > 1.5 then
+                local newDir = Vector(dPos.x, dPos.y, 0):GetNormalized()
+                local oldDir = bestEnt._TIV_TrackDir or newDir
+
+                -- Compute 2D signed cross product to find turning direction and rate
+                local crossZ = oldDir.x * newDir.y - oldDir.y * newDir.x
+                local dot = math.Clamp(oldDir:Dot(newDir), -1, 1)
+                local angleDeltaDeg = math.deg(math.atan2(crossZ, dot))
+                local instantTurnRate = angleDeltaDeg / dt -- degrees per second
+
+                -- Smooth with exponential moving average
+                bestEnt._TIV_TurnRate   = Lerp(0.35, bestEnt._TIV_TurnRate or 0, math.Clamp(instantTurnRate, -45, 45))
+                bestEnt._TIV_TrackDir   = newDir
                 bestEnt._TIV_TrackSpeed = math.Clamp((dLen / dt) * 0.0568182, 5, 120)
             end
-            bestEnt._TIV_LastPos = tPos
+            bestEnt._TIV_LastPos  = tPos
             bestEnt._TIV_LastTime = now
         end
     end
@@ -393,50 +556,55 @@ function TIV.Wind.GetNearestActiveTornado(pos, maxDist)
         or (coreRadius * 4.5)
         or 3500
 
-    -- Predicted waypoints calculation (using GStorms pathing curve or vector integration)
-    local waypoints = {}
-    if bestEnt.PathingData and istable(bestEnt.PathingData.edgePoints) and #bestEnt.PathingData.edgePoints > 0 then
-        local startIdx = bestEnt.PathingData.edgePointIndex or 1
-        for i = startIdx, math.min(#bestEnt.PathingData.edgePoints, startIdx + 8) do
-            local pt = bestEnt.PathingData.edgePoints[i]
-            if pt then
-                table.insert(waypoints, { pos = Vector(pt.x, pt.y, pt.z or tPos.z) })
-            end
-        end
-    end
+    -- ========================================================================
+    -- ACTUAL FORWARD PATH CALCULATION
+    -- Simulates the tornado's true trajectory taking into account turning momentum,
+    -- mod physics (GStorms noise, XT3 deviation, smart targets), map bounds, and obstacle deflection.
+    -- ========================================================================
+    local waypoints = TIV.Wind.CalculateTornadoFuturePath(bestEnt, tPos, heading, speedUnits, speedMPH, coreRadius, outerRadius, pos)
 
-    if #waypoints == 0 then
-        local intervals = { 5, 10, 15, 20, 30, 45, 60 }
-        for _, sec in ipairs(intervals) do
-            table.insert(waypoints, {
-                time = sec,
-                pos  = tPos + heading * (speedUnits * sec),
-            })
-        end
-    end
-
-    -- Closest Point of Approach (CPA)
-    local rel = Vector(pos.x - tPos.x, pos.y - tPos.y, 0)
-    local proj = rel:Dot(heading)
-    local eta = 0
+    -- Closest Point of Approach (CPA) evaluated along the actual calculated trajectory
     local cpaDist = dist2D
+    local eta = 0
     local impactType = "receding"
+    local closestDist = dist2D
+    local closestTime = 0
+    local foundCloser = false
 
-    if proj > 0 then
-        eta = proj / speedUnits
-        local cpaPos = tPos + heading * proj
-        cpaDist = (Vector(pos.x, pos.y, 0) - cpaPos):Length()
+    for _, wp in ipairs(waypoints) do
+        local d = (Vector(wp.pos.x, wp.pos.y, 0) - Vector(pos.x, pos.y, 0)):Length2D()
+        if d < closestDist then
+            closestDist = d
+            closestTime = wp.time or 0
+            foundCloser = true
+        end
+    end
+
+    if foundCloser then
+        cpaDist = math.Round(closestDist, 1)
+        eta = math.Round(closestTime, 1)
 
         if cpaDist <= coreRadius then
             impactType = "core"
         elseif cpaDist <= outerRadius then
             impactType = "side"
-        else
+        elseif cpaDist <= (outerRadius * 2.2) then
             impactType = "miss"
+        else
+            impactType = "receding"
         end
     else
-        impactType = "receding"
-        eta = 0
+        -- Tornado is already closest right now or moving away
+        if dist2D <= coreRadius then
+            impactType = "core"
+            eta = 0
+        elseif dist2D <= outerRadius then
+            impactType = "side"
+            eta = 0
+        else
+            impactType = "receding"
+            eta = 0
+        end
     end
 
     local bearing = math.deg(math.atan2(tPos.y - pos.y, tPos.x - pos.x))

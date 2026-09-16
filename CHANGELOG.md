@@ -269,6 +269,7 @@ if (TIV:isTIV()) {
 - **Tactical Doppler Radar Screen**:
   - Mounted directly onto in-cabin Wiremod screens / dashboard monitors (`models/kobilica/wiremonitorsmall.mdl`).
   - High-resolution 3D2D CRT vector display showing real-time radar sweep beam, vehicle heading, tornado center, core boundary, outer windfield, and forward predicted path with timestamped waypoints (+10s, +20s, +30s, +60s).
+  - Dynamic trajectory simulation engine evaluating angular turn rate momentum, GStorms Simplex noise wandering, XT3 Perlin deviation and smart targets, map boundary repulsion, and cliff/obstacle surface deflection.
   - Closest Point of Approach (CPA) warnings: instant color-coded alert banners for Direct Core Hits, Side Vortex Sweeps, Flank Passes, and Receding Storms.
   - Mirrored directly into the cockpit HUD instruments overlay with live ETA, distance, and bearing telemetry.
 - **Mechanical Stress & Loft Alarm**: Visual warning pulsing when wind strain approaches critical shear thresholds.
