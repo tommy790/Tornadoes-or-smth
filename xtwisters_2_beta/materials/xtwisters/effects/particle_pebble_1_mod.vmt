@@ -1,0 +1,9 @@
+"SpriteCard"
+{
+	"$basetexture" "xtwisters/effects/particle_pebble_1_mod"
+	"$vertexcolor" "1"
+	"$vertexalpha" "1"
+	"$translucent" "1"
+                "$maxdistance" "1000"
+                "$farfadeinterval" "1000"
+}

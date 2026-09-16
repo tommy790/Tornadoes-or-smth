@@ -1,0 +1,6 @@
+"SpriteCard"
+{
+	$basetexture "xtwisters/particle/fire/fire"
+	$additive "1"
+	$depthblend "0"
+}

@@ -1,0 +1,10 @@
+"UnlitGeneric"
+{
+	"$basetexture" "particles/128_VSmoke01B_B"
+	//"$vertexalpha" 1
+	//"$vertexcolor" 1
+	//"$translucent" 1
+	//"$no_fullbright" 1
+	"$alphatest" 1
+	"$alphatestreference" 0.01
+}

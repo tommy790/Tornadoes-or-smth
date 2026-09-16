@@ -1,0 +1,6 @@
+"UnlitGeneric"
+{
+	"$basetexture" "xtwisters/particle/Smoke3"
+	"$vertexalpha" 1
+	"$vertexcolor" 1
+}

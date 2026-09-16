@@ -1,0 +1,7 @@
+"UnlitGeneric"
+{
+	"$basetexture" "xtwisters/effects/tornadosmoke_02"
+	"$translucent" 1
+	"$vertexcolor" "1"
+	"$vertexalpha" "1"
+}
