@@ -254,6 +254,94 @@ local function DrawRadarScreen(screenEnt, veh, rData)
 end
 
 -- ============================================================================
+-- MONITOR GEOMETRY & SCREEN BOUNDS CONFIGURATION
+-- Calibrated per monitor model for exact fit on glass textures without bezel clipping.
+-- ============================================================================
+local MONITOR_CONFIGS = {
+    ["models/kobilica/wiremonitorsmall.mdl"] = {
+        offset = Vector(0.36, 0.05, 5.05),
+        rot    = Angle(0, 90, 90),
+        scale  = 0.0171,
+        w      = 512,
+        h      = 512,
+    },
+    ["models/props_lab/monitor01b.mdl"] = {
+        offset = Vector(6.58, -1.0, 0.45),
+        rot    = Angle(0, 90, 90),
+        scale  = 0.0175,
+        w      = 512,
+        h      = 512,
+    },
+    ["models/props_lab/monitor01a.mdl"] = {
+        offset = Vector(6.58, -1.0, 0.45),
+        rot    = Angle(0, 90, 90),
+        scale  = 0.0175,
+        w      = 512,
+        h      = 512,
+    },
+    ["models/props_c17/tv_monitor01.mdl"] = {
+        offset = Vector(5.60, 0.6, 1.5),
+        rot    = Angle(0, 90, 90),
+        scale  = 0.0215,
+        w      = 512,
+        h      = 512,
+    },
+    ["models/props_lab/monitor02.mdl"] = {
+        offset = Vector(9.10, 13.75, 4.9),
+        rot    = Angle(0, 90, 82.5),
+        scale  = 0.030,
+        w      = 512,
+        h      = 512,
+    },
+}
+
+function TIV.Instruments.GetMonitorConfig(ent)
+    if not IsValid(ent) then
+        return {
+            offset = Vector(0.36, 0.05, 5.05),
+            rot    = Angle(0, 90, 90),
+            scale  = 0.0171,
+            w      = 512,
+            h      = 512,
+        }
+    end
+
+    local mdl = string.lower(ent:GetModel() or "")
+    if MONITOR_CONFIGS[mdl] then
+        return MONITOR_CONFIGS[mdl]
+    end
+
+    -- Wiremod GPU monitor table integration fallback
+    if WireGPU_Monitors and WireGPU_Monitors[mdl] then
+        local mon = WireGPU_Monitors[mdl]
+        local w = math.abs((mon.x2 or 4.5) - (mon.x1 or -4.4))
+        local h = math.abs((mon.y2 or 9.5) - (mon.y1 or 0.6))
+        local s = (h > 0) and (h / 512) or 0.0171
+        local offX = (mon.offset and mon.offset.x or 0.3) + 0.06
+        local offY = (mon.offset and mon.offset.y or 0.0)
+        local offZ = (mon.offset and mon.offset.z or 5.0)
+        return {
+            offset = Vector(offX, offY, offZ),
+            rot    = mon.rot or Angle(0, 90, 90),
+            scale  = s,
+            w      = 512,
+            h      = 512,
+        }
+    end
+
+    -- Universal default (matches Wiremod small monitor)
+    return {
+        offset = Vector(0.36, 0.05, 5.05),
+        rot    = Angle(0, 90, 90),
+        scale  = 0.0171,
+        w      = 512,
+        h      = 512,
+    }
+end
+
+TIV.Instruments.DrawRadarScreen = DrawRadarScreen
+
+-- ============================================================================
 -- 3D2D RENDER HOOK ON VEHICLE SCREEN PROPS
 -- ============================================================================
 hook.Add("PostDrawTranslucentRenderables", "TIV_RenderRadarScreens", function(bDrawingDepth, bDrawingSkybox)
@@ -271,21 +359,26 @@ hook.Add("PostDrawTranslucentRenderables", "TIV_RenderRadarScreens", function(bD
                 local veh = ent:GetNWEntity("TIV_OwnerVehicle")
                 local rData = TIV.Instruments.RadarData
 
-                local mdl = string.lower(ent:GetModel() or "")
-                local isWireSmall = string.find(mdl, "wiremonitorsmall", 1, true) ~= nil
+                local cfg = TIV.Instruments.GetMonitorConfig(ent)
+                local pScale = ent:GetModelScale() or 1.0
 
-                local drawOffset = isWireSmall and Vector(0.35, 0, 5.0) or Vector(6.6, 0.5, 1.0)
-                local scale = isWireSmall and 0.0175 or 0.0185
+                local centerPos = ent:LocalToWorld(cfg.offset * pScale)
+                local screenAng = ent:LocalToWorldAngles(cfg.rot)
 
-                local drawPos = ent:LocalToWorld(drawOffset)
-                local ang = ent:GetAngles()
+                -- Backface culling: skip rendering when looking from behind the screen casing
+                local normal = screenAng:Up()
+                if (eyePos - centerPos):Dot(normal) <= 0 then
+                    continue
+                end
 
-                ang:RotateAroundAxis(ang:Up(), 90)
-                ang:RotateAroundAxis(ang:Forward(), 90)
+                local scale = cfg.scale * pScale
+                local halfW = (cfg.w * 0.5) * scale
+                local halfH = (cfg.h * 0.5) * scale
 
-                cam.Start3D2D(drawPos, ang, scale)
-                    -- Shift origin so (cx, cy) is centered on the monitor glass
-                    surface.SetDrawColor(0, 0, 0, 255)
+                -- Shift origin by (-halfW, -halfH) so the 512x512 canvas is centered on the monitor glass
+                local topLeftPos = centerPos - screenAng:Forward() * halfW - screenAng:Right() * halfH
+
+                cam.Start3D2D(topLeftPos, screenAng, scale)
                     DrawRadarScreen(ent, veh, rData)
                 cam.End3D2D()
             end

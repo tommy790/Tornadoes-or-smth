@@ -329,6 +329,22 @@ function TIV.Editor3D.Open()
                 cs:DrawModel()
                 render.SetColorModulation(1, 1, 1)
 
+                -- Live tactical radar display preview on monitor glass in 3D editor
+                if comp.type == "radar_screen" and TIV.Instruments and TIV.Instruments.DrawRadarScreen and TIV.Instruments.GetMonitorConfig then
+                    local cfg = TIV.Instruments.GetMonitorConfig(cs)
+                    local pScale = (comp.scale and comp.scale.x) or 1.0
+                    local centerPos = cs:LocalToWorld(cfg.offset * pScale)
+                    local screenAng = cs:LocalToWorldAngles(cfg.rot)
+                    local scale = cfg.scale * pScale
+                    local halfW = (cfg.w * 0.5) * scale
+                    local halfH = (cfg.h * 0.5) * scale
+                    local topLeftPos = centerPos - screenAng:Forward() * halfW - screenAng:Right() * halfH
+
+                    cam.Start3D2D(topLeftPos, screenAng, scale)
+                        TIV.Instruments.DrawRadarScreen(cs, nil, TIV.Instruments.RadarData)
+                    cam.End3D2D()
+                end
+
                 -- Selected component highlight wireframe
                 if isSel then
                     render.DrawWireframeBox(worldPos, worldAng, cs:OBBMins(), cs:OBBMaxs(), Color(255, 210, 40), true)
