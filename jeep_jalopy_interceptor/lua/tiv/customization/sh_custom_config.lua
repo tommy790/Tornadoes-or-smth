@@ -111,17 +111,17 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
     if string.find(vehicleModel, "jalopy", 1, true) or string.find(vehicleModel, "vehicle.mdl", 1, true) then
         config.components = {
             -- 6 Standard Spikes
-            { id = "spike_fr", type = "spike", name = "Front Right Spike", group = "front", model = "models/props_junk/harpoon002a.mdl", pos = Vector( 25.00,  50.00, 0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
-            { id = "spike_fl", type = "spike", name = "Front Left Spike",  group = "front", model = "models/props_junk/harpoon002a.mdl", pos = Vector(-25.00,  50.00, 0.00), ang = leftSpikeAng,  scale = Vector(1.00, 1.00, 1.00) },
-            { id = "spike_mr", type = "spike", name = "Mid Right Spike",    group = "mid",   model = "models/props_junk/harpoon002a.mdl", pos = Vector( 30.00, -20.00, 0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
-            { id = "spike_ml", type = "spike", name = "Mid Left Spike",     group = "mid",   model = "models/props_junk/harpoon002a.mdl", pos = Vector(-30.00, -20.00, 0.00), ang = leftSpikeAng,  scale = Vector(1.00, 1.00, 1.00) },
-            { id = "spike_rr", type = "spike", name = "Rear Right Spike",   group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector( 20.00,-100.00, 0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
-            { id = "spike_rl", type = "spike", name = "Rear Left Spike",    group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector(-20.00,-100.00, 0.00), ang = leftSpikeAng,  scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_fr", type = "spike", name = "Front Right Spike", group = "front", model = "models/props_junk/harpoon002a.mdl", pos = Vector( 25.00,  45.00, 0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_fl", type = "spike", name = "Front Left Spike",  group = "front", model = "models/props_junk/harpoon002a.mdl", pos = Vector(-25.00,  45.00, 0.00), ang = leftSpikeAng,  scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_mr", type = "spike", name = "Mid Right Spike",    group = "mid",   model = "models/props_junk/harpoon002a.mdl", pos = Vector( 25.00,   0.00, 0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_ml", type = "spike", name = "Mid Left Spike",     group = "mid",   model = "models/props_junk/harpoon002a.mdl", pos = Vector(-25.00,   0.00, 0.00), ang = leftSpikeAng,  scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_rr", type = "spike", name = "Rear Right Spike",   group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector( 25.00,-100.00, 0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_rl", type = "spike", name = "Rear Left Spike",    group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector(-25.00,-100.00, 0.00), ang = leftSpikeAng,  scale = Vector(1.00, 1.00, 1.00) },
 
             -- Armor Panels (Metal Plates 1x2)
-            { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-43.50, -24.50, 31.80), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
-            { id = "armor_sr", type = "armor_side",  name = "Right Metal Plate", group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector( 43.50, -24.50, 31.80), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
-            { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  64.00, 31.80), ang = Angle(-95.30, 90.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-48.00, -39.00, 40.80), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "armor_sr", type = "armor_side",  name = "Right Metal Plate", group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector( 44.00, -39.00, 40.80), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  57.40, 45.00), ang = Angle(-165.00, 90.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
         }
     elseif string.find(vehicleModel, "apc", 1, true) then
         config.components = {
