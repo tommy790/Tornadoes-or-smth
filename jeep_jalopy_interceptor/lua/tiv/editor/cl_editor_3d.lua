@@ -341,7 +341,26 @@ function TIV.Editor3D.Open()
                     local topLeftPos = centerPos - screenAng:Forward() * halfW - screenAng:Right() * halfH
 
                     cam.Start3D2D(topLeftPos, screenAng, scale)
+                        render.ClearStencil()
+                        render.SetStencilEnable(true)
+                        render.SetStencilTestMask(0xFF)
+                        render.SetStencilWriteMask(0xFF)
+                        render.SetStencilReferenceValue(1)
+                        render.SetStencilCompareFunction(STENCIL_ALWAYS)
+                        render.SetStencilPassOperation(STENCIL_REPLACE)
+                        render.SetStencilFailOperation(STENCIL_KEEP)
+                        render.SetStencilZFailOperation(STENCIL_KEEP)
+
+                        -- Mask out the exact 512x512 physical monitor face
+                        surface.SetDrawColor(0, 0, 0, 255)
+                        surface.DrawRect(0, 0, 512, 512)
+
+                        render.SetStencilCompareFunction(STENCIL_EQUAL)
+                        render.SetStencilPassOperation(STENCIL_KEEP)
+
                         TIV.Instruments.DrawRadarScreen(cs, nil, TIV.Instruments.RadarData)
+
+                        render.SetStencilEnable(false)
                     cam.End3D2D()
                 end
 

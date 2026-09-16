@@ -61,6 +61,81 @@ end)
 -- ============================================================================
 -- 3D2D SCREEN RENDERING ENGINE
 -- ============================================================================
+
+-- Boundary coordinates of the central radar display area inside the 512x512 canvas
+local CLIP_MIN_X = 10
+local CLIP_MAX_X = 502
+local CLIP_MIN_Y = 42
+local CLIP_MAX_Y = 454
+
+-- Cohen-Sutherland 2D line clipping algorithm
+local function ComputeOutCode(x, y, xmin, ymin, xmax, ymax)
+    local code = 0
+    if x < xmin then
+        code = bit.bor(code, 1)
+    elseif x > xmax then
+        code = bit.bor(code, 2)
+    end
+    if y < ymin then
+        code = bit.bor(code, 8)
+    elseif y > ymax then
+        code = bit.bor(code, 4)
+    end
+    return code
+end
+
+local function ClipLine(x0, y0, x1, y1, xmin, ymin, xmax, ymax)
+    xmin = xmin or CLIP_MIN_X
+    ymin = ymin or CLIP_MIN_Y
+    xmax = xmax or CLIP_MAX_X
+    ymax = ymax or CLIP_MAX_Y
+
+    local outcode0 = ComputeOutCode(x0, y0, xmin, ymin, xmax, ymax)
+    local outcode1 = ComputeOutCode(x1, y1, xmin, ymin, xmax, ymax)
+
+    while true do
+        if bit.bor(outcode0, outcode1) == 0 then
+            return x0, y0, x1, y1
+        end
+        if bit.band(outcode0, outcode1) ~= 0 then
+            return nil
+        end
+
+        local outcodeOut = (outcode0 ~= 0) and outcode0 or outcode1
+        local x, y
+
+        if bit.band(outcodeOut, 8) ~= 0 then -- Top
+            x = x0 + (x1 - x0) * (ymin - y0) / (y1 - y0)
+            y = ymin
+        elseif bit.band(outcodeOut, 4) ~= 0 then -- Bottom
+            x = x0 + (x1 - x0) * (ymax - y0) / (y1 - y0)
+            y = ymax
+        elseif bit.band(outcodeOut, 2) ~= 0 then -- Right
+            y = y0 + (y1 - y0) * (xmax - x0) / (x1 - x0)
+            x = xmax
+        elseif bit.band(outcodeOut, 1) ~= 0 then -- Left
+            y = y0 + (y1 - y0) * (xmin - x0) / (x1 - x0)
+            x = xmin
+        end
+
+        if outcodeOut == outcode0 then
+            x0, y0 = x, y
+            outcode0 = ComputeOutCode(x0, y0, xmin, ymin, xmax, ymax)
+        else
+            x1, y1 = x, y
+            outcode1 = ComputeOutCode(x1, y1, xmin, ymin, xmax, ymax)
+        end
+    end
+end
+
+local function DrawClippedLine(x0, y0, x1, y1, r, g, b, a)
+    local c0x, c0y, c1x, c1y = ClipLine(x0, y0, x1, y1, CLIP_MIN_X, CLIP_MIN_Y, CLIP_MAX_X, CLIP_MAX_Y)
+    if c0x then
+        surface.SetDrawColor(r, g, b, a)
+        surface.DrawLine(c0x, c0y, c1x, c1y)
+    end
+end
+
 local function DrawRadarScreen(screenEnt, veh, rData)
     local cx, cy = 256, 260
     local radarRadius = 180
@@ -151,7 +226,7 @@ local function DrawRadarScreen(screenEnt, veh, rData)
         local scrX = cx + rx * scalePx
         local scrY = cy + ry * scalePx
 
-        -- Draw PREDICTED PATH vector and waypoints
+        -- Draw PREDICTED PATH vector and waypoints (strictly clipped to display area)
         local prevX, prevY = scrX, scrY
         local waypoints = rData.waypoints or {}
 
@@ -162,50 +237,64 @@ local function DrawRadarScreen(screenEnt, veh, rData)
             local currX = cx + wx * scalePx
             local currY = cy + wy * scalePx
 
-            -- Draw trajectory line
+            -- Draw trajectory line clipped strictly so it never shoots off into the world
             local pulseAlpha = 180 + math.sin(now * 8 + idx) * 50
-            surface.SetDrawColor(0, 235, 255, pulseAlpha)
-            surface.DrawLine(prevX, prevY, currX, currY)
+            DrawClippedLine(prevX, prevY, currX, currY, 0, 235, 255, pulseAlpha)
 
-            -- Waypoint node diamond
-            surface.DrawRect(currX - 3, currY - 3, 6, 6)
+            -- Waypoint node diamond and label only if within bounds
+            if currX >= CLIP_MIN_X + 6 and currX <= CLIP_MAX_X - 28
+               and currY >= CLIP_MIN_Y + 6 and currY <= CLIP_MAX_Y - 10 then
+                surface.SetDrawColor(0, 235, 255, pulseAlpha)
+                surface.DrawRect(currX - 3, currY - 3, 6, 6)
 
-            -- Time label for key waypoints
-            local tSec = idx * 10
-            draw.SimpleText("+" .. tSec .. "s", "DefaultFixed", currX + 6, currY - 5, Color(0, 230, 255, 220), TEXT_ALIGN_LEFT)
+                local tSec = idx * 10
+                draw.SimpleText("+" .. tSec .. "s", "DefaultFixed", currX + 6, currY - 5, Color(0, 230, 255, 220), TEXT_ALIGN_LEFT)
+            end
 
             prevX, prevY = currX, currY
         end
 
-        -- Outer Vortex Windfield Circle
+        -- Outer Vortex Windfield Circle (clipped per segment)
         local outerPx = math.Clamp(rData.outerRadius * scalePx, 15, radarRadius * 1.5)
-        surface.SetDrawColor(255, 190, 0, 75)
         local segs = 32
         for i = 0, segs - 1 do
             local a1 = math.rad((i / segs) * 360)
             local a2 = math.rad(((i + 1) / segs) * 360)
-            surface.DrawLine(
-                scrX + math.cos(a1) * outerPx, scrY + math.sin(a1) * outerPx,
-                scrX + math.cos(a2) * outerPx, scrY + math.sin(a2) * outerPx
-            )
+            local p1x = scrX + math.cos(a1) * outerPx
+            local p1y = scrY + math.sin(a1) * outerPx
+            local p2x = scrX + math.cos(a2) * outerPx
+            local p2y = scrY + math.sin(a2) * outerPx
+            DrawClippedLine(p1x, p1y, p2x, p2y, 255, 190, 0, 75)
         end
 
-        -- Inner Core / Maximum Wind Zone
+        -- Inner Core / Maximum Wind Zone (clipped per segment)
         local corePx = math.max(rData.coreRadius * scalePx, 8)
         local corePulse = math.sin(now * 10) * 0.2 + 0.8
-        surface.SetDrawColor(255, 45, 45, 120 * corePulse)
         for i = 0, segs - 1 do
             local a1 = math.rad((i / segs) * 360)
             local a2 = math.rad(((i + 1) / segs) * 360)
-            surface.DrawLine(
-                scrX + math.cos(a1) * corePx, scrY + math.sin(a1) * corePx,
-                scrX + math.cos(a2) * corePx, scrY + math.sin(a2) * corePx
-            )
+            local p1x = scrX + math.cos(a1) * corePx
+            local p1y = scrY + math.sin(a1) * corePx
+            local p2x = scrX + math.cos(a2) * corePx
+            local p2y = scrY + math.sin(a2) * corePx
+            DrawClippedLine(p1x, p1y, p2x, p2y, 255, 45, 45, 120 * corePulse)
         end
 
-        -- Vortex Center Icon
-        surface.SetDrawColor(255, 255, 255, 255)
-        surface.DrawRect(scrX - 3, scrY - 3, 6, 6)
+        -- Vortex Center Icon (on-screen icon or clamped off-screen edge pip)
+        if scrX >= CLIP_MIN_X and scrX <= CLIP_MAX_X and scrY >= CLIP_MIN_Y and scrY <= CLIP_MAX_Y then
+            surface.SetDrawColor(255, 255, 255, 255)
+            surface.DrawRect(scrX - 3, scrY - 3, 6, 6)
+        else
+            -- Off-screen indicator chevron / pip along perimeter
+            local dx = scrX - cx
+            local dy = scrY - cy
+            local ang = math.atan2(dy, dx)
+            local pipX = math.Clamp(cx + math.cos(ang) * (radarRadius + 12), CLIP_MIN_X + 8, CLIP_MAX_X - 8)
+            local pipY = math.Clamp(cy + math.sin(ang) * (radarRadius + 12), CLIP_MIN_Y + 8, CLIP_MAX_Y - 8)
+            local flash = (math.floor(now * 5) % 2 == 0)
+            surface.SetDrawColor(255, 60, 60, flash and 255 or 100)
+            surface.DrawRect(pipX - 4, pipY - 4, 8, 8)
+        end
 
         -- Telemetry data box (Top Left)
         surface.SetDrawColor(0, 20, 25, 200)
@@ -379,7 +468,26 @@ hook.Add("PostDrawTranslucentRenderables", "TIV_RenderRadarScreens", function(bD
                 local topLeftPos = centerPos - screenAng:Forward() * halfW - screenAng:Right() * halfH
 
                 cam.Start3D2D(topLeftPos, screenAng, scale)
+                    render.ClearStencil()
+                    render.SetStencilEnable(true)
+                    render.SetStencilTestMask(0xFF)
+                    render.SetStencilWriteMask(0xFF)
+                    render.SetStencilReferenceValue(1)
+                    render.SetStencilCompareFunction(STENCIL_ALWAYS)
+                    render.SetStencilPassOperation(STENCIL_REPLACE)
+                    render.SetStencilFailOperation(STENCIL_KEEP)
+                    render.SetStencilZFailOperation(STENCIL_KEEP)
+
+                    -- Mask out the exact 512x512 physical monitor face
+                    surface.SetDrawColor(0, 0, 0, 255)
+                    surface.DrawRect(0, 0, 512, 512)
+
+                    render.SetStencilCompareFunction(STENCIL_EQUAL)
+                    render.SetStencilPassOperation(STENCIL_KEEP)
+
                     DrawRadarScreen(ent, veh, rData)
+
+                    render.SetStencilEnable(false)
                 cam.End3D2D()
             end
         end
