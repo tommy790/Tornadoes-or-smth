@@ -207,8 +207,9 @@ local function DrawRadarScreen(screenEnt, veh, rData)
     surface.DrawLine(cx + 7, cy + 8, cx, cy + 4)
 
     -- Storm rendering if active
-    if rData and rData.active then
-        local vehPos = IsValid(veh) and veh:GetPos() or EyePos()
+    if rData and rData.active and rData.pos then
+        local tPos   = rData.pos
+        local vehPos = IsValid(veh) and veh:GetPos() or (IsValid(LocalPlayer()) and LocalPlayer():GetPos() or EyePos())
         local fwdVec = IsValid(veh) and veh:GetForward() or (IsValid(LocalPlayer()) and LocalPlayer():GetForward() or Vector(1, 0, 0))
         local rgtVec = IsValid(veh) and veh:GetRight() or (IsValid(LocalPlayer()) and LocalPlayer():GetRight() or Vector(0, -1, 0))
 
@@ -221,7 +222,7 @@ local function DrawRadarScreen(screenEnt, veh, rData)
         local relRgt = rel:Dot(rgt2D)
 
         -- Auto-scaling radar range
-        local maxRangeUnits = math.max(rData.dist * 1.35, 3000)
+        local maxRangeUnits = math.max((rData.dist or 0) * 1.35, 3000)
         local scalePx = radarRadius / maxRangeUnits
 
         -- Screen coordinates: Screen UP = Vehicle Forward, Screen RIGHT = Vehicle Right
@@ -281,11 +282,11 @@ local function DrawRadarScreen(screenEnt, veh, rData)
             surface.DrawRect(badgeX - 3, badgeY - 2, 54, 16)
             surface.SetDrawColor(255, 200, 40, 180)
             surface.DrawOutlinedRect(badgeX - 3, badgeY - 2, 54, 16)
-            draw.SimpleText(string.format("%.0f MPH", rData.speedMPH), "DefaultFixed", badgeX + 3, badgeY, Color(255, 225, 70), TEXT_ALIGN_LEFT)
+            draw.SimpleText(string.format("%.0f MPH", rData.speedMPH or 25), "DefaultFixed", badgeX + 3, badgeY, Color(255, 225, 70), TEXT_ALIGN_LEFT)
         end
 
         -- Outer Vortex Windfield Circle (clipped per segment)
-        local outerPx = math.Clamp(rData.outerRadius * scalePx, 15, radarRadius * 1.5)
+        local outerPx = math.Clamp((rData.outerRadius or 3500) * scalePx, 15, radarRadius * 1.5)
         local segs = 32
         for i = 0, segs - 1 do
             local a1 = math.rad((i / segs) * 360)
@@ -298,7 +299,7 @@ local function DrawRadarScreen(screenEnt, veh, rData)
         end
 
         -- Inner Core / Maximum Wind Zone (clipped per segment)
-        local corePx = math.max(rData.coreRadius * scalePx, 8)
+        local corePx = math.max((rData.coreRadius or 600) * scalePx, 8)
         local corePulse = math.sin(now * 10) * 0.2 + 0.8
         for i = 0, segs - 1 do
             local a1 = math.rad((i / segs) * 360)
@@ -332,11 +333,11 @@ local function DrawRadarScreen(screenEnt, veh, rData)
         surface.SetDrawColor(0, 180, 220, 160)
         surface.DrawOutlinedRect(14, 46, 170, 78)
 
-        local distM = math.Round(rData.dist * 0.01905)
+        local distM = math.Round((rData.dist or 0) * 0.01905)
         draw.SimpleText(string.format("DIST:  %d m", distM), "Trebuchet18", 22, 52, Color(0, 240, 255, 255))
-        draw.SimpleText(string.format("SPEED: %.0f MPH", rData.speedMPH), "Trebuchet18", 22, 70, Color(255, 220, 60, 255))
-        draw.SimpleText(string.format("BEAR:  %.0f DEG", rData.bearing), "Trebuchet18", 22, 88, Color(200, 220, 240, 255))
-        draw.SimpleText(string.format("CORE:  %d m", math.Round(rData.coreRadius * 0.01905)), "Trebuchet18", 22, 106, Color(255, 100, 100, 255))
+        draw.SimpleText(string.format("SPEED: %.0f MPH", rData.speedMPH or 0), "Trebuchet18", 22, 70, Color(255, 220, 60, 255))
+        draw.SimpleText(string.format("BEAR:  %.0f DEG", rData.bearing or 0), "Trebuchet18", 22, 88, Color(200, 220, 240, 255))
+        draw.SimpleText(string.format("CORE:  %d m", math.Round((rData.coreRadius or 600) * 0.01905)), "Trebuchet18", 22, 106, Color(255, 100, 100, 255))
 
         -- Threat Assessment Banner (Bottom)
         local bannerY = 458
@@ -347,15 +348,15 @@ local function DrawRadarScreen(screenEnt, veh, rData)
             local bCol = flash and Color(220, 30, 30, 230) or Color(120, 15, 15, 230)
             surface.SetDrawColor(bCol.r, bCol.g, bCol.b, bCol.a)
             surface.DrawRect(12, bannerY, 488, 38)
-            draw.SimpleText(string.format("WARNING: DIRECT CORE IMPACT // ETA: %.0fs", rData.eta), "Trebuchet24", 256, bannerY + 7, Color(255, 255, 255, 255), TEXT_ALIGN_CENTER)
+            draw.SimpleText(string.format("WARNING: DIRECT CORE IMPACT // ETA: %.0fs", rData.eta or 0), "Trebuchet24", 256, bannerY + 7, Color(255, 255, 255, 255), TEXT_ALIGN_CENTER)
         elseif impact == "side" then
             surface.SetDrawColor(220, 140, 0, 220)
             surface.DrawRect(12, bannerY, 488, 38)
-            draw.SimpleText(string.format("CAUTION: SIDE VORTEX SWEEP // ETA: %.0fs", rData.eta), "Trebuchet24", 256, bannerY + 7, Color(0, 0, 0, 255), TEXT_ALIGN_CENTER)
+            draw.SimpleText(string.format("CAUTION: SIDE VORTEX SWEEP // ETA: %.0fs", rData.eta or 0), "Trebuchet24", 256, bannerY + 7, Color(0, 0, 0, 255), TEXT_ALIGN_CENTER)
         elseif impact == "miss" then
             surface.SetDrawColor(0, 140, 80, 220)
             surface.DrawRect(12, bannerY, 488, 38)
-            draw.SimpleText(string.format("PASSING FLANK // CLOSEST DIST: %d m", math.Round(rData.dist * 0.01905)), "Trebuchet24", 256, bannerY + 7, Color(255, 255, 255, 255), TEXT_ALIGN_CENTER)
+            draw.SimpleText(string.format("PASSING FLANK // CLOSEST DIST: %d m", math.Round((rData.dist or 0) * 0.01905)), "Trebuchet24", 256, bannerY + 7, Color(255, 255, 255, 255), TEXT_ALIGN_CENTER)
         else
             surface.SetDrawColor(30, 70, 120, 220)
             surface.DrawRect(12, bannerY, 488, 38)
