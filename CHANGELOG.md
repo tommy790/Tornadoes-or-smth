@@ -6,25 +6,18 @@ All notable changes, architectural overhauls, and gameplay additions to the Torn
 
 ## Simple Release Notes - Major Update
 
-- Added in-cabin tactical Doppler radar screen upgrade (`path_screen`) supporting Wiremod monitor models.
-- Added clean tactical directional heading arrow with speed badge showing the tornado's heading on the radar.
-- Added non-inverted track-up radar orientation where UP is always vehicle forward and RIGHT is vehicle right.
-- Added 3D customization editor toolbar with Mirror (X), Duplicate, Grid Snap, Precision Steps, Component Toggles, and Center View.
-- Added GStorms and XT3 vortex detection awarding 1 Intercept on vortex entry and accumulating points over time while holding core or side positions.
-- Added external storm mod physics immunity while anchored to prevent unwanted chassis teleportation or suction.
-- Added displacement failsafe that triggers a clean natural loft if anchors are displaced >40 units from the ground.
-- Added Wiremod inputs/outputs and Expression 2 functions for vehicle control, storm telemetry, and progression stats.
-- Added physical front and side armor panels using heavy PHX metal plates with kinetic debris deflection.
-- Added angled spike trajectory physics where spikes drive, settle, and retract along their true angled vectors.
-- Added hardware stencil masking and backface culling for in-cabin screens.
-- Added tuned presets and configurations for the Half-Life 2 Buggy, EP2 Jalopy, and Combine APC.
-- Removed the sound cue that plays when receiving intercept points.
-- Removed the messy cyan line clutter across the radar screen.
-- Removed the front/side/top/rear camera buttons from the 3D editor.
-- Removed continuous physics forces on anchored vehicles to eliminate constraint jitter and physics fighting.
-- Fixed nil vector error on the radar screen.
-- Fixed mid-air hovering and tethering traps during lofting.
-- Fixed spike angle locking so straight 90-degree spikes are enforced until the Angled Spikes upgrade is unlocked.
+- Added 3D vehicle customization editor with live interactive preview, component mirroring, duplication, grid snapping, and precision coordinate controls.
+- Added in-cabin tactical Doppler radar screen displaying real-time tornado tracking, core boundaries, and travel heading arrows with live speed badges (supports Wiremod monitors).
+- Added career progression system with spendable upgrade points, career intercept tracking, and unlockable vehicle upgrades.
+- Added GStorms and XTwisters 3 (XT3) vortex detection awarding intercepts on storm entry and accumulating points over time while holding anchored positions.
+- Added rock-solid hydraulic ground anchor system with true angled spike trajectory driving and retraction.
+- Added physical front and side armor panels using PHX heavy metal plates with debris deflection and damage mitigation.
+- Added realistic storm lofting physics with sequential anchor failure, directional tipping, and failsafe un-anchoring under extreme EF4/EF5 vortex winds.
+- Added full Wiremod inputs/outputs and Expression 2 extension functions for vehicle automation and storm telemetry.
+- Added tuned presets and support for the Half-Life 2 Buggy, Episode 2 Jalopy, and Combine APC.
+- Added cockpit HUD overlay with live wind speeds, anchor status, storm warnings, and Doppler radar telemetry.
+- Added silent HUD toast notifications for intercept milestones and earned upgrade points.
+- Added client and server configuration menus in the Garry's Mod spawnmenu with customizable controls and presets.
 
 ---
 
