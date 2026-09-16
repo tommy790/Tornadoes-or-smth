@@ -209,54 +209,79 @@ local function DrawRadarScreen(screenEnt, veh, rData)
     -- Storm rendering if active
     if rData and rData.active then
         local vehPos = IsValid(veh) and veh:GetPos() or EyePos()
-        local vehAng = IsValid(veh) and veh:GetAngles() or Angle(0, 0, 0)
-        local tPos = rData.pos
+        local fwdVec = IsValid(veh) and veh:GetForward() or (IsValid(LocalPlayer()) and LocalPlayer():GetForward() or Vector(1, 0, 0))
+        local rgtVec = IsValid(veh) and veh:GetRight() or (IsValid(LocalPlayer()) and LocalPlayer():GetRight() or Vector(0, -1, 0))
 
-        -- Track-Up transformation: align screen UP with vehicle forward
-        local radOffset = math.rad(-vehAng.y - 90)
-        local cosA = math.cos(radOffset)
-        local sinA = math.sin(radOffset)
+        -- 2D planar projection along vehicle heading
+        local fwd2D = Vector(fwdVec.x, fwdVec.y, 0):GetNormalized()
+        local rgt2D = Vector(rgtVec.x, rgtVec.y, 0):GetNormalized()
 
         local rel = tPos - vehPos
-        local rx = rel.x * cosA - rel.y * sinA
-        local ry = rel.x * sinA + rel.y * cosA
+        local relFwd = rel:Dot(fwd2D)
+        local relRgt = rel:Dot(rgt2D)
 
         -- Auto-scaling radar range
         local maxRangeUnits = math.max(rData.dist * 1.35, 3000)
         local scalePx = radarRadius / maxRangeUnits
 
-        local scrX = cx + rx * scalePx
-        local scrY = cy + ry * scalePx
+        -- Screen coordinates: Screen UP = Vehicle Forward, Screen RIGHT = Vehicle Right
+        local scrX = cx + relRgt * scalePx
+        local scrY = cy - relFwd * scalePx
 
-        -- Draw PREDICTED PATH vector and waypoints (strictly clipped to display area)
-        local prevX, prevY = scrX, scrY
-        local waypoints = rData.waypoints or {}
+        -- ====================================================================
+        -- TORNADO MOVEMENT DIRECTION ARROW
+        -- Clean, high-visibility tactical vector arrow pointing in the direction
+        -- the tornado is traveling relative to the vehicle heading.
+        -- ====================================================================
+        local heading = rData.heading or Vector(1, 0, 0)
+        local headFwd = heading:Dot(fwd2D)
+        local headRgt = heading:Dot(rgt2D)
 
-        for idx, wp in ipairs(waypoints) do
-            local wPos = wp.pos or wp
-            local wRel = wPos - vehPos
-            local wx = wRel.x * cosA - wRel.y * sinA
-            local wy = wRel.x * sinA + wRel.y * cosA
-            local currX = cx + wx * scalePx
-            local currY = cy + wy * scalePx
+        local arrowDirX = headRgt
+        local arrowDirY = -headFwd
+        local arrowDirLen = math.sqrt(arrowDirX * arrowDirX + arrowDirY * arrowDirY)
+        if arrowDirLen > 0.001 then
+            arrowDirX = arrowDirX / arrowDirLen
+            arrowDirY = arrowDirY / arrowDirLen
+        else
+            arrowDirX = 0
+            arrowDirY = -1
+        end
 
-            -- Draw trajectory line clipped strictly so it never shoots off into the world
-            local pulseAlpha = 180 + math.sin(now * 8 + idx) * 50
-            DrawClippedLine(prevX, prevY, currX, currY, 0, 235, 255, pulseAlpha)
+        local arrowShaftLen = math.Clamp(36 + (rData.speedMPH or 25) * 0.45, 42, 70)
+        local tipX = scrX + arrowDirX * arrowShaftLen
+        local tipY = scrY + arrowDirY * arrowShaftLen
 
-            -- Waypoint node diamond and label only if within bounds
-            if currX >= CLIP_MIN_X + 6 and currX <= CLIP_MAX_X - 28
-               and currY >= CLIP_MIN_Y + 6 and currY <= CLIP_MAX_Y - 10 then
-                surface.SetDrawColor(0, 235, 255, pulseAlpha)
-                surface.DrawRect(currX - 2, currY - 2, 5, 5)
+        -- Draw bold directional shaft (clipped strictly to screen bounds)
+        local perpX = -arrowDirY
+        local perpY =  arrowDirX
 
-                local tSec = wp.time or (idx * 4)
-                if tSec == 10 or tSec == 20 or tSec == 30 or tSec == 45 or tSec == 60 or idx == #waypoints then
-                    draw.SimpleText("+" .. tSec .. "s", "DefaultFixed", currX + 6, currY - 5, Color(0, 230, 255, 220), TEXT_ALIGN_LEFT)
-                end
-            end
+        DrawClippedLine(scrX, scrY, tipX, tipY, 255, 215, 30, 255)
+        DrawClippedLine(scrX + perpX, scrY + perpY, tipX + perpX, tipY + perpY, 255, 170, 0, 200)
+        DrawClippedLine(scrX - perpX, scrY - perpY, tipX - perpX, tipY - perpY, 255, 170, 0, 200)
 
-            prevX, prevY = currX, currY
+        -- Arrowhead chevron / wings
+        local headSize = 14
+        local wing1X = tipX - arrowDirX * headSize + perpX * (headSize * 0.65)
+        local wing1Y = tipY - arrowDirY * headSize + perpY * (headSize * 0.65)
+        local wing2X = tipX - arrowDirX * headSize - perpX * (headSize * 0.65)
+        local wing2Y = tipY - arrowDirY * headSize - perpY * (headSize * 0.65)
+
+        DrawClippedLine(tipX, tipY, wing1X, wing1Y, 255, 230, 60, 255)
+        DrawClippedLine(tipX, tipY, wing2X, wing2Y, 255, 230, 60, 255)
+        DrawClippedLine(wing1X, wing1Y, tipX - arrowDirX * (headSize * 0.45), tipY - arrowDirY * (headSize * 0.45), 255, 180, 20, 220)
+        DrawClippedLine(wing2X, wing2Y, tipX - arrowDirX * (headSize * 0.45), tipY - arrowDirY * (headSize * 0.45), 255, 180, 20, 220)
+
+        -- Direction Speed Badge next to arrowhead
+        if tipX >= CLIP_MIN_X + 10 and tipX <= CLIP_MAX_X - 60
+           and tipY >= CLIP_MIN_Y + 10 and tipY <= CLIP_MAX_Y - 14 then
+            local badgeX = tipX + perpX * 12
+            local badgeY = tipY + perpY * 12 - 6
+            surface.SetDrawColor(15, 20, 28, 210)
+            surface.DrawRect(badgeX - 3, badgeY - 2, 54, 16)
+            surface.SetDrawColor(255, 200, 40, 180)
+            surface.DrawOutlinedRect(badgeX - 3, badgeY - 2, 54, 16)
+            draw.SimpleText(string.format("%.0f MPH", rData.speedMPH), "DefaultFixed", badgeX + 3, badgeY, Color(255, 225, 70), TEXT_ALIGN_LEFT)
         end
 
         -- Outer Vortex Windfield Circle (clipped per segment)

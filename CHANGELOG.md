@@ -268,8 +268,9 @@ if (TIV:isTIV()) {
 - **Individual Spike Status Radar**: 6-point visual schematic showing deployment stage and ground contact of each anchor spike.
 - **Tactical Doppler Radar Screen**:
   - Mounted directly onto in-cabin Wiremod screens / dashboard monitors (`models/kobilica/wiremonitorsmall.mdl`).
-  - High-resolution 3D2D CRT vector display showing real-time radar sweep beam, vehicle heading, tornado center, core boundary, outer windfield, and forward predicted path with timestamped waypoints (+10s, +20s, +30s, +60s).
-  - Dynamic trajectory simulation engine evaluating angular turn rate momentum, GStorms Simplex noise wandering, XT3 Perlin deviation and smart targets, map boundary repulsion, and cliff/obstacle surface deflection.
+  - High-resolution 3D2D CRT vector display showing real-time radar sweep beam, vehicle heading, tornado center, core boundary, and outer windfield.
+  - Direct storm travel heading arrow: bold, glowing tactical vector arrow indicating exact travel direction relative to the vehicle heading with live speed badge.
+  - Aligned radar orientation: strictly non-inverted track-up coordinate system (Screen UP = Vehicle Forward, Screen RIGHT = Vehicle Right).
   - Closest Point of Approach (CPA) warnings: instant color-coded alert banners for Direct Core Hits, Side Vortex Sweeps, Flank Passes, and Receding Storms.
   - Mirrored directly into the cockpit HUD instruments overlay with live ETA, distance, and bearing telemetry.
 - **Mechanical Stress & Loft Alarm**: Visual warning pulsing when wind strain approaches critical shear thresholds.
@@ -277,7 +278,31 @@ if (TIV:isTIV()) {
 
 ---
 
-### 9. Settings Menu, Presets, & Field Manual
+### 9. 3D Customization Editor Tools Overhaul
+
+- **Streamlined Viewport**: Removed legacy top-left camera preset buttons ("Isometric", "Front", "Side", "Top", "Rear").
+- **Viewport Quick Tools Bar**:
+  - **Focus Component**: Instantly centers and frames camera on the selected component.
+  - **Ghost Chassis (X-Ray)**: Toggles semi-transparent chassis rendering (35% opacity) to view interior cabin monitors and underbody anchor assemblies.
+  - **Axes Gizmo**: Toggles the 3D XYZ coordinate axes indicator.
+  - **Wireframes**: Toggles bounding box wireframe overlays for placed components.
+  - **Reset View**: Returns camera to default isometric view.
+- **Undo / Redo History Stack**:
+  - 35-level undo/redo history tracking all component modifications.
+  - UI buttons (`< Undo` / `Redo >`) and keyboard shortcuts (`Ctrl+Z` / `Ctrl+Y`).
+- **Precision Step Multiplier**: Toggle between `0.1`, `0.5`, `1.0`, `5.0`, and `10.0` units for fine nudging and snapping.
+- **Extended Component Creation Toolbar**: Dedicated buttons for `+ Spike`, `+ Side Armor`, `+ Front Armor`, and `+ Radar Screen`.
+- **Quick-Alignment & Snapping Tools**:
+  - `Snap Grid`: Snaps component coordinates to active step size grid.
+  - `Ground (Z=0)`: Sets elevation directly to vehicle floor/ground level.
+  - `Level Flat`: Zeros out pitch and roll angles.
+  - `Turn 90° CW` / `Turn 90° CCW`: Fast 90-degree heading rotation.
+  - `Flip 180°`: Reverses component facing direction.
+- **Strict Angled Spikes Progression Lock**: Spikes are strictly constrained to 90 degrees straight down until the `angled_spikes` upgrade is purchased.
+
+---
+
+### 10. Settings Menu, Presets, & Field Manual
 
 - **Everyday Chaser Presets**:
   - **The Tank**: 6 heavy spikes, unbreakable force limits, 320 MPH loft threshold, automatic deployment at 130 MPH.

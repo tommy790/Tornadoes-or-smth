@@ -260,10 +260,10 @@ function TIV.SpikeAnim.CreateSpikes(veh, data)
                 end
 
                 local storedLocalAng = GetParentedLocalAngle()
-                if (hasAngledUpg or customSpikes) and offsetData.ang then
+                if hasAngledUpg and offsetData.ang then
                     storedLocalAng = offsetData.ang
-                elseif hasAngledUpg and offsetData.ang then
-                    storedLocalAng = offsetData.ang
+                else
+                    storedLocalAng = Angle(90, 0, 0)
                 end
 
                 local storedLocalPos = GetStoredLocalPos(adjPos, storedLocalAng)

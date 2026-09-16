@@ -345,10 +345,20 @@ net.Receive("TIV_ApplyVehicleConfig", function(len, ply)
 
     if IsValid(targetVeh) then
         TIV.TagAsInterceptor(targetVeh, true)
-        targetVeh._TIVConfig = config
 
         local profile = TIV.Progression.GetPlayerProfile(ply)
         local unlocked = profile and profile.unlocked_upgrades or {}
+
+        -- If player does not have angled_spikes unlocked, enforce 90-degree straight spikes
+        if not unlocked["angled_spikes"] and config and istable(config.components) then
+            for _, comp in ipairs(config.components) do
+                if comp.type == "spike" then
+                    comp.ang = Angle(90, 0, 0)
+                end
+            end
+        end
+
+        targetVeh._TIVConfig = config
 
         -- Spawn physical armor panels
         TIV.CustomComponents.SpawnArmorProps(targetVeh, config, unlocked)

@@ -14,6 +14,10 @@ TIV.Editor3D.ActiveFrame       = nil
 TIV.Editor3D.ActiveConfig      = nil
 TIV.Editor3D.SelectedIndex     = 1
 TIV.Editor3D.ClientsideModels  = {}
+TIV.Editor3D.StepSize          = TIV.Editor3D.StepSize or 1.0
+TIV.Editor3D.GhostMode         = TIV.Editor3D.GhostMode or false
+TIV.Editor3D.ShowAxes          = (TIV.Editor3D.ShowAxes ~= false)
+TIV.Editor3D.ShowWireframes    = TIV.Editor3D.ShowWireframes or false
 
 -- ============================================================================
 -- PERSISTENCE HELPERS
@@ -63,8 +67,9 @@ function TIV.Editor3D.LoadConfigFromFile(targetModel)
                 end
             end
 
-            -- Auto-apply angled spike preset if upgrade is active and spikes are at default 90 degrees
-            if TIV.Progression and TIV.Progression.IsUnlocked and TIV.Progression.IsUnlocked("angled_spikes") then
+            local hasAngledUpg = TIV.Progression and TIV.Progression.IsUnlocked and TIV.Progression.IsUnlocked("angled_spikes")
+            if hasAngledUpg then
+                -- Auto-apply angled spike preset if upgrade is active and spikes are at default 90 degrees
                 for _, c in ipairs(decoded.components) do
                     if c.type == "spike" and c.ang and math.abs(c.ang.p - 90) < 0.1 and math.abs(c.ang.y) < 0.1 and math.abs(c.ang.r) < 0.1 then
                         if c.pos and c.pos.x > 0 then
@@ -72,6 +77,13 @@ function TIV.Editor3D.LoadConfigFromFile(targetModel)
                         elseif c.pos and c.pos.x < 0 then
                             c.ang = Angle(100, 0, 0)
                         end
+                    end
+                end
+            else
+                -- Lock all spikes to straight 90 degrees if upgrade has not been purchased
+                for _, c in ipairs(decoded.components) do
+                    if c.type == "spike" then
+                        c.ang = Angle(90, 0, 0)
                     end
                 end
             end
@@ -251,44 +263,94 @@ function TIV.Editor3D.Open()
         end
     end
 
-    -- Viewport top bar with camera presets
-    local camBar = vgui.Create("DPanel", viewportPanel)
-    camBar:SetPos(10, 10)
-    camBar:SetSize(viewportW - 20, 32)
-    camBar.Paint = function(s, w, h)
+    modelPanel.PreDrawModel = function(self, ent)
+        if TIV.Editor3D.GhostMode then
+            render.SetBlend(0.35)
+        else
+            render.SetBlend(1.0)
+        end
+        return true
+    end
+
+    -- Viewport Quick Tools Bar (Top Bar)
+    local toolBar = vgui.Create("DPanel", viewportPanel)
+    toolBar:SetPos(10, 10)
+    toolBar:SetSize(viewportW - 20, 32)
+    toolBar.Paint = function(s, w, h)
         draw.RoundedBox(4, 0, 0, w, h, Color(10, 14, 20, 220))
     end
 
-    local function AddCamPreset(label, pos, look, fov)
-        local btn = vgui.Create("DButton", camBar)
+    local function AddViewportToolBtn(label, isActiveFn, onClick)
+        local btn = vgui.Create("DButton", toolBar)
         btn:Dock(LEFT)
         btn:DockMargin(4, 4, 4, 4)
-        btn:SetWide(84)
+        btn:SetWide(116)
         btn:SetText(label)
-        btn:SetTextColor(Color(220, 230, 245))
+        btn:SetTextColor(Color(220, 235, 250))
         btn.Paint = function(s, w, h)
-            draw.RoundedBox(3, 0, 0, w, h, s:IsHovered() and Color(60, 120, 200) or Color(32, 40, 56))
+            local active = isActiveFn and isActiveFn()
+            local bgCol = active and Color(35, 110, 160) or (s:IsHovered() and Color(45, 60, 85) or Color(24, 30, 42))
+            draw.RoundedBox(3, 0, 0, w, h, bgCol)
+            if active then
+                surface.SetDrawColor(0, 220, 255, 200)
+                surface.DrawOutlinedRect(0, 0, w, h)
+            end
         end
-        btn.DoClick = function()
-            modelPanel:SetCamPos(pos)
-            modelPanel:SetLookAt(look)
-            modelPanel:SetFOV(fov or 42)
+        btn.DoClick = function(s)
+            onClick(s)
         end
+        return btn
     end
 
-    AddCamPreset("Isometric", Vector(150, 150, 110), Vector(0, 0, 10), 42)
-    AddCamPreset("Front",     Vector(0, 230, 25),    Vector(0, 0, 10), 40)
-    AddCamPreset("Side",      Vector(230, 0, 25),    Vector(0, 0, 10), 40)
-    AddCamPreset("Top",       Vector(0, 0, 250),     Vector(0, 0, 0),  45)
-    AddCamPreset("Rear",      Vector(0, -230, 25),   Vector(0, 0, 10), 40)
+    AddViewportToolBtn("Focus Component", nil, function()
+        if not IsValid(modelPanel.Entity) or not TIV.Editor3D.ActiveConfig then return end
+        local comp = TIV.Editor3D.ActiveConfig.components and TIV.Editor3D.ActiveConfig.components[TIV.Editor3D.SelectedIndex]
+        if comp then
+            local targetWorld = modelPanel.Entity:LocalToWorld(comp.pos or Vector(0, 0, 0))
+            modelPanel:SetLookAt(targetWorld)
+            modelPanel:SetCamPos(targetWorld + Vector(45, 45, 30))
+            modelPanel:SetFOV(36)
+            surface.PlaySound("buttons/button14.wav")
+        end
+    end)
+
+    AddViewportToolBtn("Ghost Chassis", function() return TIV.Editor3D.GhostMode == true end, function()
+        TIV.Editor3D.GhostMode = not TIV.Editor3D.GhostMode
+        surface.PlaySound("buttons/lightswitch2.wav")
+    end)
+
+    AddViewportToolBtn("Axes Gizmo", function() return TIV.Editor3D.ShowAxes ~= false end, function()
+        TIV.Editor3D.ShowAxes = (TIV.Editor3D.ShowAxes == false)
+        surface.PlaySound("buttons/lightswitch2.wav")
+    end)
+
+    AddViewportToolBtn("Wireframes", function() return TIV.Editor3D.ShowWireframes == true end, function()
+        TIV.Editor3D.ShowWireframes = not TIV.Editor3D.ShowWireframes
+        surface.PlaySound("buttons/lightswitch2.wav")
+    end)
+
+    AddViewportToolBtn("Reset View", nil, function()
+        if IsValid(modelPanel.Entity) then
+            local rmn, rmx = modelPanel.Entity:GetRenderBounds()
+            local center = (rmn + rmx) * 0.5
+            local size   = (rmx - rmn):Length()
+            modelPanel:SetLookAt(Vector(0, 0, center.z))
+            local dist = math.Clamp(size * 1.35, 140, 480)
+            modelPanel:SetCamPos(Vector(dist * 0.7, dist * 0.7, dist * 0.5 + center.z))
+            modelPanel:SetFOV(42)
+            surface.PlaySound("buttons/button14.wav")
+        end
+    end)
 
     -- Custom 3D Component Rendering & Coordinate Axes Gizmo
     modelPanel.PostDrawModel = function(self, ent)
         if not IsValid(ent) or not TIV.Editor3D.ActiveConfig then return end
+        render.SetBlend(1.0)
 
         local config     = TIV.Editor3D.ActiveConfig
         local components = config.components or {}
         local selected   = TIV.Editor3D.SelectedIndex
+        local hasAngledUpg = TIV.Progression and TIV.Progression.IsUnlocked and TIV.Progression.IsUnlocked("angled_spikes")
 
         -- Render each component
         for idx, comp in ipairs(components) do
@@ -305,8 +367,13 @@ function TIV.Editor3D.Open()
             end
 
             if IsValid(cs) then
+                local compAng = comp.ang or Angle(90, 0, 0)
+                if comp.type == "spike" and not hasAngledUpg then
+                    compAng = Angle(90, 0, 0)
+                end
+
                 local worldPos = ent:LocalToWorld(comp.pos or Vector(0, 0, 0))
-                local worldAng = ent:LocalToWorldAngles(comp.ang or Angle(0, 0, 0))
+                local worldAng = ent:LocalToWorldAngles(compAng)
 
                 cs:SetPos(worldPos)
                 cs:SetAngles(worldAng)
@@ -364,9 +431,9 @@ function TIV.Editor3D.Open()
                     cam.End3D2D()
                 end
 
-                -- Selected component highlight wireframe
-                if isSel then
-                    render.DrawWireframeBox(worldPos, worldAng, cs:OBBMins(), cs:OBBMaxs(), Color(255, 210, 40), true)
+                -- Selected component highlight wireframe or global wireframe
+                if isSel or TIV.Editor3D.ShowWireframes then
+                    render.DrawWireframeBox(worldPos, worldAng, cs:OBBMins(), cs:OBBMaxs(), isSel and Color(255, 210, 40) or Color(0, 180, 255, 120), true)
                 end
             end
         end
@@ -375,23 +442,25 @@ function TIV.Editor3D.Open()
         -- 3D VEHICLE COORDINATE AXES GIZMO
         -- Clearly shows Forward (+Y), Right (+X), and Up (+Z)
         -- ====================================================================
-        local mn, mx   = ent:GetRenderBounds()
-        local gizmoPos = ent:LocalToWorld(Vector(0, mx.y * 0.75, math.max(12, mx.z * 0.35)))
-        local fwdVec   = ent:GetForward()
-        local rgtVec   = ent:GetRight()
-        local upVec    = ent:GetUp()
+        if TIV.Editor3D.ShowAxes ~= false then
+            local mn, mx   = ent:GetRenderBounds()
+            local gizmoPos = ent:LocalToWorld(Vector(0, mx.y * 0.75, math.max(12, mx.z * 0.35)))
+            local fwdVec   = ent:GetForward()
+            local rgtVec   = ent:GetRight()
+            local upVec    = ent:GetUp()
 
-        -- Forward Axis (RED)
-        render.DrawLine(gizmoPos, gizmoPos + fwdVec * 40, Color(255, 60, 60), true)
-        render.DrawWireframeSphere(gizmoPos + fwdVec * 40, 2, 6, 6, Color(255, 60, 60), true)
+            -- Forward Axis (RED)
+            render.DrawLine(gizmoPos, gizmoPos + fwdVec * 40, Color(255, 60, 60), true)
+            render.DrawWireframeSphere(gizmoPos + fwdVec * 40, 2, 6, 6, Color(255, 60, 60), true)
 
-        -- Right Axis (GREEN)
-        render.DrawLine(gizmoPos, gizmoPos + rgtVec * 40, Color(60, 255, 60), true)
-        render.DrawWireframeSphere(gizmoPos + rgtVec * 40, 2, 6, 6, Color(60, 255, 60), true)
+            -- Right Axis (GREEN)
+            render.DrawLine(gizmoPos, gizmoPos + rgtVec * 40, Color(60, 255, 60), true)
+            render.DrawWireframeSphere(gizmoPos + rgtVec * 40, 2, 6, 6, Color(60, 255, 60), true)
 
-        -- Up Axis (BLUE)
-        render.DrawLine(gizmoPos, gizmoPos + upVec * 40, Color(60, 140, 255), true)
-        render.DrawWireframeSphere(gizmoPos + upVec * 40, 2, 6, 6, Color(60, 140, 255), true)
+            -- Up Axis (BLUE)
+            render.DrawLine(gizmoPos, gizmoPos + upVec * 40, Color(60, 140, 255), true)
+            render.DrawWireframeSphere(gizmoPos + upVec * 40, 2, 6, 6, Color(60, 140, 255), true)
+        end
     end
 
     -- Viewport overlay instructions
@@ -599,6 +668,71 @@ function TIV.Editor3D.Open()
         end)
     end
 
+    -- ========================================================================
+    -- UNDO / REDO HISTORY SYSTEM
+    -- ========================================================================
+    local undoStack = {}
+    local redoStack = {}
+
+    local function PushUndo()
+        local config = TIV.Editor3D.ActiveConfig
+        if not config or not istable(config.components) then return end
+        table.insert(undoStack, {
+            components = table.Copy(config.components),
+            selIdx     = TIV.Editor3D.SelectedIndex,
+        })
+        if #undoStack > 35 then
+            table.remove(undoStack, 1)
+        end
+        redoStack = {}
+    end
+
+    local function PerformUndo()
+        if #undoStack == 0 then return end
+        local config = TIV.Editor3D.ActiveConfig
+        if not config or not istable(config.components) then return end
+
+        table.insert(redoStack, {
+            components = table.Copy(config.components),
+            selIdx     = TIV.Editor3D.SelectedIndex,
+        })
+
+        local prev = table.remove(undoStack)
+        config.components = table.Copy(prev.components)
+        TIV.Editor3D.SelectedIndex = math.Clamp(prev.selIdx or 1, 1, #config.components)
+        TIV.Editor3D.ClearClientsideModels()
+        RefreshEditor()
+        surface.PlaySound("buttons/button15.wav")
+    end
+
+    local function PerformRedo()
+        if #redoStack == 0 then return end
+        local config = TIV.Editor3D.ActiveConfig
+        if not config or not istable(config.components) then return end
+
+        table.insert(undoStack, {
+            components = table.Copy(config.components),
+            selIdx     = TIV.Editor3D.SelectedIndex,
+        })
+
+        local nextState = table.remove(redoStack)
+        config.components = table.Copy(nextState.components)
+        TIV.Editor3D.SelectedIndex = math.Clamp(nextState.selIdx or 1, 1, #config.components)
+        TIV.Editor3D.ClearClientsideModels()
+        RefreshEditor()
+        surface.PlaySound("buttons/button14.wav")
+    end
+
+    frame.OnKeyCodePressed = function(s, code)
+        if input.IsKeyDown(KEY_LCONTROL) or input.IsKeyDown(KEY_RCONTROL) then
+            if code == KEY_Z then
+                PerformUndo()
+            elseif code == KEY_Y then
+                PerformRedo()
+            end
+        end
+    end
+
     RefreshEditor = function()
         controlsContainer:Clear()
 
@@ -611,10 +745,10 @@ function TIV.Editor3D.Open()
         -- Component Selection Dropdown & Header
         local selHeader = vgui.Create("DPanel", controlsContainer)
         selHeader:Dock(TOP)
-        selHeader:DockMargin(0, 0, 0, 8)
-        selHeader:SetTall(32)
+        selHeader:DockMargin(0, 0, 0, 6)
+        selHeader:SetTall(28)
         selHeader.Paint = function(s, w, h)
-            draw.SimpleText("ACTIVE COMPONENT", "DermaDefaultBold", 0, 8, Color(240, 200, 50), TEXT_ALIGN_LEFT)
+            draw.SimpleText("ACTIVE COMPONENT", "DermaDefaultBold", 0, 6, Color(240, 200, 50), TEXT_ALIGN_LEFT)
         end
 
         local compCombo = vgui.Create("DComboBox", controlsContainer)
@@ -631,17 +765,83 @@ function TIV.Editor3D.Open()
             RefreshEditor()
         end
 
-        -- Component Management Buttons: Add, Duplicate, Mirror, Delete
-        local btnRow = vgui.Create("DPanel", controlsContainer)
-        btnRow:Dock(TOP)
-        btnRow:DockMargin(0, 0, 0, 12)
-        btnRow:SetTall(30)
-        btnRow.Paint = function() end
+        -- ====================================================================
+        -- TOOL ROW 1: UNDO / REDO & STEP MULTIPLIER
+        -- ====================================================================
+        local utilRow = vgui.Create("DPanel", controlsContainer)
+        utilRow:Dock(TOP)
+        utilRow:DockMargin(0, 0, 0, 8)
+        utilRow:SetTall(28)
+        utilRow.Paint = function() end
 
-        local function AddActionBtn(label, color, onClick)
-            local btn = vgui.Create("DButton", btnRow)
+        local undoBtn = vgui.Create("DButton", utilRow)
+        undoBtn:Dock(LEFT)
+        undoBtn:DockMargin(0, 0, 4, 0)
+        undoBtn:SetWide(86)
+        undoBtn:SetText(#undoStack > 0 and string.format("< Undo (%d)", #undoStack) or "< Undo")
+        undoBtn:SetTextColor(#undoStack > 0 and Color(230, 235, 245) or Color(130, 140, 150))
+        undoBtn:SetEnabled(#undoStack > 0)
+        undoBtn.Paint = function(s, w, h)
+            local bg = s:IsEnabled() and (s:IsHovered() and Color(55, 75, 105) or Color(32, 42, 60)) or Color(20, 24, 32)
+            draw.RoundedBox(4, 0, 0, w, h, bg)
+        end
+        undoBtn.DoClick = PerformUndo
+
+        local redoBtn = vgui.Create("DButton", utilRow)
+        redoBtn:Dock(LEFT)
+        redoBtn:DockMargin(0, 0, 12, 0)
+        redoBtn:SetWide(86)
+        redoBtn:SetText(#redoStack > 0 and string.format("Redo (%d) >", #redoStack) or "Redo >")
+        redoBtn:SetTextColor(#redoStack > 0 and Color(230, 235, 245) or Color(130, 140, 150))
+        redoBtn:SetEnabled(#redoStack > 0)
+        redoBtn.Paint = function(s, w, h)
+            local bg = s:IsEnabled() and (s:IsHovered() and Color(55, 75, 105) or Color(32, 42, 60)) or Color(20, 24, 32)
+            draw.RoundedBox(4, 0, 0, w, h, bg)
+        end
+        redoBtn.DoClick = PerformRedo
+
+        -- Step size toggle buttons: 0.1, 0.5, 1.0, 5.0, 10.0
+        local stepLbl = vgui.Create("DLabel", utilRow)
+        stepLbl:Dock(LEFT)
+        stepLbl:DockMargin(0, 0, 6, 0)
+        stepLbl:SetWide(42)
+        stepLbl:SetText("Step:")
+        stepLbl:SetTextColor(Color(170, 185, 205))
+
+        local curStep = TIV.Editor3D.StepSize or 1.0
+        local stepList = { 0.1, 0.5, 1.0, 5.0, 10.0 }
+        for _, st in ipairs(stepList) do
+            local sBtn = vgui.Create("DButton", utilRow)
+            sBtn:Dock(LEFT)
+            sBtn:DockMargin(0, 0, 4, 0)
+            sBtn:SetWide(34)
+            sBtn:SetText(tostring(st))
+            sBtn:SetTextColor(Color(240, 240, 240))
+            sBtn.Paint = function(s, w, h)
+                local isCur = (curStep == st)
+                local bg = isCur and Color(0, 160, 200) or (s:IsHovered() and Color(45, 60, 80) or Color(24, 30, 42))
+                draw.RoundedBox(3, 0, 0, w, h, bg)
+            end
+            sBtn.DoClick = function()
+                TIV.Editor3D.StepSize = st
+                RefreshEditor()
+                surface.PlaySound("buttons/button14.wav")
+            end
+        end
+
+        -- ====================================================================
+        -- TOOL ROW 2: ADD COMPONENT TOOLBAR
+        -- ====================================================================
+        local addRow = vgui.Create("DPanel", controlsContainer)
+        addRow:Dock(TOP)
+        addRow:DockMargin(0, 0, 0, 8)
+        addRow:SetTall(28)
+        addRow.Paint = function() end
+
+        local function AddCreationBtn(label, color, onClick)
+            local btn = vgui.Create("DButton", addRow)
             btn:Dock(LEFT)
-            btn:DockMargin(0, 0, 6, 0)
+            btn:DockMargin(0, 0, 5, 0)
             btn:SetWide(96)
             btn:SetText(label)
             btn:SetTextColor(Color(240, 240, 240))
@@ -651,7 +851,9 @@ function TIV.Editor3D.Open()
             btn.DoClick = onClick
         end
 
-        AddActionBtn("+ Add Spike", Color(45, 75, 110), function()
+        AddCreationBtn("+ Spike", Color(45, 75, 110), function()
+            PushUndo()
+            local hasAngledUpg = TIV.Progression and TIV.Progression.IsUnlocked and TIV.Progression.IsUnlocked("angled_spikes")
             table.insert(components, {
                 id    = "spike_" .. (#components + 1),
                 type  = "spike",
@@ -659,30 +861,86 @@ function TIV.Editor3D.Open()
                 group = "mid",
                 model = "models/props_junk/harpoon002a.mdl",
                 pos   = Vector(25, 0, 0),
-                ang   = Angle(90, 0, 0),
+                ang   = hasAngledUpg and Angle(80, 0, 0) or Angle(90, 0, 0),
                 scale = Vector(1, 1, 1),
             })
             TIV.Editor3D.SelectedIndex = #components
             RefreshEditor()
         end)
 
-        AddActionBtn("+ Add Armor", Color(40, 95, 80), function()
+        AddCreationBtn("+ Side Armor", Color(40, 95, 80), function()
+            PushUndo()
             table.insert(components, {
-                id    = "armor_" .. (#components + 1),
+                id    = "armor_s" .. (#components + 1),
                 type  = "armor_side",
-                name  = "Metal Plate " .. (#components + 1),
+                name  = "Side Plate " .. (#components + 1),
                 group = "side",
                 model = "models/props_phx/construct/metal_plate1x2.mdl",
-                pos   = Vector(38, -10, 0),
-                ang   = Angle(0, 0, 90),
+                pos   = Vector(42, -10, 32),
+                ang   = Angle(-90, 90, 90),
                 scale = Vector(1, 1, 1),
             })
             TIV.Editor3D.SelectedIndex = #components
             RefreshEditor()
         end)
 
-        AddActionBtn("Duplicate", Color(80, 65, 120), function()
+        AddCreationBtn("+ Front Armor", Color(110, 70, 35), function()
+            PushUndo()
+            table.insert(components, {
+                id    = "armor_f" .. (#components + 1),
+                type  = "armor_front",
+                name  = "Front Plate " .. (#components + 1),
+                group = "front",
+                model = "models/props_phx/construct/metal_plate1x2.mdl",
+                pos   = Vector(0, 60, 35),
+                ang   = Angle(-95, 90, 0),
+                scale = Vector(1, 1, 1),
+            })
+            TIV.Editor3D.SelectedIndex = #components
+            RefreshEditor()
+        end)
+
+        AddCreationBtn("+ Radar Screen", Color(60, 45, 105), function()
+            PushUndo()
+            table.insert(components, {
+                id    = "screen_radar",
+                type  = "radar_screen",
+                name  = "Radar Monitor",
+                group = "interior",
+                model = "models/kobilica/wiremonitorsmall.mdl",
+                pos   = Vector(14, 18, 40),
+                ang   = Angle(10, -125, 0),
+                scale = Vector(1, 1, 1),
+            })
+            TIV.Editor3D.SelectedIndex = #components
+            RefreshEditor()
+        end)
+
+        -- ====================================================================
+        -- TOOL ROW 3: COMPONENT OPERATIONS (DUPLICATE, MIRROR, DELETE)
+        -- ====================================================================
+        local opRow = vgui.Create("DPanel", controlsContainer)
+        opRow:Dock(TOP)
+        opRow:DockMargin(0, 0, 0, 10)
+        opRow:SetTall(28)
+        opRow.Paint = function() end
+
+        local function AddOpBtn(label, color, onClick)
+            local btn = vgui.Create("DButton", opRow)
+            btn:Dock(LEFT)
+            btn:DockMargin(0, 0, 5, 0)
+            btn:SetWide(110)
+            btn:SetText(label)
+            btn:SetTextColor(Color(240, 240, 240))
+            btn.Paint = function(s, w, h)
+                draw.RoundedBox(4, 0, 0, w, h, s:IsHovered() and Color(color.r + 20, color.g + 20, color.b + 20) or color)
+            end
+            btn.DoClick = onClick
+        end
+
+        AddOpBtn("Duplicate", Color(70, 60, 95), function()
             if not curComp then return end
+            PushUndo()
             local clone = table.Copy(curComp)
             clone.id    = clone.id .. "_copy"
             clone.name  = clone.name .. " (Copy)"
@@ -692,16 +950,22 @@ function TIV.Editor3D.Open()
             RefreshEditor()
         end)
 
-        AddActionBtn("Mirror (X)", Color(110, 80, 40), function()
+        AddOpBtn("Mirror (X)", Color(95, 75, 45), function()
             if not curComp then return end
+            PushUndo()
             local mirror = table.Copy(curComp)
             mirror.id    = mirror.id .. "_mirror"
             mirror.name  = mirror.name .. " (Mirrored)"
             mirror.pos   = Vector(-mirror.pos.x, mirror.pos.y, mirror.pos.z)
-            if curComp.type == "spike" and math.abs(mirror.ang.p - 90) < 45 then
-                mirror.ang = Angle(180 - mirror.ang.p, -mirror.ang.y, -mirror.ang.r)
+            local hasAngledUpg = TIV.Progression and TIV.Progression.IsUnlocked and TIV.Progression.IsUnlocked("angled_spikes")
+            if curComp.type == "spike" then
+                if hasAngledUpg and math.abs(mirror.ang.p - 90) < 45 then
+                    mirror.ang = Angle(180 - mirror.ang.p, -mirror.ang.y, -mirror.ang.r)
+                else
+                    mirror.ang = Angle(90, 0, 0)
+                end
             else
-                mirror.ang = Angle(mirror.ang.p, mirror.ang.y, mirror.ang.r)
+                mirror.ang = Angle(mirror.ang.p, -mirror.ang.y, -mirror.ang.r)
             end
             table.insert(components, mirror)
             TIV.Editor3D.SelectedIndex = #components
@@ -709,15 +973,16 @@ function TIV.Editor3D.Open()
         end)
 
         if #components > 1 then
-            local delBtn = vgui.Create("DButton", btnRow)
+            local delBtn = vgui.Create("DButton", opRow)
             delBtn:Dock(RIGHT)
-            delBtn:SetWide(36)
+            delBtn:SetWide(55)
             delBtn:SetText("DEL")
             delBtn:SetTextColor(Color(255, 120, 120))
             delBtn.Paint = function(s, w, h)
                 draw.RoundedBox(4, 0, 0, w, h, s:IsHovered() and Color(180, 40, 40) or Color(70, 30, 30))
             end
             delBtn.DoClick = function()
+                PushUndo()
                 table.remove(components, selIdx)
                 TIV.Editor3D.SelectedIndex = math.Clamp(selIdx - 1, 1, #components)
                 TIV.Editor3D.ClearClientsideModels()
@@ -726,6 +991,76 @@ function TIV.Editor3D.Open()
         end
 
         if not curComp then return end
+
+        -- ====================================================================
+        -- TOOL ROW 4: QUICK-ALIGNMENT, SNAPPING & ORIENTATION TOOLS
+        -- ====================================================================
+        local alignPanel = vgui.Create("DPanel", controlsContainer)
+        alignPanel:Dock(TOP)
+        alignPanel:DockMargin(0, 0, 0, 10)
+        alignPanel:SetTall(32)
+        alignPanel.Paint = function(s, w, h)
+            draw.RoundedBox(4, 0, 0, w, h, Color(16, 20, 28, 200))
+        end
+
+        local function AddAlignBtn(label, onClick)
+            local btn = vgui.Create("DButton", alignPanel)
+            btn:Dock(LEFT)
+            btn:DockMargin(4, 4, 4, 4)
+            btn:SetWide(82)
+            btn:SetText(label)
+            btn:SetTextColor(Color(220, 230, 245))
+            btn.Paint = function(s, w, h)
+                draw.RoundedBox(3, 0, 0, w, h, s:IsHovered() and Color(50, 75, 110) or Color(26, 32, 45))
+            end
+            btn.DoClick = onClick
+        end
+
+        AddAlignBtn("Snap Grid", function()
+            PushUndo()
+            local step = TIV.Editor3D.StepSize or 1.0
+            curComp.pos.x = math.Round(curComp.pos.x / step) * step
+            curComp.pos.y = math.Round(curComp.pos.y / step) * step
+            curComp.pos.z = math.Round(curComp.pos.z / step) * step
+            RefreshEditor()
+            surface.PlaySound("buttons/button14.wav")
+        end)
+
+        AddAlignBtn("Ground (Z=0)", function()
+            PushUndo()
+            curComp.pos.z = 0.0
+            RefreshEditor()
+            surface.PlaySound("buttons/button14.wav")
+        end)
+
+        AddAlignBtn("Level Flat", function()
+            PushUndo()
+            curComp.ang.p = 0.0
+            curComp.ang.r = 0.0
+            RefreshEditor()
+            surface.PlaySound("buttons/button14.wav")
+        end)
+
+        AddAlignBtn("Turn 90° CW", function()
+            PushUndo()
+            curComp.ang.y = math.NormalizeAngle(curComp.ang.y + 90)
+            RefreshEditor()
+            surface.PlaySound("buttons/button14.wav")
+        end)
+
+        AddAlignBtn("Turn 90° CCW", function()
+            PushUndo()
+            curComp.ang.y = math.NormalizeAngle(curComp.ang.y - 90)
+            RefreshEditor()
+            surface.PlaySound("buttons/button14.wav")
+        end)
+
+        AddAlignBtn("Flip 180°", function()
+            PushUndo()
+            curComp.ang.y = math.NormalizeAngle(curComp.ang.y + 180)
+            RefreshEditor()
+            surface.PlaySound("buttons/button14.wav")
+        end)
 
         -- Component Name & Model Section
         local metaPanel = vgui.Create("DPanel", controlsContainer)
@@ -751,6 +1086,7 @@ function TIV.Editor3D.Open()
         modelEntry:SetSize(275, 24)
         modelEntry:SetText(curComp.model or "")
         modelEntry.OnEnter = function(s)
+            PushUndo()
             curComp.model = s:GetText()
         end
 
@@ -765,6 +1101,7 @@ function TIV.Editor3D.Open()
             curatedCombo:AddChoice(item.name, item.model)
         end
         curatedCombo.OnSelect = function(s, idx, val, modelPath)
+            PushUndo()
             curComp.model = modelPath
             modelEntry:SetText(modelPath)
         end
@@ -814,22 +1151,30 @@ function TIV.Editor3D.Open()
             end
 
             numEntry.OnEnter = function(s)
+                PushUndo()
                 local val = tonumber(s:GetText()) or 0
                 UpdateVal(val)
             end
 
-            -- Step nudge buttons: [-1] [+1]
+            -- Step nudge buttons using active step multiplier
+            local step = TIV.Editor3D.StepSize or 1.0
             local btnMinus = vgui.Create("DButton", parent)
             btnMinus:SetPos(316, yOffset)
-            btnMinus:SetSize(36, 22)
-            btnMinus:SetText("-1")
-            btnMinus.DoClick = function() UpdateVal(curComp.pos[axisKey] - 1) end
+            btnMinus:SetSize(42, 22)
+            btnMinus:SetText(string.format("-%g", step))
+            btnMinus.DoClick = function()
+                PushUndo()
+                UpdateVal(curComp.pos[axisKey] - step)
+            end
 
             local btnPlus = vgui.Create("DButton", parent)
-            btnPlus:SetPos(356, yOffset)
-            btnPlus:SetSize(36, 22)
-            btnPlus:SetText("+1")
-            btnPlus.DoClick = function() UpdateVal(curComp.pos[axisKey] + 1) end
+            btnPlus:SetPos(362, yOffset)
+            btnPlus:SetSize(42, 22)
+            btnPlus:SetText(string.format("+%g", step))
+            btnPlus.DoClick = function()
+                PushUndo()
+                UpdateVal(curComp.pos[axisKey] + step)
+            end
         end
 
         BuildCoordRow(posSection, "Pos X (R/L):", "x", -100, 100, 48)
@@ -845,8 +1190,13 @@ function TIV.Editor3D.Open()
         rotSection:SetTall(170)
 
         local isSpike = (curComp.type == "spike")
-        local hasAngledUpg = TIV.Progression.IsUnlocked("angled_spikes")
+        local hasAngledUpg = TIV.Progression and TIV.Progression.IsUnlocked and TIV.Progression.IsUnlocked("angled_spikes")
         local isAngleLocked = isSpike and not hasAngledUpg
+
+        -- Enforce straight 90 degree spikes if upgrade is not unlocked
+        if isAngleLocked then
+            curComp.ang = Angle(90, 0, 0)
+        end
 
         rotSection.Paint = function(s, w, h)
             draw.RoundedBox(4, 0, 0, w, h, Color(16, 20, 28, 200))
@@ -894,23 +1244,31 @@ function TIV.Editor3D.Open()
             end
 
             numEntry.OnEnter = function(s)
+                PushUndo()
                 local val = tonumber(s:GetText()) or 0
                 UpdateVal(val)
             end
 
+            local angStep = math.max((TIV.Editor3D.StepSize or 1.0) * 5, 0.5)
             local btnMinus = vgui.Create("DButton", parent)
             btnMinus:SetPos(316, yOffset)
-            btnMinus:SetSize(36, 22)
-            btnMinus:SetText("-5°")
+            btnMinus:SetSize(42, 22)
+            btnMinus:SetText(string.format("-%g°", angStep))
             btnMinus:SetEnabled(not isAngleLocked)
-            btnMinus.DoClick = function() UpdateVal(curComp.ang[angKey] - 5) end
+            btnMinus.DoClick = function()
+                PushUndo()
+                UpdateVal(curComp.ang[angKey] - angStep)
+            end
 
             local btnPlus = vgui.Create("DButton", parent)
-            btnPlus:SetPos(356, yOffset)
-            btnPlus:SetSize(36, 22)
-            btnPlus:SetText("+5°")
+            btnPlus:SetPos(362, yOffset)
+            btnPlus:SetSize(42, 22)
+            btnPlus:SetText(string.format("+%g°", angStep))
             btnPlus:SetEnabled(not isAngleLocked)
-            btnPlus.DoClick = function() UpdateVal(curComp.ang[angKey] + 5) end
+            btnPlus.DoClick = function()
+                PushUndo()
+                UpdateVal(curComp.ang[angKey] + angStep)
+            end
         end
 
         BuildAngleRow(rotSection, "Pitch:", "p", 48)
@@ -932,6 +1290,7 @@ function TIV.Editor3D.Open()
             btn:SetText(label)
             btn:SetEnabled(not isAngleLocked)
             btn.DoClick = function()
+                PushUndo()
                 curComp.ang = Angle(targetAng.p, targetAng.y, targetAng.r)
                 RefreshEditor()
             end
