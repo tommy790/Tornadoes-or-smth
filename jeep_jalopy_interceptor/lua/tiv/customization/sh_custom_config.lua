@@ -132,9 +132,9 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
             { id = "spike_rr", type = "spike", name = "Rear Right Spike",   group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector( 35.00,-110.00, 0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
             { id = "spike_rl", type = "spike", name = "Rear Left Spike",    group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector(-35.00,-110.00, 0.00), ang = leftSpikeAng,  scale = Vector(1.00, 1.00, 1.00) },
 
-            { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-46.00, -10.00, 20.00), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
-            { id = "armor_sr", type = "armor_side",  name = "Right Metal Plate", group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector( 46.00, -10.00, 20.00), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
-            { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00, 115.00, 25.00), ang = Angle(-95.30, 90.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-56.40,  -6.20, 49.20), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "armor_sr", type = "armor_side",  name = "Right Metal Plate", group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector( 56.40,  -6.20, 49.20), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00, 106.70, 61.70), ang = Angle(-120.00, 90.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
         }
     elseif string.find(vehicleModel, "airboat", 1, true) then
         config.components = {

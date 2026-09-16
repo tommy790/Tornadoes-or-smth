@@ -397,7 +397,8 @@ function TIV.Editor3D.Open()
         local presets = {
             { name = "HL2 Buggy / Jeep",         model = "models/buggy.mdl" },
             { name = "EP2 Jalopy / Muscle Car", model = "models/vehicle.mdl" },
-            { name = "Combine APC",             model = "models/props_vehicles/apc001.mdl" },
+            { name = "Combine APC",             model = "models/combine_apc.mdl" },
+            { name = "Combine APC (Prop)",      model = "models/props_vehicles/apc001.mdl" },
             { name = "HL2 Airboat",             model = "models/airboat.mdl" },
             { name = "Van / Ambulance",         model = "models/props_vehicles/van.mdl" },
             { name = "Pickup Truck",            model = "models/props_vehicles/pickup01.mdl" },
@@ -528,7 +529,8 @@ function TIV.Editor3D.Open()
         local presets = {
             { name = "HL2 Buggy / Jeep",         model = "models/buggy.mdl" },
             { name = "EP2 Jalopy / Muscle Car", model = "models/vehicle.mdl" },
-            { name = "Combine APC",             model = "models/props_vehicles/apc001.mdl" },
+            { name = "Combine APC",             model = "models/combine_apc.mdl" },
+            { name = "Combine APC (Prop)",      model = "models/props_vehicles/apc001.mdl" },
             { name = "HL2 Airboat",             model = "models/airboat.mdl" },
             { name = "Van / Ambulance",         model = "models/props_vehicles/van.mdl" },
             { name = "Pickup Truck",            model = "models/props_vehicles/pickup01.mdl" },
