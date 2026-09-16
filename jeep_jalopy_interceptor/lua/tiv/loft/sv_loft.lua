@@ -1,10 +1,11 @@
 -- ============================================================================
 -- TIV LOFT SYSTEM
--- Clean 4-Stage Physical Architecture:
+-- Clean, Rock-Solid Physics Architecture:
 -- 1. Rock-Solid Ground Planting (Zero artificial forces while anchored)
--- 2. Sequential Windward Anchor Shear (True directional failure & physical tipping)
--- 3. Clean Single-Impulse Loft (Natural Source gravity & storm physics; no continuous flight loop)
--- 4. Armor Panel Shearing (Detaches under extreme vortex turbulence as debris)
+-- 2. External Tornado Mod Immunity while Anchored (GStorms & XT3 cannot suction/teleport vehicle)
+-- 3. Instant Displacement Failsafe (If chassis moves > 40u from ground, triggers immediate loft)
+-- 4. Directional Anchor Shearing (Rapid, dramatic sequential failure without canceling on wind dips)
+-- 5. Clean Single-Impulse Loft (Natural Source gravity & storm physics handle flight; no mid-air traps)
 -- ============================================================================
 
 TIV.Loft = TIV.Loft or {}
@@ -23,6 +24,34 @@ end
 CreateConVar("tiv_loft_release_spikes", "0",
     { FCVAR_ARCHIVE, FCVAR_NOTIFY, FCVAR_REPLICATED },
     "If 1, spikes fly free as debris on loft. If 0, they stay parented to the vehicle.")
+
+-- ============================================================================
+-- EXTERNAL TORNADO MOD IMMUNITY HELPERS
+-- Prevents GStorms, XTwisters 3, and generic storm mods from suctioning,
+-- orbiting, or teleporting the anchored vehicle while constrained to the ground.
+-- ============================================================================
+function TIV.Loft.SetAnchoredImmunity(veh, enable)
+    if not IsValid(veh) then return end
+    if enable then
+        veh:SetNWBool("GStormsIgnore", true)
+        veh.GStormsIgnore        = true
+        veh:SetNWBool("XT3Ignore", true)
+        veh.XT3Ignore            = true
+        veh.XT3DoNotApplyPhysics = true
+        veh.GStormsIgnoreWind    = true
+        veh.XTwisterIgnore       = true
+        veh.XTDoNotApplyPhysics  = true
+    else
+        veh:SetNWBool("GStormsIgnore", false)
+        veh.GStormsIgnore        = nil
+        veh:SetNWBool("XT3Ignore", false)
+        veh.XT3Ignore            = nil
+        veh.XT3DoNotApplyPhysics = nil
+        veh.GStormsIgnoreWind    = nil
+        veh.XTwisterIgnore       = nil
+        veh.XTDoNotApplyPhysics  = nil
+    end
+end
 
 -- ============================================================================
 -- STRESS CALCULATION
@@ -51,9 +80,6 @@ local function CleanupLoftTracking(entIdx)
     for wave = 1, 3 do
         timer.Remove("TIV_WaveFail_" .. entIdx .. "_" .. wave)
     end
-    timer.Remove("TIV_GroupFail_" .. entIdx .. "_rear")
-    timer.Remove("TIV_GroupFail_" .. entIdx .. "_mid")
-    timer.Remove("TIV_GroupFail_" .. entIdx .. "_front")
 end
 TIV.Loft.CleanupTracking = CleanupLoftTracking
 
@@ -95,7 +121,6 @@ function TIV.Loft.RipArmorPanel(veh, prop, windDir)
     prop:EmitSound("physics/metal/metal_sheet_impact_hard" .. math.random(6, 8) .. ".wav", 95, math.random(70, 85))
     util.ScreenShake(prop:GetPos(), 8, 10, 0.5, 300)
 
-    -- Prune from vehicle armor cache if present
     if IsValid(veh) and veh._TIVArmorProps then
         for i = #veh._TIVArmorProps, 1, -1 do
             if veh._TIVArmorProps[i] == prop then
@@ -109,9 +134,8 @@ end
 
 function TIV.Loft.CheckArmorTear(veh, windMPH, windForceVec)
     if not IsValid(veh) or not veh._TIVArmorProps or #veh._TIVArmorProps == 0 then return end
-    if windMPH < 210 then return end -- Only extreme vortex core forces
+    if windMPH < 200 then return end
 
-    -- Probabilistic check per tick to peel off an exposed panel
     if math.random() < 0.08 then
         local idx = math.random(1, #veh._TIVArmorProps)
         local prop = veh._TIVArmorProps[idx]
@@ -132,33 +156,20 @@ function TIV.Loft.FailSpikeList(veh, data, spikesToFail, duration)
     if not IsValid(veh) or not data or #spikesToFail == 0 then return end
 
     if IsValid(veh) then
-        veh:EmitSound("physics/metal/metal_box_break1.wav", 85, 55)
+        veh:EmitSound("physics/metal/metal_box_break1.wav", 88, 55)
     end
 
-    local staggerPerSpike = (duration or 0.7) / math.max(1, #spikesToFail)
+    local staggerPerSpike = (duration or 0.3) / math.max(1, #spikesToFail)
 
     for i, sd in ipairs(spikesToFail) do
         local spikeIdx = sd.index
-        local delay = (i - 1) * staggerPerSpike + math.Rand(0, staggerPerSpike * 0.2)
+        local delay = (i - 1) * staggerPerSpike
 
         timer.Simple(delay, function()
             if not IsValid(veh) or not data then return end
             if data.state ~= "anchored" then return end
 
-            -- Mark permanently failed: Anchor Guard will NEVER recreate or re-freeze it
             sd.failed = true
-
-            -- When the first anchor snaps, restore chassis gravity so it can naturally
-            -- tilt and roll on the remaining intact leeward anchors without fighting physics.
-            if not data.gravityReleased then
-                data.gravityReleased = true
-                local vehPhys = veh:GetPhysicsObject()
-                if IsValid(vehPhys) then
-                    vehPhys:EnableGravity(true)
-                    vehPhys:EnableMotion(true)
-                    vehPhys:Wake()
-                end
-            end
 
             local spikeEnt = sd.entity
             if IsValid(spikeEnt) then
@@ -167,14 +178,7 @@ function TIV.Loft.FailSpikeList(veh, data, spikesToFail, duration)
                     spikePhys:EnableMotion(true)
                     spikePhys:EnableGravity(true)
                     spikePhys:Wake()
-
-                    local windScale = GetWindScale(veh)
-                    local windForce = TIV.Wind.GetForceVector(veh) * spikePhys:GetMass() * 1.5 * windScale
-                    local upForce   = Vector(0, 0, 1) * spikePhys:GetMass() * 600
-                    local pullToVeh = (veh:GetPos() - spikeEnt:GetPos()):GetNormalized() * spikePhys:GetMass() * 150
-
-                    spikePhys:ApplyForceCenter(windForce + upForce + pullToVeh)
-                    spikePhys:ApplyTorqueCenter(VectorRand() * 400)
+                    spikePhys:ApplyForceCenter(Vector(0, 0, 400) + VectorRand() * 200)
                 end
 
                 spikeEnt:SetCollisionGroup(COLLISION_GROUP_DEBRIS)
@@ -186,14 +190,13 @@ function TIV.Loft.FailSpikeList(veh, data, spikesToFail, duration)
                 util.Effect("Sparks", sparkFX)
 
                 spikeEnt:EmitSound("physics/metal/metal_box_break" .. math.random(1, 2) .. ".wav", 90, math.random(60, 80))
-                util.ScreenShake(spikeEnt:GetPos(), 10, 12, 0.6, 350)
             end
 
-            -- Break the ballsocket constraint connecting vehicle to this spike
+            -- Break constraint connecting vehicle to this spike
             TIV.Anchor.BreakSpike(veh, data, spikeIdx)
 
-            -- Reparent spike to vehicle after a brief moment if not releasing as debris
-            timer.Simple(0.12, function()
+            -- Reparent spike to vehicle
+            timer.Simple(0.08, function()
                 if not IsValid(veh) or not IsValid(spikeEnt) or not sd then return end
                 if TIV.SpikeAnim and TIV.SpikeAnim.ReparentSpike then
                     TIV.SpikeAnim.ReparentSpike(veh, spikeEnt, sd)
@@ -240,7 +243,7 @@ function TIV.Loft.StartDirectionalFailure(veh, data)
     TIV.Loft.WindTimers[entIndex]    = CurTime()
     TIV.Loft.FailingGroups[entIndex] = true
 
-    -- 1. Gather all live, deployed spikes
+    -- Gather all live, deployed spikes
     local liveSpikes = {}
     for _, sd in ipairs(data.spikes or {}) do
         if sd.phase == "deployed" and not sd.failed and IsValid(sd.entity) then
@@ -253,12 +256,10 @@ function TIV.Loft.StartDirectionalFailure(veh, data)
         return
     end
 
-    -- 2. Determine relative wind vector to calculate windward vs leeward exposure
+    -- Determine relative wind vector to calculate windward vs leeward exposure
     local windForceVec = TIV.Wind.GetForceVector(veh)
     local localWind    = veh:WorldToLocal(veh:GetPos() + windForceVec):GetNormalized()
 
-    -- Calculate exposure for each spike along the wind vector
-    -- Smaller (most negative) dot product = windward side (under tension, fails first)
     for _, sd in ipairs(liveSpikes) do
         local lpos = sd.configPos or veh:WorldToLocal(sd.entity:GetPos())
         sd._windExposure = lpos:Dot(localWind)
@@ -268,10 +269,7 @@ function TIV.Loft.StartDirectionalFailure(veh, data)
         return (a._windExposure or 0) < (b._windExposure or 0)
     end)
 
-    -- 3. Partition into 3 sequential waves:
-    -- Wave 1: Windward anchors (most exposed)
-    -- Wave 2: Mid-flank anchors
-    -- Wave 3: Leeward anchors
+    -- Partition into 3 rapid failure waves
     local count = #liveSpikes
     local wave1 = {}
     local wave2 = {}
@@ -286,7 +284,6 @@ function TIV.Loft.StartDirectionalFailure(veh, data)
         if count >= 3 then table.insert(wave2, liveSpikes[3]) end
         if count == 4 then table.insert(wave3, liveSpikes[4]) end
     else
-        -- 6 spikes: 2 windward, 2 mid, 2 leeward
         table.insert(wave1, liveSpikes[1])
         table.insert(wave1, liveSpikes[2])
         table.insert(wave2, liveSpikes[3])
@@ -295,30 +292,30 @@ function TIV.Loft.StartDirectionalFailure(veh, data)
         table.insert(wave3, liveSpikes[6])
     end
 
-    print(string.format("[TIV] Vehicle #%d exceeding threshold. Starting Windward Failure (Wave 1: %d, Wave 2: %d, Wave 3: %d)",
+    print(string.format("[TIV] Vehicle #%d exceeding threshold. Initiating rapid failure sequence (W1: %d, W2: %d, W3: %d)",
         entIndex, #wave1, #wave2, #wave3))
 
     -- Wave 1: Immediate failure (0.05s)
     if #wave1 > 0 then
         timer.Create("TIV_WaveFail_" .. entIndex .. "_1", 0.05, 1, function()
             if not IsValid(veh) or data.state ~= "anchored" then return end
-            TIV.Loft.FailSpikeList(veh, data, wave1, 0.7)
+            TIV.Loft.FailSpikeList(veh, data, wave1, 0.25)
         end)
     end
 
-    -- Wave 2: Mid failure (1.1s)
+    -- Wave 2: Mid-flank failure (0.35s)
     if #wave2 > 0 then
-        timer.Create("TIV_WaveFail_" .. entIndex .. "_2", 1.1, 1, function()
+        timer.Create("TIV_WaveFail_" .. entIndex .. "_2", 0.35, 1, function()
             if not IsValid(veh) or data.state ~= "anchored" then return end
-            TIV.Loft.FailSpikeList(veh, data, wave2, 0.7)
+            TIV.Loft.FailSpikeList(veh, data, wave2, 0.25)
         end)
     end
 
-    -- Wave 3: Leeward final failure (2.2s)
+    -- Wave 3: Leeward final failure (0.70s)
     if #wave3 > 0 then
-        timer.Create("TIV_WaveFail_" .. entIndex .. "_3", 2.2, 1, function()
+        timer.Create("TIV_WaveFail_" .. entIndex .. "_3", 0.70, 1, function()
             if not IsValid(veh) or data.state ~= "anchored" then return end
-            TIV.Loft.FailSpikeList(veh, data, wave3, 0.7)
+            TIV.Loft.FailSpikeList(veh, data, wave3, 0.25)
         end)
     end
 end
@@ -331,7 +328,6 @@ function TIV.Loft.TriggerLoft(veh, data)
     if not IsValid(veh) then return end
     if data.state == "lofted" then return end
 
-    -- Cheat check: Godmode Anchors immunity
     local cheatGodmode = GetConVar("tiv_cheat_godmode_anchors")
     if cheatGodmode and cheatGodmode:GetBool() then
         return
@@ -350,26 +346,30 @@ function TIV.Loft.TriggerLoft(veh, data)
     TIV.Anchor.ForceDetach(veh, data)
     constraint.RemoveAll(veh)
 
-    data.state    = "lofted"
-    data.anchored = false
+    data.state       = "lofted"
+    data.anchored    = false
+    data.plantedPos  = nil
 
-    -- 2. Restore vehicle gravity, motion, and physics
+    -- 2. Clear external tornado mod immunity so storm naturally carries the vehicle
+    TIV.Loft.SetAnchoredImmunity(veh, false)
+
+    -- 3. Restore vehicle gravity, motion, and physics
     local phys = veh:GetPhysicsObject()
     if IsValid(phys) then
         phys:EnableGravity(true)
         phys:EnableMotion(true)
         phys:Wake()
 
-        -- Single initial launch impulse: fling up and downwind with random tumble torque
+        -- Single initial launch impulse: fling up and downwind with natural tumble
         local upForce   = Vector(0, 0, 1) * phys:GetMass() * (TIV.Config.LoftForceMultiplier or 1200)
-        local windForce = TIV.Wind.GetForceVector(veh) * phys:GetMass() * 0.6
+        local windForce = TIV.Wind.GetForceVector(veh) * phys:GetMass() * 0.65
         local tumble    = VectorRand() * (TIV.Config.LoftTumbleForce or 350)
 
         phys:ApplyForceCenter(upForce + windForce)
         phys:ApplyTorqueCenter(tumble)
     end
 
-    -- 3. Release or reparent spikes
+    -- 4. Release or reparent spikes
     if ReleaseSpikesOnLoft() then
         if TIV.Spikes.ReleaseAll then
             TIV.Spikes.ReleaseAll(data)
@@ -397,7 +397,7 @@ function TIV.Loft.TriggerLoft(veh, data)
 
     CleanupLoftTracking(entIdx)
 
-    -- 4. Automatic reset 15 seconds after loft to safely mount fresh spikes and return to idle
+    -- 5. Automatic reset 15 seconds after loft to safely mount fresh spikes and return to idle
     timer.Simple(15, function()
         local liveVeh  = Entity(entIdx)
         local liveData = TIV.Deploy.Vehicles and TIV.Deploy.Vehicles[entIdx]
@@ -415,6 +415,7 @@ function TIV.Loft.TriggerLoft(veh, data)
         liveData.state           = "idle"
         liveData.anchored        = false
         liveData.gravityReleased = false
+        liveData.plantedPos      = nil
 
         if IsValid(liveVeh) then
             TIV.Deploy.BroadcastState(liveVeh, "idle")
@@ -437,16 +438,37 @@ timer.Create("TIV_LoftThink", 0.05, 0, function()
                 if IsValid(phys) then
                     local windMPH = TIV.Wind.GetSpeed(veh)
                     local stress  = TIV.Loft.CalculateStress(windMPH, veh)
-                    local windScale = GetWindScale(veh)
-                    local windForceVec = TIV.Wind.GetForceVector(veh)
                     local effectiveThreshold = (veh._TIVEffectiveStats and veh._TIVEffectiveStats.effective_loft_mph)
                         or TIV.Config.LoftWindThreshold
                         or 180
 
-                    -- ===== ANCHOR GUARD =====
-                    -- Defense in depth against external tornado mod unweld routines:
-                    -- Re-freezes and restores balljoints ONLY on live, un-failed spikes.
-                    -- Ignores sd.failed spikes to completely prevent the mid-air trap.
+                    -- Establish ground planting anchor position
+                    if not data.plantedPos then
+                        data.plantedPos = veh:GetPos()
+                    end
+
+                    -- ===== DISPLACEMENT FAILSAFE (ANTI-FLOATING / ANTI-SNAPPING) =====
+                    -- If external forces or physics solver ever displace the vehicle more than
+                    -- 40 units from its ground planting position, the anchors have physically failed.
+                    -- Trigger instantaneous full loft: sever all constraints so the vehicle
+                    -- flies naturally rather than snapping or floating in mid-air.
+                    local currentPos = veh:GetPos()
+                    local distFromPlanted = currentPos:Distance(data.plantedPos)
+                    if distFromPlanted > 40 then
+                        print(string.format("[TIV] Vehicle #%d lifted %.1f units from ground anchors - triggering instant loft!",
+                            entIndex, distFromPlanted))
+                        TIV.Loft.TriggerLoft(veh, data)
+                        return
+                    end
+
+                    -- Ensure vehicle is immune to external tornado mod suction/teleporting while anchored
+                    if not veh.XT3Ignore or not veh.GStormsIgnore then
+                        TIV.Loft.SetAnchoredImmunity(veh, true)
+                    end
+
+                    -- ===== ANCHOR INTEGRITY & RE-ATTACHMENT SAFETY =====
+                    local isFailing = TIV.Loft.FailingGroups[entIndex] or data.gravityReleased
+
                     for _, sd in ipairs(data.spikes or {}) do
                         if sd.phase == "deployed" and not sd.failed and IsValid(sd.entity) and sd.groundPos then
                             local sp = sd.entity:GetPhysicsObject()
@@ -467,39 +489,47 @@ timer.Create("TIV_LoftThink", 0.05, 0, function()
                                     break
                                 end
                             end
+
+                            -- Never re-attach if failure has begun or if vehicle is off the ground
                             if not hasBS then
-                                if TIV.Anchor and TIV.Anchor.AttachSingle then
-                                    for i = #(data.constraints or {}), 1, -1 do
-                                        if data.constraints[i].spikeIndex == sd.index then
-                                            table.remove(data.constraints, i)
+                                if isFailing or distFromPlanted > 20 then
+                                    sd.failed = true
+                                else
+                                    if TIV.Anchor and TIV.Anchor.AttachSingle then
+                                        for i = #(data.constraints or {}), 1, -1 do
+                                            if data.constraints[i].spikeIndex == sd.index then
+                                                table.remove(data.constraints, i)
+                                            end
                                         end
+                                        TIV.Anchor.AttachSingle(veh, data, sd, sd.index)
                                     end
-                                    TIV.Anchor.AttachSingle(veh, data, sd, sd.index)
                                 end
                             end
                         end
                     end
 
-                    -- ===== GROUND PLANTING & TIPPING FORCES =====
-                    if not data.gravityReleased then
-                        -- 1. Intact Anchored State: ZERO physical displacement forces on chassis.
-                        -- Ground anchors hold the vehicle 100% frozen solid in place.
-                        -- Screen shake and audio convey storm violence realistically without physics fighting.
-                        if stress > 0.40 then
-                            data.nextShakeTime = data.nextShakeTime or 0
-                            if CurTime() > data.nextShakeTime then
-                                data.nextShakeTime = CurTime() + 0.30
-                                util.ScreenShake(veh:GetPos(), math.Clamp(stress * 3.0, 0.5, 3.0), 10, 0.35, 350)
-                            end
+                    -- Check remaining intact ballsockets
+                    local liveBallsockets = 0
+                    for _, c in ipairs(data.constraints or {}) do
+                        if c.type == "ballsocket" and IsValid(c.constraint) then
+                            liveBallsockets = liveBallsockets + 1
                         end
-                    else
-                        -- 2. Partial Failure State: Windward anchors have snapped.
-                        -- Gravity is active (phys:EnableGravity(true)).
-                        -- Apply purely lateral wind force (Z <= 0) to naturally tilt the car around
-                        -- the intact leeward anchor hinge without lifting it off the ground.
-                        local lateralWind = Vector(windForceVec.x, windForceVec.y, math.min(0, windForceVec.z))
-                            * phys:GetMass() * 0.5 * windScale
-                        phys:ApplyForceCenter(lateralWind)
+                    end
+
+                    -- If all ground constraints are lost, loft immediately!
+                    if liveBallsockets == 0 and TIV.Spikes.GetCount(data) > 0 then
+                        print(string.format("[TIV] All anchor constraints lost on #%d - triggering immediate loft!", entIndex))
+                        TIV.Loft.TriggerLoft(veh, data)
+                        return
+                    end
+
+                    -- Screen shake and audio for cockpit storm violence
+                    if stress > 0.40 then
+                        data.nextShakeTime = data.nextShakeTime or 0
+                        if CurTime() > data.nextShakeTime then
+                            data.nextShakeTime = CurTime() + 0.30
+                            util.ScreenShake(veh:GetPos(), math.Clamp(stress * 3.0, 0.5, 3.0), 10, 0.35, 350)
+                        end
                     end
 
                     -- ===== STRESS SOUNDS =====
@@ -516,44 +546,27 @@ timer.Create("TIV_LoftThink", 0.05, 0, function()
                     end
 
                     -- ===== ARMOR PANEL TEARING CHECK =====
-                    TIV.Loft.CheckArmorTear(veh, windMPH, windForceVec)
+                    TIV.Loft.CheckArmorTear(veh, windMPH, TIV.Wind.GetForceVector(veh))
 
-                    -- ===== BELOW / ABOVE THRESHOLD LOGIC =====
-                    if windMPH < effectiveThreshold then
-                        if TIV.Loft.WindTimers[entIndex] then
-                            print(string.format("[TIV] Wind dropped to %.0f MPH - sequence reset for #%d", windMPH, entIndex))
-                            CleanupLoftTracking(entIndex)
-                        end
-
-                        if TIV.Spikes.GetCount(data) > 0 then
-                            if not TIV.Anchor.CheckIntegrity(veh, data) then
-                                if TIV.Compat and TIV.Compat.Enabled then
-                                    TIV.Anchor.ForceDetach(veh, data)
-                                    data.state              = "idle"
-                                    data.anchored           = false
-                                    data.spikesCreated      = false
-                                    data.compatRecoverUntil = CurTime() + (TIV.Compat.RecoveryCooldown or 3)
-                                    TIV.Deploy.BroadcastState(veh, "idle")
-                                    print(string.format("[TIV] Compat recovery: integrity lost on #%d, returning to idle for %.1fs.",
-                                        entIndex, TIV.Compat.RecoveryCooldown or 3))
-                                else
-                                    TIV.Loft.TriggerLoft(veh, data)
-                                end
-                            end
+                    -- ===== SEQUENTIAL FAILURE INITIATION =====
+                    if windMPH >= effectiveThreshold then
+                        if TIV.Spikes.GetCount(data) == 0 then
+                            TIV.Loft.TriggerLoft(veh, data)
+                        else
+                            TIV.Loft.StartDirectionalFailure(veh, data)
                         end
                     else
-                        if TIV.Spikes.GetCount(data) == 0 then
-                            if not TIV.Loft.FailingGroups[entIndex] then
-                                print(string.format("[TIV] 0-spike mode - instant loft at %.0f MPH", windMPH))
-                                TIV.Loft.TriggerLoft(veh, data)
+                        -- Only cancel failure tracking if the sequence hasn't begun fracturing spikes
+                        -- and wind has sustained a drop below 70% of threshold
+                        if TIV.Loft.WindTimers[entIndex] and not isFailing and windMPH < (effectiveThreshold * 0.70) then
+                            data.calmDuration = (data.calmDuration or 0) + 0.05
+                            if data.calmDuration >= 2.0 then
+                                print(string.format("[TIV] Wind sustained drop to %.0f MPH - sequence reset for #%d", windMPH, entIndex))
+                                CleanupLoftTracking(entIndex)
+                                data.calmDuration = 0
                             end
                         else
-                            if not TIV.Anchor.CheckIntegrity(veh, data) then
-                                print(string.format("[TIV] Anchors blown by force at %.0f MPH - forcing loft for #%d", windMPH, entIndex))
-                                TIV.Loft.TriggerLoft(veh, data)
-                            else
-                                TIV.Loft.StartDirectionalFailure(veh, data)
-                            end
+                            data.calmDuration = 0
                         end
                     end
                 end
@@ -576,4 +589,4 @@ hook.Add("Think", "TIV_LoftCleanup", function()
     end
 end)
 
-print("[TIV] Clean 4-Stage Loft system loaded")
+print("[TIV] Clean 5-Stage Loft system loaded")

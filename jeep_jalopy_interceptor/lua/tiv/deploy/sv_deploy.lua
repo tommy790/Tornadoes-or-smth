@@ -302,8 +302,12 @@ function TIV.Deploy.StartDeploy(ply, veh)
 
             local function finalizeAnchored()
                 if not IsValid(veh) then return end
-                data.state    = "anchored"
-                data.anchored = true
+                data.state      = "anchored"
+                data.anchored   = true
+                data.plantedPos = veh:GetPos()
+                if TIV.Loft and TIV.Loft.SetAnchoredImmunity then
+                    TIV.Loft.SetAnchoredImmunity(veh, true)
+                end
                 local hbCVar = GetConVar("tiv_deploy_handbrake")
                 if not (hbCVar and not hbCVar:GetBool()) then
                     ApplyHandbrake(veh)
@@ -336,7 +340,11 @@ end
 -- ============================================================================
 function TIV.Deploy.StartRetract(ply, veh)
     local data = TIV.Deploy.GetState(veh)
-    data.state = "retracting"
+    data.state      = "retracting"
+    data.plantedPos = nil
+    if TIV.Loft and TIV.Loft.SetAnchoredImmunity then
+        TIV.Loft.SetAnchoredImmunity(veh, false)
+    end
     TIV.Deploy.BroadcastState(veh, "retracting")
 
     -- Release handbrake before retracting
@@ -411,8 +419,12 @@ function TIV.Deploy.RaiseVehicle(ply, veh)
                 p:Wake()
             end
 
-            data.state    = "idle"
-            data.anchored = false
+            data.state      = "idle"
+            data.anchored   = false
+            data.plantedPos = nil
+            if TIV.Loft and TIV.Loft.SetAnchoredImmunity then
+                TIV.Loft.SetAnchoredImmunity(veh, false)
+            end
             TIV.Deploy.BroadcastState(veh, "idle")
 
             -- After idle, check whether spikes need rebuilding.

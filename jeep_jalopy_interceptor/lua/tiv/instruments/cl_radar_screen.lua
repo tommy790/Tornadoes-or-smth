@@ -486,39 +486,37 @@ hook.Add("PostDrawTranslucentRenderables", "TIV_RenderRadarScreens", function(bD
 
                 -- Backface culling: skip rendering when looking from behind the screen casing
                 local normal = screenAng:Up()
-                if (eyePos - centerPos):Dot(normal) <= 0 then
-                    continue
+                if (eyePos - centerPos):Dot(normal) > 0 then
+                    local scale = cfg.scale * pScale
+                    local halfW = (cfg.w * 0.5) * scale
+                    local halfH = (cfg.h * 0.5) * scale
+
+                    -- Shift origin by (-halfW, -halfH) so the 512x512 canvas is centered on the monitor glass
+                    local topLeftPos = centerPos - screenAng:Forward() * halfW - screenAng:Right() * halfH
+
+                    cam.Start3D2D(topLeftPos, screenAng, scale)
+                        render.ClearStencil()
+                        render.SetStencilEnable(true)
+                        render.SetStencilTestMask(0xFF)
+                        render.SetStencilWriteMask(0xFF)
+                        render.SetStencilReferenceValue(1)
+                        render.SetStencilCompareFunction(STENCIL_ALWAYS)
+                        render.SetStencilPassOperation(STENCIL_REPLACE)
+                        render.SetStencilFailOperation(STENCIL_KEEP)
+                        render.SetStencilZFailOperation(STENCIL_KEEP)
+
+                        -- Mask out the exact 512x512 physical monitor face
+                        surface.SetDrawColor(0, 0, 0, 255)
+                        surface.DrawRect(0, 0, 512, 512)
+
+                        render.SetStencilCompareFunction(STENCIL_EQUAL)
+                        render.SetStencilPassOperation(STENCIL_KEEP)
+
+                        DrawRadarScreen(ent, veh, rData)
+
+                        render.SetStencilEnable(false)
+                    cam.End3D2D()
                 end
-
-                local scale = cfg.scale * pScale
-                local halfW = (cfg.w * 0.5) * scale
-                local halfH = (cfg.h * 0.5) * scale
-
-                -- Shift origin by (-halfW, -halfH) so the 512x512 canvas is centered on the monitor glass
-                local topLeftPos = centerPos - screenAng:Forward() * halfW - screenAng:Right() * halfH
-
-                cam.Start3D2D(topLeftPos, screenAng, scale)
-                    render.ClearStencil()
-                    render.SetStencilEnable(true)
-                    render.SetStencilTestMask(0xFF)
-                    render.SetStencilWriteMask(0xFF)
-                    render.SetStencilReferenceValue(1)
-                    render.SetStencilCompareFunction(STENCIL_ALWAYS)
-                    render.SetStencilPassOperation(STENCIL_REPLACE)
-                    render.SetStencilFailOperation(STENCIL_KEEP)
-                    render.SetStencilZFailOperation(STENCIL_KEEP)
-
-                    -- Mask out the exact 512x512 physical monitor face
-                    surface.SetDrawColor(0, 0, 0, 255)
-                    surface.DrawRect(0, 0, 512, 512)
-
-                    render.SetStencilCompareFunction(STENCIL_EQUAL)
-                    render.SetStencilPassOperation(STENCIL_KEEP)
-
-                    DrawRadarScreen(ent, veh, rData)
-
-                    render.SetStencilEnable(false)
-                cam.End3D2D()
             end
         end
     end
