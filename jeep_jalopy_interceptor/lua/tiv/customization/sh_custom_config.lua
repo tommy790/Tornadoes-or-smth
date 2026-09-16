@@ -103,6 +103,8 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
     if hasAngledSpikes == nil then
         if CLIENT and TIV.Progression and TIV.Progression.IsUnlocked then
             hasAngledSpikes = TIV.Progression.IsUnlocked("angled_spikes")
+        else
+            hasAngledSpikes = false
         end
     end
 
@@ -111,8 +113,8 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
         components    = {},
     }
 
-    local rightSpikeAng = hasAngledSpikes and Angle( 80.00, 0.00, 0.00) or Angle(90.00, 0.00, 0.00)
-    local leftSpikeAng  = hasAngledSpikes and Angle(100.00, 0.00, 0.00) or Angle(90.00, 0.00, 0.00)
+    local rightSpikeAng = (hasAngledSpikes == true) and Angle( 80.00, 0.00, 0.00) or Angle(90.00, 0.00, 0.00)
+    local leftSpikeAng  = (hasAngledSpikes == true) and Angle(100.00, 0.00, 0.00) or Angle(90.00, 0.00, 0.00)
 
     if string.find(vehicleModel, "jalopy", 1, true) or string.find(vehicleModel, "vehicle.mdl", 1, true) then
         config.components = {

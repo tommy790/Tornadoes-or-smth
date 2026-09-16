@@ -197,6 +197,9 @@ function TIV.SpikeAnim.CreateSpikes(veh, data)
         customSpikes = {}
         for _, comp in ipairs(config.components) do
             if comp.type == "spike" then
+                if not hasAngledUpg then
+                    comp.ang = Angle(90, 0, 0)
+                end
                 table.insert(customSpikes, comp)
             end
         end
