@@ -9,6 +9,7 @@ TIV.Progression = TIV.Progression or {}
 
 util.AddNetworkString("TIV_SyncProgression")
 util.AddNetworkString("TIV_InterceptAwarded")
+util.AddNetworkString("TIV_PointsAwarded")
 util.AddNetworkString("TIV_PurchaseUpgrade")
 util.AddNetworkString("TIV_RequestProgression")
 util.AddNetworkString("TIV_CheatAction")
@@ -57,9 +58,10 @@ function TIV.Progression.LoadPlayerProfile(ply)
     local path = DATA_DIR .. "/" .. key .. ".json"
 
     local data = {
-        current_intercepts = 0,
-        total_intercepts   = 0,
-        unlocked_upgrades  = {},
+        points            = 0,
+        total_points      = 0,
+        intercepts        = 0,
+        unlocked_upgrades = {},
     }
 
     if file.Exists(path, "DATA") then
@@ -67,12 +69,17 @@ function TIV.Progression.LoadPlayerProfile(ply)
         if raw and raw ~= "" then
             local decoded = util.JSONToTable(raw)
             if istable(decoded) then
-                data.current_intercepts = tonumber(decoded.current_intercepts) or 0
-                data.total_intercepts   = tonumber(decoded.total_intercepts) or 0
-                data.unlocked_upgrades  = decoded.unlocked_upgrades or {}
+                data.points            = tonumber(decoded.points or decoded.current_intercepts) or 0
+                data.total_points      = tonumber(decoded.total_points or decoded.points or decoded.current_intercepts) or 0
+                data.intercepts        = tonumber(decoded.intercepts or decoded.total_intercepts) or 0
+                data.unlocked_upgrades = decoded.unlocked_upgrades or {}
             end
         end
     end
+
+    -- Backwards-compatibility aliases
+    data.current_intercepts = data.points
+    data.total_intercepts   = data.intercepts
 
     TIV.Progression.PlayerData[key] = data
     TIV.Progression.SyncToPlayer(ply)
@@ -87,6 +94,9 @@ function TIV.Progression.SavePlayerProfile(ply)
     local data = TIV.Progression.PlayerData[key]
     if not data then return end
 
+    data.current_intercepts = data.points
+    data.total_intercepts   = data.intercepts
+
     local path = DATA_DIR .. "/" .. key .. ".json"
     file.Write(path, util.TableToJSON(data, true))
 end
@@ -100,8 +110,9 @@ function TIV.Progression.SyncToPlayer(ply)
     if not profile then return end
 
     net.Start("TIV_SyncProgression")
-        net.WriteUInt(profile.current_intercepts or 0, 16)
-        net.WriteUInt(profile.total_intercepts or 0, 16)
+        net.WriteUInt(profile.points or 0, 16)
+        net.WriteUInt(profile.total_points or 0, 16)
+        net.WriteUInt(profile.intercepts or 0, 16)
 
         local count = 0
         for id, state in pairs(profile.unlocked_upgrades or {}) do
@@ -118,34 +129,68 @@ function TIV.Progression.SyncToPlayer(ply)
 end
 
 -- ============================================================================
--- AWARD INTERCEPTS
+-- AWARD INTERCEPTS (Count of storms intercepted)
 -- ============================================================================
-function TIV.Progression.AwardIntercepts(ply, amount, reason)
-    if not IsValid(ply) or amount <= 0 then return end
+function TIV.Progression.AwardIntercept(ply, reason)
+    if not IsValid(ply) then return end
     local profile = TIV.Progression.GetPlayerProfile(ply)
     if not profile then return end
 
-    profile.current_intercepts = profile.current_intercepts + amount
-    profile.total_intercepts   = profile.total_intercepts + amount
+    profile.intercepts = (profile.intercepts or 0) + 1
+    profile.total_intercepts = profile.intercepts
 
     TIV.Progression.SavePlayerProfile(ply)
     TIV.Progression.SyncToPlayer(ply)
 
     net.Start("TIV_InterceptAwarded")
-        net.WriteUInt(amount, 8)
-        net.WriteUInt(profile.current_intercepts, 16)
-        net.WriteUInt(profile.total_intercepts, 16)
-        net.WriteString(reason or "Severe Storm Intercept")
+        net.WriteUInt(profile.intercepts, 16)
+        net.WriteString(reason or "Tornado Intercept Confirmed")
     net.Send(ply)
 
-    print(string.format("[TIV] Awarded %d Intercepts to %s for: %s (Balance: %d, Total: %d)",
-        amount, ply:Nick(), reason or "Storm Intercept", profile.current_intercepts, profile.total_intercepts))
+    print(string.format("[TIV] Intercept confirmed for %s: %s (Career Total Intercepts: %d)",
+        ply:Nick(), reason or "Tornado Intercept", profile.intercepts))
 
-    -- Trigger Wire output update on current vehicle
     local veh = (TIV.ResolveVehicle and TIV.ResolveVehicle(ply)) or ply:GetVehicle()
     if IsValid(veh) and TIV.Wire and TIV.Wire.UpdateOutputs then
         TIV.Wire.UpdateOutputs(veh)
     end
+end
+
+-- ============================================================================
+-- AWARD POINTS (Spendable upgrade currency that piles up over time)
+-- ============================================================================
+function TIV.Progression.AwardPoints(ply, amount, reason)
+    if not IsValid(ply) or amount <= 0 then return end
+    local profile = TIV.Progression.GetPlayerProfile(ply)
+    if not profile then return end
+
+    profile.points       = (profile.points or 0) + amount
+    profile.total_points = (profile.total_points or 0) + amount
+    profile.current_intercepts = profile.points
+
+    TIV.Progression.SavePlayerProfile(ply)
+    TIV.Progression.SyncToPlayer(ply)
+
+    net.Start("TIV_PointsAwarded")
+        net.WriteUInt(amount, 8)
+        net.WriteUInt(profile.points, 16)
+        net.WriteUInt(profile.total_points, 16)
+        net.WriteUInt(profile.intercepts or 0, 16)
+        net.WriteString(reason or "Severe Storm Intercept Hold")
+    net.Send(ply)
+
+    print(string.format("[TIV] Awarded %d points to %s: %s (Balance: %d pts, Career Intercepts: %d)",
+        amount, ply:Nick(), reason or "Storm Intercept Hold", profile.points, profile.intercepts or 0))
+
+    local veh = (TIV.ResolveVehicle and TIV.ResolveVehicle(ply)) or ply:GetVehicle()
+    if IsValid(veh) and TIV.Wire and TIV.Wire.UpdateOutputs then
+        TIV.Wire.UpdateOutputs(veh)
+    end
+end
+
+-- Backwards compatibility alias
+TIV.Progression.AwardIntercepts = function(ply, amount, reason)
+    TIV.Progression.AwardPoints(ply, amount, reason)
 end
 
 -- ============================================================================
@@ -168,19 +213,20 @@ function TIV.Progression.PurchaseUpgrade(ply, upgradeID)
         return false, "Upgrade is already unlocked"
     end
 
-    if profile.current_intercepts < upgrade.cost then
-        return false, string.format("Insufficient Intercepts (Requires %d, have %d)", upgrade.cost, profile.current_intercepts)
+    if (profile.points or 0) < upgrade.cost then
+        return false, string.format("Insufficient Points (Requires %d, have %d)", upgrade.cost, profile.points or 0)
     end
 
     -- Process transaction
-    profile.current_intercepts = profile.current_intercepts - upgrade.cost
+    profile.points = (profile.points or 0) - upgrade.cost
+    profile.current_intercepts = profile.points
     profile.unlocked_upgrades[upgradeID] = true
 
     TIV.Progression.SavePlayerProfile(ply)
     TIV.Progression.SyncToPlayer(ply)
 
-    print(string.format("[TIV] %s unlocked upgrade: %s (Spent %d Intercepts, Balance: %d)",
-        ply:Nick(), upgrade.name, upgrade.cost, profile.current_intercepts))
+    print(string.format("[TIV] %s unlocked upgrade: %s (Spent %d Points, Balance: %d)",
+        ply:Nick(), upgrade.name, upgrade.cost, profile.points))
 
     -- Re-evaluate vehicle bonuses, armor panels, and angled spikes
     TIV.Progression.UpdatePlayerVehicles(ply, upgradeID)
@@ -260,14 +306,22 @@ net.Receive("TIV_CheatAction", function(len, ply)
         TIV.Progression.UpdatePlayerVehicles(ply, nil)
     elseif action == "add_points" or action == "add_points_10" or action == "add_points_50" then
         local amt = (arg and arg > 0) and arg or (action == "add_points_50" and 50 or 10)
-        TIV.Progression.AwardIntercepts(ply, amt, "Cheat Sandbox Grant (+" .. amt .. ")")
+        TIV.Progression.AwardPoints(ply, amt, "Cheat Sandbox Grant (+" .. amt .. " Pts)")
+    elseif action == "add_intercept" or action == "add_intercepts" then
+        local amt = (arg and arg > 0) and arg or 1
+        for i = 1, amt do
+            TIV.Progression.AwardIntercept(ply, "Cheat Sandbox Intercept Grant")
+        end
     elseif action == "reset" or action == "reset_progression" then
+        profile.points             = 0
+        profile.total_points       = 0
+        profile.intercepts         = 0
         profile.current_intercepts = 0
         profile.total_intercepts   = 0
         profile.unlocked_upgrades  = {}
         TIV.Progression.SavePlayerProfile(ply)
         TIV.Progression.SyncToPlayer(ply)
-        ply:ChatPrint("[TIV Cheat] Progression and upgrades reset.")
+        ply:ChatPrint("[TIV Cheat] Progression, points, and intercepts reset.")
 
         TIV.Progression.UpdatePlayerVehicles(ply, nil)
     end
@@ -369,18 +423,24 @@ timer.Create("TIV_StormInterceptTracker", 1.0, 0, function()
             if state == "anchored" and isOverVehicle and #occupants > 0 then
                 if not tracker.interceptActive then
                     -- Tornado reached anchored vehicle or vehicle latched under tornado:
-                    -- Immediately award 1 intercept
+                    -- 1. Award 1 Intercept count
+                    -- 2. Award initial entry hold point
                     tracker.interceptActive = true
                     tracker.interceptType   = currentType
                     tracker.timeInIntercept = 0
                     tracker.lastPointAward  = now
 
-                    local label = (currentType == "core")
-                        and "Tornado Core Intercept Initiated (+1)"
-                        or "Tornado Side Intercept Initiated (+1)"
+                    local interceptLabel = (currentType == "core")
+                        and "Tornado Core Intercept Confirmed"
+                        or "Tornado Side Intercept Confirmed"
+
+                    local pointReason = (currentType == "core")
+                        and "Core Intercept Entry (+1 Pt)"
+                        or "Side Intercept Entry (+1 Pt)"
 
                     for _, ply in ipairs(occupants) do
-                        TIV.Progression.AwardIntercepts(ply, 1, label)
+                        TIV.Progression.AwardIntercept(ply, interceptLabel)
+                        TIV.Progression.AwardPoints(ply, 1, pointReason)
                     end
                 else
                     -- Escalate from side to core if vehicle enters inner eye/core
@@ -396,11 +456,11 @@ timer.Create("TIV_StormInterceptTracker", 1.0, 0, function()
                         tracker.lastPointAward = now
 
                         local holdLabel = (tracker.interceptType == "core")
-                            and string.format("Core Intercept Hold (+1) [%.0fs]", tracker.timeInIntercept)
-                            or string.format("Side Intercept Hold (+1) [%.0fs]", tracker.timeInIntercept)
+                            and string.format("Core Intercept Hold [%.0fs]", tracker.timeInIntercept)
+                            or string.format("Side Intercept Hold [%.0fs]", tracker.timeInIntercept)
 
                         for _, ply in ipairs(occupants) do
-                            TIV.Progression.AwardIntercepts(ply, 1, holdLabel)
+                            TIV.Progression.AwardPoints(ply, 1, holdLabel)
                         end
                     end
                 end
@@ -452,7 +512,7 @@ local function CanAdmin(ply)
     return ply:IsAdmin()
 end
 
-concommand.Add("tiv_award_intercept", function(ply, cmd, args)
+concommand.Add("tiv_award_points", function(ply, cmd, args)
     if not CanAdmin(ply) then return end
     local amount = tonumber(args[1]) or 1
     local target = ply
@@ -467,7 +527,25 @@ concommand.Add("tiv_award_intercept", function(ply, cmd, args)
     end
 
     if IsValid(target) then
-        TIV.Progression.AwardIntercepts(target, amount, "Manual Administrative Award")
+        TIV.Progression.AwardPoints(target, amount, "Manual Administrative Award")
+    end
+end)
+
+concommand.Add("tiv_award_intercept", function(ply, cmd, args)
+    if not CanAdmin(ply) then return end
+    local target = ply
+
+    if args[1] then
+        for _, p in ipairs(player.GetAll()) do
+            if string.find(string.lower(p:Nick()), string.lower(args[1]), 1, true) then
+                target = p
+                break
+            end
+        end
+    end
+
+    if IsValid(target) then
+        TIV.Progression.AwardIntercept(target, "Manual Administrative Award")
     end
 end)
 
@@ -486,6 +564,9 @@ concommand.Add("tiv_reset_progression", function(ply, cmd, args)
     if IsValid(target) then
         local key = GetPlayerStorageKey(target)
         TIV.Progression.PlayerData[key] = {
+            points             = 0,
+            total_points       = 0,
+            intercepts         = 0,
             current_intercepts = 0,
             total_intercepts   = 0,
             unlocked_upgrades  = {},

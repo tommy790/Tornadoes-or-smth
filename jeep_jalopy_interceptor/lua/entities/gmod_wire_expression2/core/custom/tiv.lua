@@ -162,24 +162,54 @@ end
 
 __e2setcost(5)
 
---- Returns the current spendable Intercept points of the driver/owner of <this> TIV
+--- Returns the current spendable upgrade points of the driver/owner of <this> TIV
+e2function number entity:tivPoints()
+    if not IsValid(this) or not TIV then return 0 end
+    local driver = this.GetDriver and this:GetDriver() or nil
+    if not IsValid(driver) and this.CPPIGetOwner then driver = this:CPPIGetOwner() end
+    if not IsValid(driver) then return 0 end
+    local prof = TIV.Progression and TIV.Progression.GetPlayerProfile and TIV.Progression.GetPlayerProfile(driver)
+    return prof and (prof.points or prof.current_intercepts) or 0
+end
+
+--- Returns the lifetime total points earned by the driver/owner of <this> TIV
+e2function number entity:tivTotalPoints()
+    if not IsValid(this) or not TIV then return 0 end
+    local driver = this.GetDriver and this:GetDriver() or nil
+    if not IsValid(driver) and this.CPPIGetOwner then driver = this:CPPIGetOwner() end
+    if not IsValid(driver) then return 0 end
+    local prof = TIV.Progression and TIV.Progression.GetPlayerProfile and TIV.Progression.GetPlayerProfile(driver)
+    return prof and (prof.total_points or prof.points) or 0
+end
+
+--- Returns the total number of tornadoes successfully intercepted by the driver/owner of <this> TIV
+e2function number entity:tivIntercepts()
+    if not IsValid(this) or not TIV then return 0 end
+    local driver = this.GetDriver and this:GetDriver() or nil
+    if not IsValid(driver) and this.CPPIGetOwner then driver = this:CPPIGetOwner() end
+    if not IsValid(driver) then return 0 end
+    local prof = TIV.Progression and TIV.Progression.GetPlayerProfile and TIV.Progression.GetPlayerProfile(driver)
+    return prof and (prof.intercepts or prof.total_intercepts) or 0
+end
+
+--- Returns the current spendable upgrade points of the driver/owner of <this> TIV (legacy alias)
 e2function number entity:tivCurrentIntercepts()
     if not IsValid(this) or not TIV then return 0 end
     local driver = this.GetDriver and this:GetDriver() or nil
     if not IsValid(driver) and this.CPPIGetOwner then driver = this:CPPIGetOwner() end
     if not IsValid(driver) then return 0 end
     local prof = TIV.Progression and TIV.Progression.GetPlayerProfile and TIV.Progression.GetPlayerProfile(driver)
-    return prof and prof.current_intercepts or 0
+    return prof and (prof.points or prof.current_intercepts) or 0
 end
 
---- Returns the lifetime total Intercepts earned by the driver/owner of <this> TIV
+--- Returns the lifetime total intercepts of the driver/owner of <this> TIV (legacy alias)
 e2function number entity:tivTotalIntercepts()
     if not IsValid(this) or not TIV then return 0 end
     local driver = this.GetDriver and this:GetDriver() or nil
     if not IsValid(driver) and this.CPPIGetOwner then driver = this:CPPIGetOwner() end
     if not IsValid(driver) then return 0 end
     local prof = TIV.Progression and TIV.Progression.GetPlayerProfile and TIV.Progression.GetPlayerProfile(driver)
-    return prof and prof.total_intercepts or 0
+    return prof and (prof.intercepts or prof.total_intercepts) or 0
 end
 
 --- Returns the number of unlocked upgrades for the driver/owner of <this> TIV

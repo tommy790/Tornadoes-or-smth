@@ -255,7 +255,7 @@ hook.Add("HUDPaint", "TIV_DrawHUD", function()
     draw.SimpleText(titleText, "TIV_HUD_Title", panelX + 28, curY + 7, Color(240, 245, 255), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 
     -- Points Pill (Top-Right)
-    local pts = TIV.Progression and TIV.Progression.CurrentIntercepts or 0
+    local pts = TIV.Progression and (TIV.Progression.Points or TIV.Progression.CurrentIntercepts) or 0
     local ptsText = "PTS: " .. pts
     local pillW = 76
     local pillX = panelX + panelW - pillW - 12

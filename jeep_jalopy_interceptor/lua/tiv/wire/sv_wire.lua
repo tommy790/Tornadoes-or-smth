@@ -126,8 +126,11 @@ TIV.Wire.Outputs = {
     { name = "EmergencyState",       type = "NORMAL", desc = "1 if vehicle is in an emergency state (directional failure or lofted)" },
 
     -- Progression & upgrades
-    { name = "CurrentIntercepts",    type = "NORMAL", desc = "Spendable Intercept currency balance" },
-    { name = "TotalIntercepts",      type = "NORMAL", desc = "Total career Intercepts earned" },
+    { name = "Points",               type = "NORMAL", desc = "Spendable upgrade points balance" },
+    { name = "TotalPoints",          type = "NORMAL", desc = "Lifetime career points earned" },
+    { name = "Intercepts",           type = "NORMAL", desc = "Total count of successful tornado intercepts" },
+    { name = "CurrentIntercepts",    type = "NORMAL", desc = "Spendable points balance (legacy alias)" },
+    { name = "TotalIntercepts",      type = "NORMAL", desc = "Total career intercepts (legacy alias)" },
     { name = "UpgradeCount",         type = "NORMAL", desc = "Number of purchased upgrades" },
     { name = "UnlockedUpgrades",     type = "STRING", desc = "Comma-separated string of unlocked upgrade IDs" },
     { name = "HasAngledSpikes",      type = "NORMAL", desc = "1 if Angled Spikes upgrade unlocked, 0 otherwise" },
@@ -562,8 +565,9 @@ function TIV.Wire.UpdateOutputs(veh)
             end
         end
 
-        local currentIntercepts = 0
-        local totalIntercepts   = 0
+        local points            = 0
+        local totalPoints       = 0
+        local intercepts        = 0
         local upgradeCount      = 0
         local unlockedStr       = ""
         local hasAngled         = 0
@@ -574,8 +578,9 @@ function TIV.Wire.UpdateOutputs(veh)
         if IsValid(driver) and TIV.Progression and TIV.Progression.GetPlayerProfile then
             local prof = TIV.Progression.GetPlayerProfile(driver)
             if prof then
-                currentIntercepts = prof.current_intercepts or 0
-                totalIntercepts   = prof.total_intercepts or 0
+                points        = prof.points or prof.current_intercepts or 0
+                totalPoints   = prof.total_points or prof.points or 0
+                intercepts    = prof.intercepts or prof.total_intercepts or 0
                 local unlockedList = {}
                 for id, state in pairs(prof.unlocked_upgrades or {}) do
                     if state then
@@ -597,8 +602,11 @@ function TIV.Wire.UpdateOutputs(veh)
         local loftThreshold  = stats.effective_loft_mph or (TIV.Config and TIV.Config.LoftWindThreshold) or 180
         local windResistScale= math.Round((stats.wind_force_mult or 1.0), 2)
 
-        trigger(target, "CurrentIntercepts",   currentIntercepts)
-        trigger(target, "TotalIntercepts",     totalIntercepts)
+        trigger(target, "Points",              points)
+        trigger(target, "TotalPoints",         totalPoints)
+        trigger(target, "Intercepts",          intercepts)
+        trigger(target, "CurrentIntercepts",   points)
+        trigger(target, "TotalIntercepts",     intercepts)
         trigger(target, "UpgradeCount",        upgradeCount)
         trigger(target, "UnlockedUpgrades",    unlockedStr)
         trigger(target, "HasAngledSpikes",     hasAngled)

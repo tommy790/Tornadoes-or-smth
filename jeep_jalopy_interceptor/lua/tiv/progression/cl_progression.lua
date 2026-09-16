@@ -6,8 +6,11 @@
 TIV = TIV or {}
 TIV.Progression = TIV.Progression or {}
 
-TIV.Progression.CurrentIntercepts = TIV.Progression.CurrentIntercepts or 0
-TIV.Progression.TotalIntercepts   = TIV.Progression.TotalIntercepts   or 0
+TIV.Progression.Points            = TIV.Progression.Points            or 0
+TIV.Progression.TotalPoints       = TIV.Progression.TotalPoints       or 0
+TIV.Progression.Intercepts        = TIV.Progression.Intercepts        or 0
+TIV.Progression.CurrentIntercepts = TIV.Progression.Points -- legacy alias
+TIV.Progression.TotalIntercepts   = TIV.Progression.Intercepts -- legacy alias
 TIV.Progression.UnlockedUpgrades  = TIV.Progression.UnlockedUpgrades  or {}
 
 -- HUD Toast Notification State
@@ -17,8 +20,11 @@ local activeToast = nil
 -- NETWORK RECEIVERS
 -- ============================================================================
 net.Receive("TIV_SyncProgression", function()
-    TIV.Progression.CurrentIntercepts = net.ReadUInt(16)
-    TIV.Progression.TotalIntercepts   = net.ReadUInt(16)
+    TIV.Progression.Points            = net.ReadUInt(16)
+    TIV.Progression.TotalPoints       = net.ReadUInt(16)
+    TIV.Progression.Intercepts        = net.ReadUInt(16)
+    TIV.Progression.CurrentIntercepts = TIV.Progression.Points
+    TIV.Progression.TotalIntercepts   = TIV.Progression.Intercepts
 
     local count = net.ReadUInt(8)
     local unlocked = {}
@@ -32,21 +38,46 @@ net.Receive("TIV_SyncProgression", function()
 end)
 
 net.Receive("TIV_InterceptAwarded", function()
-    local amount  = net.ReadUInt(8)
-    local current = net.ReadUInt(16)
-    local total   = net.ReadUInt(16)
-    local reason  = net.ReadString()
+    local intercepts = net.ReadUInt(16)
+    local reason     = net.ReadString()
 
-    TIV.Progression.CurrentIntercepts = current
-    TIV.Progression.TotalIntercepts   = total
+    TIV.Progression.Intercepts      = intercepts
+    TIV.Progression.TotalIntercepts = intercepts
 
     activeToast = {
-        amount    = amount,
-        reason    = reason,
-        current   = current,
-        total     = total,
-        startTime = CurTime(),
-        duration  = 5.5,
+        toastType  = "intercept",
+        amount     = 1,
+        reason     = reason,
+        intercepts = intercepts,
+        startTime  = CurTime(),
+        duration   = 5.5,
+    }
+
+    hook.Run("TIV_ProgressionUpdated")
+end)
+
+net.Receive("TIV_PointsAwarded", function()
+    local amount      = net.ReadUInt(8)
+    local points      = net.ReadUInt(16)
+    local totalPoints = net.ReadUInt(16)
+    local intercepts  = net.ReadUInt(16)
+    local reason      = net.ReadString()
+
+    TIV.Progression.Points            = points
+    TIV.Progression.TotalPoints       = totalPoints
+    TIV.Progression.Intercepts        = intercepts
+    TIV.Progression.CurrentIntercepts = points
+    TIV.Progression.TotalIntercepts   = intercepts
+
+    activeToast = {
+        toastType   = "points",
+        amount      = amount,
+        reason      = reason,
+        points      = points,
+        totalPoints = totalPoints,
+        intercepts  = intercepts,
+        startTime   = CurTime(),
+        duration    = 4.5,
     }
 
     hook.Run("TIV_ProgressionUpdated")
@@ -87,7 +118,7 @@ hook.Add("HUDPaint", "TIV_InterceptToastHUD", function()
         alpha = math.Clamp((activeToast.duration - elapsed) / 0.7 * 255, 0, 255)
     end
 
-    local w, h = 420, 84
+    local w, h = 430, 84
     local x = (ScrW() - w) / 2
     local y = 60
 
@@ -95,19 +126,26 @@ hook.Add("HUDPaint", "TIV_InterceptToastHUD", function()
     draw.RoundedBox(6, x, y, w, h, Color(16, 20, 28, alpha * 0.95))
     draw.RoundedBox(4, x + 2, y + 2, w - 4, h - 4, Color(24, 30, 42, alpha * 0.9))
 
+    local isInterceptToast = (activeToast.toastType == "intercept")
+    local accentCol = isInterceptToast and Color(0, 220, 255, alpha) or Color(240, 180, 40, alpha)
+
     -- Left accent indicator bar
-    draw.RoundedBox(3, x + 4, y + 4, 6, h - 8, Color(240, 180, 40, alpha))
+    draw.RoundedBox(3, x + 4, y + 4, 6, h - 8, accentCol)
 
-    -- Header text
-    draw.SimpleText("INTERCEPT LOGGED", "Trebuchet24", x + 22, y + 8, Color(240, 200, 50, alpha), TEXT_ALIGN_LEFT)
-    draw.SimpleText("+" .. activeToast.amount .. " POINT" .. (activeToast.amount > 1 and "S" or ""), "Trebuchet24", x + w - 16, y + 8, Color(80, 230, 100, alpha), TEXT_ALIGN_RIGHT)
-
-    -- Reason subtitle
-    draw.SimpleText(activeToast.reason, "DefaultFixedDropShadow", x + 22, y + 36, Color(220, 220, 220, alpha), TEXT_ALIGN_LEFT)
-
-    -- Footer balance
-    local balanceText = string.format("Spendable: %d pts  |  Lifetime Total: %d", activeToast.current, activeToast.total)
-    draw.SimpleText(balanceText, "DefaultFixedDropShadow", x + 22, y + 58, Color(160, 180, 210, alpha), TEXT_ALIGN_LEFT)
+    -- Header text & amount
+    if isInterceptToast then
+        draw.SimpleText("TORNADO INTERCEPT LOGGED", "Trebuchet24", x + 22, y + 8, Color(80, 220, 255, alpha), TEXT_ALIGN_LEFT)
+        draw.SimpleText("+1 INTERCEPT", "Trebuchet24", x + w - 16, y + 8, Color(250, 210, 60, alpha), TEXT_ALIGN_RIGHT)
+        draw.SimpleText(activeToast.reason, "DefaultFixedDropShadow", x + 22, y + 36, Color(220, 230, 240, alpha), TEXT_ALIGN_LEFT)
+        local balStr = string.format("Career Intercepts: %d  |  Spendable Points: %d pts", activeToast.intercepts or 0, TIV.Progression.Points or 0)
+        draw.SimpleText(balStr, "DefaultFixedDropShadow", x + 22, y + 58, Color(160, 200, 230, alpha), TEXT_ALIGN_LEFT)
+    else
+        draw.SimpleText("INTERCEPT POINTS", "Trebuchet24", x + 22, y + 8, Color(240, 200, 50, alpha), TEXT_ALIGN_LEFT)
+        draw.SimpleText("+" .. activeToast.amount .. " PTS", "Trebuchet24", x + w - 16, y + 8, Color(80, 230, 100, alpha), TEXT_ALIGN_RIGHT)
+        draw.SimpleText(activeToast.reason, "DefaultFixedDropShadow", x + 22, y + 36, Color(220, 220, 220, alpha), TEXT_ALIGN_LEFT)
+        local balStr = string.format("Spendable: %d pts  |  Career Intercepts: %d", activeToast.points or 0, activeToast.intercepts or TIV.Progression.Intercepts or 0)
+        draw.SimpleText(balStr, "DefaultFixedDropShadow", x + 22, y + 58, Color(160, 180, 210, alpha), TEXT_ALIGN_LEFT)
+    end
 end)
 
 -- ============================================================================
@@ -149,13 +187,13 @@ function TIV.Progression.OpenUpgradeMenu()
     statsBar.Paint = function(s, w, h)
         draw.RoundedBox(6, 0, 0, w, h, Color(18, 22, 30, 255))
 
-        -- Stat 1: Current Intercepts
-        draw.SimpleText("SPENDABLE INTERCEPTS", "DermaDefaultBold", 20, 10, Color(160, 170, 190), TEXT_ALIGN_LEFT)
-        draw.SimpleText(tostring(TIV.Progression.CurrentIntercepts), "Trebuchet24", 20, 26, Color(250, 200, 50), TEXT_ALIGN_LEFT)
+        -- Stat 1: Spendable Points
+        draw.SimpleText("SPENDABLE POINTS", "DermaDefaultBold", 20, 10, Color(160, 170, 190), TEXT_ALIGN_LEFT)
+        draw.SimpleText(tostring(TIV.Progression.Points or 0) .. " PTS", "Trebuchet24", 20, 26, Color(250, 200, 50), TEXT_ALIGN_LEFT)
 
         -- Stat 2: Total Career Intercepts
         draw.SimpleText("CAREER INTERCEPTS", "DermaDefaultBold", 260, 10, Color(160, 170, 190), TEXT_ALIGN_LEFT)
-        draw.SimpleText(tostring(TIV.Progression.TotalIntercepts), "Trebuchet24", 260, 26, Color(80, 200, 255), TEXT_ALIGN_LEFT)
+        draw.SimpleText(tostring(TIV.Progression.Intercepts or 0), "Trebuchet24", 260, 26, Color(80, 200, 255), TEXT_ALIGN_LEFT)
 
         -- Stat 3: Unlocked Count
         local unlockedCount = 0
@@ -177,7 +215,7 @@ function TIV.Progression.OpenUpgradeMenu()
 
         for _, upg in ipairs(TIV.Progression.GetAllUpgrades()) do
             local isUnlocked = TIV.Progression.IsUnlocked(upg.id)
-            local canAfford  = TIV.Progression.CurrentIntercepts >= upg.cost
+            local canAfford  = (TIV.Progression.Points or 0) >= upg.cost
 
             local item = scroll:Add("DPanel")
             item:Dock(TOP)

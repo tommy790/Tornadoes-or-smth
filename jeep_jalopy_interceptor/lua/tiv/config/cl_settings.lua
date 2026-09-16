@@ -327,9 +327,9 @@ hook.Add("PopulateToolMenu", "TIV_PopulateFullSettingsMenu", function()
         end
         panel:AddItem(shopBtn)
 
-        local pCur = TIV.Progression and TIV.Progression.CurrentIntercepts or 0
-        local pTot = TIV.Progression and TIV.Progression.TotalIntercepts or 0
-        panel:Help(string.format("Spendable Intercepts: %d  |  Lifetime Intercepts: %d", pCur, pTot))
+        local pPts = TIV.Progression and (TIV.Progression.Points or TIV.Progression.CurrentIntercepts) or 0
+        local pInt = TIV.Progression and (TIV.Progression.Intercepts or TIV.Progression.TotalIntercepts) or 0
+        panel:Help(string.format("Spendable Points: %d pts  |  Total Intercepts: %d", pPts, pInt))
     end)
 
     -- ------------------------------------------------------------------------
@@ -1619,8 +1619,10 @@ STEP 4: RETRACTION & RELOCATION
         statsPanel:DockMargin(0, 0, 0, 20)
         statsPanel.Paint = function(s, w, h)
             draw.RoundedBox(6, 0, 0, w, h, THEME.panelBg)
-            draw.SimpleText("SPENDABLE: " .. tostring(TIV.Progression.CurrentIntercepts or 0) .. " PTS", "DermaDefaultBold", 20, 20, Color(240, 200, 50), TEXT_ALIGN_LEFT)
-            draw.SimpleText("CAREER TOTAL: " .. tostring(TIV.Progression.TotalIntercepts or 0), "DermaDefaultBold", 240, 20, Color(80, 200, 255), TEXT_ALIGN_LEFT)
+            local pPts = TIV.Progression and (TIV.Progression.Points or TIV.Progression.CurrentIntercepts) or 0
+            local pInt = TIV.Progression and (TIV.Progression.Intercepts or TIV.Progression.TotalIntercepts) or 0
+            draw.SimpleText("SPENDABLE: " .. tostring(pPts) .. " PTS", "DermaDefaultBold", 20, 20, Color(240, 200, 50), TEXT_ALIGN_LEFT)
+            draw.SimpleText("INTERCEPTS: " .. tostring(pInt), "DermaDefaultBold", 240, 20, Color(80, 200, 255), TEXT_ALIGN_LEFT)
         end
 
         local openShopBtn = vgui.Create("DButton", pnl)

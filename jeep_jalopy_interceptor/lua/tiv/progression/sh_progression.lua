@@ -1,7 +1,7 @@
 -- ============================================================================
 -- TIV PROGRESSION & UPGRADE SYSTEM - Shared
 -- Data-driven upgrade progression definitions, costs, and physics bonuses.
--- Upgrades remain permanently unlocked once purchased with earned Intercepts.
+-- Upgrades remain permanently unlocked once purchased with earned Points.
 -- ============================================================================
 
 TIV = TIV or {}

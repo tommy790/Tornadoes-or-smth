@@ -27,16 +27,16 @@ This major release introduces a full career progression system, an interactive i
 ### 1. Career Progression & Intercept Economy
 
 #### Core Mechanics
-- **GStorms & XT3 Tornado Presence Detection**: The progression system continuously samples active GStorms and XTwisters 3 storm entities to detect when a tornado is directly over an interceptor.
-  - **Immediate Intercept Point**: When an intercept begins—either when a tornado rolls over an anchored vehicle or when a vehicle deploys its anchors directly beneath a tornado—the driver and crew immediately receive **1 Intercept**.
-  - **Continuous Intercept Point Accumulation Over Time**: As long as the vehicle remains anchored and survives inside the vortex, points steadily pile up over time:
-    - **Core Intercept Hold**: +1 Intercept every 5 seconds inside the violent inner core.
-    - **Side Intercept Hold**: +1 Intercept every 8 seconds inside the circulating inflow / side vortex.
-  - **Clean Cockpit Audio**: Removed the audio chime on point awards, ensuring players can listen to authentic, roaring tornado soundscapes without disruptive audio clutter while points accumulate.
+- **Separation of Intercepts and Currency Points**: The progression system distinguishes between **Intercepts** (event counter representing successful tornado encounters) and **Points** (spendable currency used to purchase vehicle upgrades):
+  - **Tornado Intercept Count**: When an intercept begins—either when a tornado rolls over an anchored vehicle or when a vehicle deploys its anchors directly beneath a tornado—the driver and crew immediately receive **1 Intercept** logged to their career statistics.
+  - **Continuous Intercept Points Accumulation Over Time**: As long as the vehicle remains anchored and survives inside the vortex, spendable **Points** steadily pile up over time:
+    - **Initial Intercept Entry**: +1 Point awarded upon successfully anchoring in the vortex.
+    - **Core Intercept Hold**: +1 Point every 5 seconds inside the violent inner core.
+    - **Side Intercept Hold**: +1 Point every 8 seconds inside the circulating inflow / side vortex.
+  - **Silent Toast Notifications**: Removed the audio chime on point awards, ensuring players can listen to authentic, roaring tornado soundscapes without disruptive audio clutter while points accumulate. Distinct visual toast notifications differentiate **Tornado Intercept Logged (+1 Intercept)** and **Intercept Points (+X Pts)**.
 - **Persistent Career Profiles**: Player profiles are saved server-side in `garrysmod/data/tiv/progression/<steamid64>.json`.
-  - Tracks lifetime intercepts, spendable intercept points, unlocked upgrade tiers, and storm statistics across server restarts.
-- **Client Toast HUD Notifications**: Sleek, animated on-screen alerts display earned intercepts and milestone achievements in real time.
-- **Interactive Upgrade Tree UI**: Accessible via Spawnmenu (`Q -> Options -> Tornado Interceptor -> Progression`) or chat/console (`tiv_menu`). Features visual progression tiers, cost requirements, and real-time unlock statuses.
+  - Tracks career intercepts, spendable points, lifetime points earned, unlocked upgrade tiers, and storm statistics across server restarts with full backwards compatibility.
+- **Interactive Upgrade Tree UI**: Accessible via Spawnmenu (`Q -> Options -> Tornado Interceptor -> Progression`) or chat/console (`tiv_menu`). Features visual progression tiers, cost requirements in Points, and real-time unlock statuses.
 
 #### Upgrade Registry
 | Upgrade ID | Title | Cost | Category | Effects & Stat Multipliers |
@@ -51,9 +51,10 @@ This major release introduces a full career progression system, an interactive i
 
 #### Sandbox & Admin Tools
 - Added admin console commands for progression management:
-  - `tiv_add_points <steamid|name|player> <amount>` - Grants spendable Intercept points.
+  - `tiv_award_points <amount> [player]` - Grants spendable upgrade points.
+  - `tiv_award_intercept [player]` - Grants career intercept counter increment.
   - `tiv_unlock_all` - Unlocks all upgrades for the caller.
-  - `tiv_reset_progression [player]` - Resets profile progression to zero.
+  - `tiv_reset_progression [player]` - Resets profile progression, points, and intercepts to zero.
 - In-game UI shortcuts in the **Cheats / Sandbox** tab for single-player testing and server configuration.
 
 ---
@@ -199,8 +200,11 @@ This major release introduces a full career progression system, an interactive i
 | `LoftRisk` | NORMAL | Warning flag (1 = extreme loft risk, 0 = safe) |
 | `IsLofted` | NORMAL | 1 if vehicle has been ripped from ground by tornado updrafts |
 | `Driver` | ENTITY | Current driver entity |
-| `CurrentIntercepts`| NORMAL | Driver's spendable Intercept points |
-| `TotalIntercepts`| NORMAL | Driver's lifetime Intercept points |
+| `Points` | NORMAL | Driver's spendable upgrade points balance |
+| `TotalPoints` | NORMAL | Driver's lifetime career points earned |
+| `Intercepts` | NORMAL | Driver's total count of successful tornado intercepts |
+| `CurrentIntercepts`| NORMAL | Driver's spendable points (legacy alias) |
+| `TotalIntercepts`| NORMAL | Driver's lifetime career intercepts (legacy alias) |
 | `UpgradeCount` | NORMAL | Number of unlocked upgrades |
 | `ArmorCount` | NORMAL | Number of physical armor plates installed |
 | `ArmorProtection`| NORMAL | Kinetic debris damage deflection percentage (0 to 100) |
