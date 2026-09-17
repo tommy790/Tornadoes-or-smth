@@ -1,0 +1,7 @@
+"SpriteCard"
+{
+	"$baseTexture" "xtwisters/particle/animatedtornado/animatedtornado"
+	"$translucent" "1"
+	"$vertexcolor" "1"
+	"$vertexalpha" "1"
+}

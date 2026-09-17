@@ -1,0 +1,12 @@
+"vertexlitGeneric"
+{
+	"$basetexture" "models\crysis_shark/greatwhiteshark"
+	"$halflambert" 1
+	"$bumpmap" "models\crysis_shark/greatwhiteshark_n"
+
+"$phong" "1"
+		"$phongexponent" 25
+		"$phongboost"	"1"
+		"$phongfresnelranges"	"[0.05 0.5 1]"
+                             "$nocull" "1"
+}

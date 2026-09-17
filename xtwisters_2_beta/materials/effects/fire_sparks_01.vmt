@@ -1,0 +1,7 @@
+"UnlitGeneric"
+{
+	"$basetexture" "effects/fire_sparks_01"
+	"$translucent" 1
+	"$vertexalpha" 1
+	"$vertexcolor" 1
+}

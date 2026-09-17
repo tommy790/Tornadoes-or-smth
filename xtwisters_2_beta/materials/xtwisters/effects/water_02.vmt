@@ -1,0 +1,8 @@
+"UnlitGeneric"
+{
+	"$basetexture" "xtwisters/effects/water_02"
+	"$additive" 1
+	"$translucent" 1
+	"$vertexalpha" 1
+	"$vertexcolor" 1
+}

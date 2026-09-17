@@ -1,0 +1,6 @@
+"UnlitGeneric"
+{
+	"$basetexture" "xtwisters/particle/ShockwaveInverted"
+	"$vertexalpha" 1
+	"$vertexcolor" 1
+}

@@ -1,0 +1,11 @@
+LightmappedGeneric
+{
+	$basetexture "Shadow/Downloads/download"
+	$bumpmap "Shadow/Downloads/download_NORM"
+	$surfaceprop Dirt
+
+	$alpha 0.35
+	$translucent 1
+	$decal 1
+	$nocull 1
+}

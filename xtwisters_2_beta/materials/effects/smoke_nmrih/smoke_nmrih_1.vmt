@@ -1,0 +1,8 @@
+Unlitgeneric
+{
+	$basetexture "effects/smoke_nmrih/smoke_nmrih_1"
+	$vertexcolor 1
+	$vertexalpha 1
+	$translucent 1
+	$depthblend 1
+}
