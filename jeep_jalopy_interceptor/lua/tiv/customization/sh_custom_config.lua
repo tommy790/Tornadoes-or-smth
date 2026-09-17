@@ -197,7 +197,7 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
             { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  64.00, 31.80), ang = Angle(-95.30, 90.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Tactical Path Prediction Screen
-            { id = "screen_radar", type = "radar_screen", name = "Path Prediction Screen", group = "interior", model = "models/kobilica/wiremonitorsmall.mdl", pos = Vector( 12.00,  12.00, 28.00), ang = Angle(10.00, -125.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "screen_radar", type = "radar_screen", name = "Path Prediction Screen", group = "interior", model = "models/kobilica/wiremonitorsmall.mdl", pos = Vector( 19.20,  -9.20, 37.30), ang = Angle(-6.90, -125.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
         }
     end
 
