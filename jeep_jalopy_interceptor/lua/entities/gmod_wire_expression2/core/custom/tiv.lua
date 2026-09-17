@@ -280,7 +280,7 @@ e2function number entity:tivTornadoDistance()
     return info and info.dist or 0
 end
 
---- Returns bearing in degrees (0-360) from <this> TIV to the nearest tornado
+--- Returns the ABSOLUTE MAP bearing (0-360 deg) from <this> TIV to the nearest tornado, measured from world +X towards world +Y. It does NOT change when the vehicle turns -- use tivTornadoRelativeBearing() for a track-up display.
 e2function number entity:tivTornadoBearing()
     if not IsValid(this) or not TIV or not TIV.Wind or not TIV.Wind.GetNearestActiveTornado then return 0 end
     local info = TIV.Wind.GetNearestActiveTornado(this:GetPos())
@@ -307,4 +307,45 @@ e2function number entity:tivTornadoImpactType()
     local info = TIV.Wind.GetNearestActiveTornado(this:GetPos())
     if not info then return 0 end
     return (info.impactType == "core") and 3 or ((info.impactType == "side") and 2 or ((info.impactType == "miss") and 1 or 0))
+end
+
+-- Track-up bearing of the tracked vortex relative to a vehicle's nose, in
+-- degrees clockwise: 0=ahead, 90=right, 180=astern, 270=left.
+--
+-- This is the SAME projection the in-cabin radar blip uses, so a chip-driven
+-- needle and the built-in screen can never disagree about which end of the
+-- truck the vortex is at. TIV.Wind's `bearing` field is an absolute map angle
+-- and must not be used for this.
+local function RelativeBearingToTornado(veh)
+    if not IsValid(veh) or not TIV or not TIV.Wind or not TIV.Wind.GetNearestActiveTornado then
+        return nil
+    end
+
+    local info = TIV.Wind.GetNearestActiveTornado(veh:GetPos())
+    if not info or not info.pos then return nil end
+
+    local fwd = veh:GetForward()
+    local rgt = veh:GetRight()
+    local fwd2D = Vector(fwd.x, fwd.y, 0):GetNormalized()
+    local rgt2D = Vector(rgt.x, rgt.y, 0):GetNormalized()
+    local rel   = info.pos - veh:GetPos()
+
+    local deg = math.deg(math.atan2(rel:Dot(rgt2D), rel:Dot(fwd2D)))
+    if deg < 0 then deg = deg + 360 end
+    return deg
+end
+
+--- Returns the bearing of the nearest tornado in degrees (0-360) RELATIVE TO <this> TIV's nose: 0=ahead, 90=right, 180=astern, 270=left. Use this for track-up displays; tivTornadoBearing() is a fixed map angle instead.
+e2function number entity:tivTornadoRelativeBearing()
+    return RelativeBearingToTornado(this) or 0
+end
+
+--- Returns the sector of the nearest tornado relative to <this> TIV's nose: 0=ahead, 1=right, 2=astern, 3=left
+e2function number entity:tivTornadoRelativeSector()
+    local deg = RelativeBearingToTornado(this)
+    if not deg then return 0 end
+    if deg < 45 or deg >= 315 then return 0 end
+    if deg < 135 then return 1 end
+    if deg < 225 then return 2 end
+    return 3
 end

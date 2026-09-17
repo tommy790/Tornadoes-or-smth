@@ -488,6 +488,30 @@ hook.Add("HUDPaint", "TIV_DrawHUD", function()
         local rData = TIV.Instruments and TIV.Instruments.RadarData
         if rData and rData.active then
             local distM = math.Round(rData.dist * 0.01905)
+
+            -- Same track-up projection the radar blip uses. rData.bearing is an
+            -- absolute MAP angle, so on its own it can read as "ahead" while the
+            -- vortex is actually astern -- always show it next to the relative one.
+            local rbVeh = (IsValid(rData.veh) and rData.veh)
+                or ((TIV.ResolveVehicle and TIV.ResolveVehicle(LocalPlayer())) or nil)
+            local relTxt, relDeg = "", nil
+            if IsValid(rbVeh) and rData.pos then
+                local rbFwd = Vector(rbVeh:GetForward().x, rbVeh:GetForward().y, 0):GetNormalized()
+                local rbRgt = Vector(rbVeh:GetRight().x, rbVeh:GetRight().y, 0):GetNormalized()
+                local rbRel = rData.pos - rbVeh:GetPos()
+                relDeg = math.deg(math.atan2(rbRel:Dot(rbRgt), rbRel:Dot(rbFwd)))
+                if relDeg < 0 then relDeg = relDeg + 360 end
+                if relDeg < 45 or relDeg >= 315 then
+                    relTxt = "AHEAD"
+                elseif relDeg < 135 then
+                    relTxt = "RIGHT"
+                elseif relDeg < 225 then
+                    relTxt = "ASTERN"
+                else
+                    relTxt = "LEFT"
+                end
+            end
+
             local statusCol = Color(0, 230, 255)
             local statusTxt = "TRACKING"
             if rData.impactType == "core" then
@@ -507,7 +531,9 @@ hook.Add("HUDPaint", "TIV_DrawHUD", function()
             draw.SimpleText("DOPPLER TRACK: " .. statusTxt, "TIV_HUD_Bold", panelX + padX + 8, curY + 4, statusCol, TEXT_ALIGN_LEFT)
             draw.SimpleText(string.format("ETA: %.0fs", rData.eta), "TIV_HUD_Bold", panelX + padX + totalW - 8, curY + 4, Color(255, 255, 255), TEXT_ALIGN_RIGHT)
 
-            draw.SimpleText(string.format("DIST: %dm | SPD: %.0f MPH | BRG: %.0f°", distM, rData.speedMPH, rData.bearing),
+            local brgTxt = (relDeg and string.format("REL %03.0f %s", relDeg, relTxt))
+                or string.format("MAP %.0f", rData.bearing)
+            draw.SimpleText(string.format("DIST: %dm | SPD: %.0f MPH | %s", distM, rData.speedMPH, brgTxt),
                 "TIV_HUD_Unit", panelX + padX + 8, curY + 18, Color(160, 180, 200), TEXT_ALIGN_LEFT)
         else
             draw.SimpleText("DOPPLER RADAR: SCANNING", "TIV_HUD_Bold", panelX + padX + 8, curY + 4, Color(0, 200, 230), TEXT_ALIGN_LEFT)

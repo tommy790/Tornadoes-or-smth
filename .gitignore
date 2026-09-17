@@ -1,0 +1,12 @@
+# glua-cli scratch
+.glua-cache/
+.glua-baseline.json
+
+# Python venv used to run the tools/ probes
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Rebuildable LuaJIT binary (see tools/build_luajit.sh)
+tools/bin/luajit

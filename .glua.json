@@ -1,0 +1,18 @@
+{
+  "$schema": "https://glua.bluejutzu.dev/schemas/glua.schema.json",
+  "globals": [
+    "BaseClass",
+    "WireGPU_Monitors",
+    "E2Lib",
+    "E2Helper",
+    "__e2setcost"
+  ],
+  "workspace": {
+    "exclude": ["custom"]
+  },
+  "diagnostics": {
+    "perfHotPath": "warning",
+    "netReadWriteMismatch": "warning",
+    "unusedLocal": "hint"
+  }
+}

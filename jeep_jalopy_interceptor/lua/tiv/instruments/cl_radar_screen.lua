@@ -327,17 +327,49 @@ local function DrawRadarScreen(screenEnt, veh, rData)
             surface.DrawRect(pipX - 4, pipY - 4, 8, 8)
         end
 
+        -- ====================================================================
+        -- RELATIVE BEARING
+        -- rData.bearing is an absolute MAP angle (atan2 of the world offset),
+        -- which does not change when the vehicle turns and says nothing about
+        -- which end of the truck the vortex is at. Derive the track-up bearing
+        -- from the same relFwd/relRgt that place the blip, so this readout can
+        -- never disagree with where the blip is actually drawn.
+        -- Convention matches the screen: 000 = dead ahead, clockwise positive,
+        -- 090 = vehicle right, 180 = dead astern, 270 = vehicle left.
+        -- ====================================================================
+        local relBearing = math.deg(math.atan2(relRgt, relFwd))
+        if relBearing < 0 then relBearing = relBearing + 360 end
+
+        local sector, sectorCol
+        if relBearing < 45 or relBearing >= 315 then
+            sector, sectorCol = "AHEAD",  Color(255, 90, 90, 255)
+        elseif relBearing < 135 then
+            sector, sectorCol = "RIGHT",  Color(255, 190, 60, 255)
+        elseif relBearing < 225 then
+            sector, sectorCol = "ASTERN", Color(120, 220, 255, 255)
+        else
+            sector, sectorCol = "LEFT",   Color(255, 190, 60, 255)
+        end
+
         -- Telemetry data box (Top Left)
         surface.SetDrawColor(0, 20, 25, 200)
-        surface.DrawRect(14, 46, 170, 78)
+        surface.DrawRect(14, 46, 170, 114)
         surface.SetDrawColor(0, 180, 220, 160)
-        surface.DrawOutlinedRect(14, 46, 170, 78)
+        surface.DrawOutlinedRect(14, 46, 170, 114)
 
         local distM = math.Round((rData.dist or 0) * 0.01905)
         draw.SimpleText(string.format("DIST:  %d m", distM), "Trebuchet18", 22, 52, Color(0, 240, 255, 255))
         draw.SimpleText(string.format("SPEED: %.0f MPH", rData.speedMPH or 0), "Trebuchet18", 22, 70, Color(255, 220, 60, 255))
-        draw.SimpleText(string.format("BEAR:  %.0f DEG", rData.bearing or 0), "Trebuchet18", 22, 88, Color(200, 220, 240, 255))
+        -- REL BRG is clockwise from the vehicle's own nose, so it always agrees
+        -- with the blip above. The old "BEAR" line was the map angle, which
+        -- reads as a direction but is not one.
+        draw.SimpleText(string.format("REL BRG: %03.0f %s", relBearing, sector), "Trebuchet18", 22, 88, sectorCol)
         draw.SimpleText(string.format("CORE:  %d m", math.Round((rData.coreRadius or 600) * 0.01905)), "Trebuchet18", 22, 106, Color(255, 100, 100, 255))
+        draw.SimpleText(string.format("MAP BRG: %.0f", rData.bearing or 0), "DefaultFixed", 22, 126, Color(130, 155, 175, 255))
+
+        -- Publish for other consumers (Wiremod screens, E2 chips, debug).
+        TIV.Instruments.RelativeBearing = relBearing
+        TIV.Instruments.RelativeSector  = sector
 
         -- Threat Assessment Banner (Bottom)
         local bannerY = 458
@@ -462,6 +494,76 @@ end
 TIV.Instruments.DrawRadarScreen = DrawRadarScreen
 
 -- ============================================================================
+-- RADAR SCREEN CACHE
+--
+-- This used to run ents.FindByClass("prop_physics") inside
+-- PostDrawTranslucentRenderables, i.e. a sweep of every prop_physics in the map
+-- on every frame, on every client, just to find the zero or one radar screen
+-- belonging to this vehicle. On a build-heavy sandbox map that is thousands of
+-- entities per frame for nothing.
+--
+-- The list is now maintained from entity lifecycle events instead. The sweep
+-- still happens, but only once per second, because the TIV_RadarScreen /
+-- TIV_OwnerVehicle network vars are set server-side *after* the prop spawns and
+-- can therefore arrive after OnEntityCreated has already fired.
+-- ============================================================================
+local screenCache = {}
+local screenCachePending = {}   -- props awaiting their network vars
+local nextCacheSweep = 0
+
+-- How long an untagged prop may sit in the pending set before we conclude it is
+-- just an ordinary prop. This is purely a leak guard for long-lived clutter:
+-- correctness does not depend on it, because the 1 Hz sweep re-reads the map
+-- and will adopt any radar screen whenever its network var turns up.
+local PENDING_TTL = 10
+
+local function IsRadarScreen(ent)
+    return IsValid(ent)
+        and ent:GetNWBool("TIV_RadarScreen", false)
+        and (IsValid(ent:GetNWEntity("TIV_OwnerVehicle")) or IsValid(ent:GetParent()))
+end
+
+local function RebuildScreenCache()
+    screenCache = {}
+    for _, ent in ipairs(ents.FindByClass("prop_physics")) do
+        if IsRadarScreen(ent) then
+            screenCache[#screenCache + 1] = ent
+        end
+    end
+end
+
+local function CacheScreen(ent)
+    for _, existing in ipairs(screenCache) do
+        if existing == ent then return end
+    end
+    screenCache[#screenCache + 1] = ent
+end
+
+local function AddScreenCandidate(ent)
+    if not IsValid(ent) then return end
+    if ent:GetClass() ~= "prop_physics" then return end
+
+    if IsRadarScreen(ent) then
+        CacheScreen(ent)
+    else
+        -- Network vars may not have landed yet; re-check for a short while.
+        screenCachePending[ent] = CurTime()
+    end
+end
+
+hook.Add("OnEntityCreated", "TIV_RadarScreenCreated", AddScreenCandidate)
+
+hook.Add("EntityRemoved", "TIV_RadarScreenRemoved", function(ent)
+    screenCachePending[ent] = nil
+    for i, cached in ipairs(screenCache) do
+        if cached == ent then
+            table.remove(screenCache, i)
+            return
+        end
+    end
+end)
+
+-- ============================================================================
 -- 3D2D RENDER HOOK ON VEHICLE SCREEN PROPS
 -- ============================================================================
 hook.Add("PostDrawTranslucentRenderables", "TIV_RenderRadarScreens", function(bDrawingDepth, bDrawingSkybox)
@@ -471,8 +573,28 @@ hook.Add("PostDrawTranslucentRenderables", "TIV_RenderRadarScreens", function(bD
     if not IsValid(lp) then return end
     local eyePos = EyePos()
 
-    local screens = ents.FindByClass("prop_physics")
-    for _, ent in ipairs(screens) do
+    -- Resolve props whose network vars arrived after OnEntityCreated. This is a
+    -- pass over the pending set only (normally zero or one props), not a map
+    -- sweep. A prop leaves the set once it is tagged, or once it is gone, or
+    -- once it has been sitting there untagged for PENDING_TTL.
+    if next(screenCachePending) ~= nil then
+        for ent, since in pairs(screenCachePending) do
+            if IsRadarScreen(ent) then
+                screenCachePending[ent] = nil
+                CacheScreen(ent)
+            elseif not IsValid(ent) or CurTime() - since > PENDING_TTL then
+                screenCachePending[ent] = nil
+            end
+        end
+    end
+
+    local now = CurTime()
+    if now >= nextCacheSweep then
+        nextCacheSweep = now + 1
+        RebuildScreenCache()
+    end
+
+    for _, ent in ipairs(screenCache) do
         if IsValid(ent) and ent:GetNWBool("TIV_RadarScreen") then
             local distSqr = ent:GetPos():DistToSqr(eyePos)
             if distSqr <= 1000 * 1000 then
