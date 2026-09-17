@@ -111,6 +111,16 @@ function TIV.Editor3D.Open()
         TIV.Editor3D.ActiveFrame:Remove()
     end
 
+    -- Forward declaration, hoisted above every closure in this function.
+    --
+    -- The toolbar buttons below (Mirror, Duplicate, Grid Snap) capture
+    -- RefreshEditor as an upvalue when their DoClick closures are created.
+    -- Declaring the local further down -- as the old "Forward declarations"
+    -- block did -- meant those closures resolved the name as a GLOBAL that is
+    -- never assigned, so their `if isfunction(RefreshEditor)` guard was always
+    -- false and the buttons never refreshed the panel.
+    local RefreshEditor
+
     TIV.Editor3D.ClearClientsideModels()
 
     -- Resolve active vehicle model
@@ -564,8 +574,11 @@ function TIV.Editor3D.Open()
     controlsContainer:DockMargin(12, 12, 12, 12)
     controlsContainer.Paint = function() end
 
-    -- Forward declarations
-    local RefreshEditor
+    -- Forward declarations.
+    -- NOTE: RefreshEditor is declared at the TOP of this function, before the
+    -- toolbar closures, so they capture the same local. Do not re-declare it
+    -- here: a second `local` would shadow the outer one and the Mirror /
+    -- Duplicate / Grid Snap buttons would silently stop refreshing again.
     local PopulateModelDropdown
     local SwitchToModel
 
