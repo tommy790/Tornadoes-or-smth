@@ -6,7 +6,56 @@
 
 TIV = TIV or {}
 TIV.Instruments = TIV.Instruments or {}
-TIV.Instruments.RadarData = TIV.Instruments.RadarData or { active = false }
+
+-- ============================================================================
+-- PER-VEHICLE RADAR STATE
+--
+-- The server sends one TIV_RadarPathData per player, tagged with that player's
+-- vehicle (sv_instruments.lua), because TIV.Wind.GetNearestActiveTornado is
+-- resolved from each vehicle's own position. Every player in any TIV jeep
+-- therefore receives a packet for every TIV jeep in the server.
+--
+-- This used to be a single global table, so the packet that arrived last won.
+-- A screen then rendered its own vehicle's heading against another vehicle's
+-- tornado position, which made REL BRG disagree with the blip -- and, when the
+-- two jeeps faced different ways, read ASTERN for a vortex that was ahead.
+--
+-- Packets are now stored per vehicle and a screen reads only its own.
+-- TIV.Instruments.RadarData is kept as the local player's vehicle entry so the
+-- HUD and any external reader keep working.
+-- ============================================================================
+local radarByVehicle = {}
+local EMPTY_RADAR = { active = false }
+
+--- Radar telemetry for one vehicle.
+-- @param veh  Entity   the vehicle whose radar is being drawn
+-- @param ply  Player   whose view this is (defaults to LocalPlayer). Passing the
+--                      screen's owner rather than the local player is what lets a
+--                      spectator or passenger see the correct vehicle's data.
+function TIV.Instruments.GetRadarData(veh, ply)
+    ply = ply or LocalPlayer()
+    if IsValid(veh) then
+        return radarByVehicle[veh] or EMPTY_RADAR
+    end
+    -- No owning vehicle recorded: resolve the viewer's own. Deliberately no
+    -- fallback to the last packet received -- in multiplayer that packet can
+    -- belong to another player's jeep, which is the bug this function exists to
+    -- prevent. No vehicle means no data.
+    if not IsValid(ply) then return EMPTY_RADAR end
+    local own = (TIV.ResolveVehicle and TIV.ResolveVehicle(ply)) or ply:GetVehicle()
+    if IsValid(own) then return radarByVehicle[own] or EMPTY_RADAR end
+    return EMPTY_RADAR
+end
+
+-- Drop packets for vehicles that no longer exist. GMod nils out dead entities in
+-- table values, but the key would linger, so prune on a slow timer instead of
+-- every frame.
+local nextRadarPrune = 0
+local function PruneRadarData()
+    for veh in pairs(radarByVehicle) do
+        if not IsValid(veh) then radarByVehicle[veh] = nil end
+    end
+end
 
 -- ============================================================================
 -- NETWORKING: RECEIVE TELEMETRY FROM SERVER
@@ -36,7 +85,7 @@ net.Receive("TIV_RadarPathData", function()
             table.insert(waypoints, { pos = wpPos, time = wpTime })
         end
 
-        TIV.Instruments.RadarData = {
+        local data = {
             active      = true,
             veh         = veh,
             pos         = pos,
@@ -51,12 +100,22 @@ net.Receive("TIV_RadarPathData", function()
             waypoints   = waypoints,
             receivedAt  = CurTime(),
         }
+        radarByVehicle[veh] = data
+        TIV.Instruments.RadarData = data
     else
-        TIV.Instruments.RadarData = {
+        local data = {
             active     = false,
             veh        = veh,
             receivedAt = CurTime(),
         }
+        radarByVehicle[veh] = data
+        TIV.Instruments.RadarData = data
+    end
+
+    local now = CurTime()
+    if now >= nextRadarPrune then
+        nextRadarPrune = now + 5
+        PruneRadarData()
     end
 end)
 
@@ -614,7 +673,10 @@ hook.Add("PostDrawTranslucentRenderables", "TIV_RenderRadarScreens", function(bD
             local distSqr = ent:GetPos():DistToSqr(eyePos)
             if distSqr <= 1000 * 1000 then
                 local veh = ent:GetNWEntity("TIV_OwnerVehicle")
-                local rData = TIV.Instruments.RadarData
+                -- This screen belongs to `veh`, so it must show `veh`'s own packet.
+                -- Reading the shared table here is what let one jeep's screen draw
+                -- another jeep's tornado position in multiplayer.
+                local rData = TIV.Instruments.GetRadarData(veh, LocalPlayer())
 
                 local cfg = TIV.Instruments.GetMonitorConfig(ent)
                 local pScale = ent:GetModelScale() or 1.0

@@ -485,7 +485,12 @@ hook.Add("HUDPaint", "TIV_DrawHUD", function()
         surface.SetDrawColor(0, 180, 220, 140)
         surface.DrawOutlinedRect(panelX + padX, curY, totalW, radarH)
 
-        local rData = TIV.Instruments and TIV.Instruments.RadarData
+        -- The HUD belongs to the local player, so it must read that player's own
+        -- vehicle's packet rather than whichever jeep's packet arrived last.
+        -- GetRadarData(nil, ply) resolves the vehicle from the player.
+        local rData = (TIV.Instruments and TIV.Instruments.GetRadarData
+                and TIV.Instruments.GetRadarData(nil, LocalPlayer()))
+            or (TIV.Instruments and TIV.Instruments.RadarData)
         if rData and rData.active then
             local distM = math.Round(rData.dist * 0.01905)
 

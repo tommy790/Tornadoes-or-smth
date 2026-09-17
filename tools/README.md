@@ -23,6 +23,7 @@ npm install --global glua-cli@0.6.0                   # optional: the linter
 | `tools/lua_syntax_check.py` | lupa (Lua 5.5) | Compiles every `.lua` under `jeep_jalopy_interceptor/lua`. Expression 2 core files are E2 DSL, so they are transformed to plain Lua first. | Any file has a syntax error. |
 | `tools/radar_probe_lua.lua [yaw]` | **LuaJIT 2.1** | `TIV.Instruments.DrawRadarScreen` from `lua/tiv/instruments/cl_radar_screen.lua`, with `surface.DrawRect` / `draw.SimpleText` recorded. | The tornado blip lands on the wrong side of the screen, or the printed `REL BRG` / sector disagrees with where the blip was drawn. |
 | `tools/radar_cache_probe.lua` | **LuaJIT 2.1** | The real `PostDrawTranslucentRenderables` hook body, with a simulated map and entity lifecycle. | The radar screen stops rendering, `ents.FindByClass` is called more than once a second, a late-tagged prop is never adopted, or a removed prop keeps rendering. |
+| `tools/radar_multiplayer_probe.lua` | **LuaJIT 2.1** | The real `net.Receive("TIV_RadarPathData")` handler and render hook, with two jeeps on opposite sides of one vortex. | A screen renders another vehicle's packet: its `REL BRG` reads the opposite sector, or the result depends on which packet arrived last. |
 | `tools/radar_probe.py [yaw]` | lupa (Lua 5.5) | Same bearing scenario, through the Python bridge. | Same. |
 | `tools/e2_bearing_probe.py [yaw]` | lupa (Lua 5.5) | The real `e2function` bodies from `lua/entities/gmod_wire_expression2/core/custom/tiv.lua`. | `tivTornadoRelativeBearing()` / `tivTornadoRelativeSector()` disagree with the vehicle's own basis, or `tivTornadoBearing()` stops being the absolute map angle. |
 
@@ -34,6 +35,7 @@ glua lint jeep_jalopy_interceptor/lua
 ./tools/build_luajit.sh
 tools/bin/luajit tools/radar_probe_lua.lua
 tools/bin/luajit tools/radar_cache_probe.lua
+tools/bin/luajit tools/radar_multiplayer_probe.lua
 .venv/bin/python tools/e2_bearing_probe.py
 ```
 
