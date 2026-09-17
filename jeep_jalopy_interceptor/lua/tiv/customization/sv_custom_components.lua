@@ -130,10 +130,15 @@ function TIV.CustomComponents.SpawnArmorProps(veh, config, unlockedUpgrades)
                     if IsValid(veh) then prop:SetNWEntity("TIV_OwnerVehicle", veh) end
                     prop:SetNWBool("GStormsIgnore", true)
                     prop:SetNWBool("XT3Ignore", true)
+                    prop:SetNWBool("XT2Ignore", true)
+                    prop:SetNWBool("XTwister2Ignore", true)
 
                     prop.GStormsIgnore        = true
                     prop.XT3Ignore            = true
                     prop.XT3DoNotApplyPhysics = true
+                    prop.XT2Ignore            = true
+                    prop.XT2DoNotApplyPhysics = true
+                    prop.XTwister2Ignore      = true
                     prop.PhysgunDisabled      = true
                     prop.DoNotDuplicate       = true
                     prop.TIV_OwnerVehicle     = veh

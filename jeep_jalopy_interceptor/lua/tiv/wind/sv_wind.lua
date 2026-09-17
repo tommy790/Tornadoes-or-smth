@@ -243,24 +243,132 @@ local function SampleXT3WindAt(pos, context)
     return nil, nil
 end
 
--- Pick the stronger provider instead of returning the first one. Previously a
--- small positive GStorms ambient wind prevented XT3 from ever being queried,
--- which made XT3 appear unsupported whenever both popular addons were loaded.
+-- ============================================================================
+-- XTWISTERS 2 (XT2) COMPATIBILITY ENGINE
+-- Integrates directly with XTwisters 2 base vortex physics, windfields,
+-- storm entities, and translational path velocity.
+-- ============================================================================
+local function HasXT2Marker()
+    return GetConVar("xt2_tornadochance") ~= nil
+        or GetConVar("xt2_antilag") ~= nil
+        or GetConVar("xt2_tlifetime") ~= nil
+        or scripted_ents.GetStored("xtwisters2base") ~= nil
+        or scripted_ents.GetStored("xt2_tornadoes_dynamic") ~= nil
+end
+
+local function SampleXT2WindAt(pos)
+    if not HasXT2Marker() then return nil, nil end
+
+    local strongestSpeed, strongestDirection = nil, nil
+    local seen = {}
+
+    -- 1. Check XT2 active tornadoes (derived from xtwisters2base, xt2_tornadoes_*, smallnado)
+    local candidateClasses = {
+        "xt2_tornadoes_*",
+        "xt2_autospawn_tornado*",
+        "xt2_autospawn_whirlwinds_*",
+        "xt2_whirlwinds_*",
+        "smallnado",
+        "xtwisters2base",
+    }
+
+    for _, pattern in ipairs(candidateClasses) do
+        for _, ent in ipairs(ents.FindByClass(pattern)) do
+            if IsValid(ent) and not seen[ent] then
+                seen[ent] = true
+                local tPos = ent:GetPos()
+                local dist2D = Vector(pos.x - tPos.x, pos.y - tPos.y, 0):Length()
+                local vRange = ent.range or 3500
+                local vForce = ent.Force or 100
+
+                -- XTwisters 2 wind scaling formula:
+                -- fraction = (1.0 - ((dist / v_range)^(1/2))) + 0.25
+                if dist2D < (vRange * 1.5) then
+                    local normDist = math.Clamp(dist2D / math.max(vRange, 500), 0, 1.5)
+                    local fraction = math.Clamp((1.0 - math.sqrt(normDist)) + 0.25, 0.05, 1.35)
+                    local mph = math.max(0, vForce * fraction)
+
+                    -- Account for sub-vortices or RFD simulation if enabled in XT2
+                    if ent.Subvorts and ent.xt2ForceListTotal and isnumber(ent.xt2ForceListTotal[2]) then
+                        mph = math.max(mph, ent.xt2ForceListTotal[2])
+                    end
+                    if ent.RearFlankDowndraftWindspeeds and ent.RearFlankDowndraftWindspeeds > 0 then
+                        mph = math.max(mph, ent.RearFlankDowndraftWindspeeds)
+                    end
+
+                    -- Calculate 2D cyclonic rotational wind vector + inward inflow pull
+                    local toCenter = (tPos - pos):GetNormalized()
+                    toCenter.z = 0
+                    local rotSign = (ent.rotforce and ent.rotforce < 0) and -1 or 1
+                    local tangential = Vector(-toCenter.y * rotSign, toCenter.x * rotSign, 0)
+                    local inflowMult = ent.inflowmult or 1.0
+
+                    -- Blend cyclonic tangential vector (65%) with radial inward pull (35%)
+                    local windVec = (tangential * 0.65 + toCenter * (0.35 * inflowMult)):GetNormalized()
+
+                    if not strongestSpeed or mph > strongestSpeed then
+                        strongestSpeed = mph
+                        strongestDirection = windVec
+                    end
+                end
+            end
+        end
+    end
+
+    -- 2. Check XT2 weather entities (straight-line winds, rainstorms, derechos)
+    local weatherClasses = {
+        "xt2_weather_*",
+        "xt2_autospawn_thunderstorm_*",
+        "xt2_autospawn_rainstorm_*",
+        "xtwisters2weatherbase",
+    }
+
+    for _, pattern in ipairs(weatherClasses) do
+        for _, ent in ipairs(ents.FindByClass(pattern)) do
+            if IsValid(ent) and not seen[ent] then
+                seen[ent] = true
+                if ent.IsWindy and ent.Force and ent.Force > 0 then
+                    local wMPH = ent.Force
+                    local wDir = ent.WindDir or Vector(0, 1, 0)
+                    if not strongestSpeed or wMPH > strongestSpeed then
+                        strongestSpeed = wMPH
+                        strongestDirection = wDir
+                    end
+                end
+            end
+        end
+    end
+
+    return strongestSpeed, strongestDirection
+end
+
+-- Pick the strongest provider among GStorms, XTwisters 3, and XTwisters 2.
 local function SampleWorldWindAt(pos, xt3Context)
     local gsMPH, gsDirection   = SampleGStormsTornadoWindAt(pos)
     local xt3MPH, xt3Direction = SampleXT3WindAt(pos, xt3Context)
+    local xt2MPH, xt2Direction = SampleXT2WindAt(pos)
 
-    if xt3MPH ~= nil and (gsMPH == nil or xt3MPH >= gsMPH) then
-        return xt3MPH, xt3Direction, "XTwisters 3"
-    end
+    local bestMPH, bestDir, bestProvider = nil, nil, nil
+
     if gsMPH ~= nil then
-        return gsMPH, gsDirection, "GStorms"
+        bestMPH, bestDir, bestProvider = gsMPH, gsDirection, "GStorms"
     end
-    return nil, nil, nil
+
+    if xt3MPH ~= nil and (bestMPH == nil or xt3MPH > bestMPH) then
+        bestMPH, bestDir, bestProvider = xt3MPH, xt3Direction, "XTwisters 3"
+    end
+
+    if xt2MPH ~= nil and (bestMPH == nil or xt2MPH > bestMPH) then
+        bestMPH, bestDir, bestProvider = xt2MPH, xt2Direction, "XTwisters 2"
+    end
+
+    return bestMPH, bestDir, bestProvider
 end
 
 TIV.Wind.BuildXT3Context          = BuildXT3Context
 TIV.Wind.SampleXT3WindAt          = SampleXT3WindAt
+TIV.Wind.HasXT2Marker             = HasXT2Marker
+TIV.Wind.SampleXT2WindAt          = SampleXT2WindAt
 TIV.Wind.SampleWorldWindAt        = SampleWorldWindAt
 
 -- ============================================================================
@@ -307,6 +415,7 @@ function TIV.Wind.CalculateTornadoFuturePath(bestEnt, tPos, heading, speedUnits,
     local simDir   = Vector(heading.x, heading.y, 0):GetNormalized()
     local turnRate = bestEnt._TIV_TurnRate or 0 -- degrees per second
 
+    local isXT2     = (bestEnt.Base == "xtwisters2base" or bestEnt.dir ~= nil or bestEnt.Tornadic == true or string.find(string.lower(bestEnt:GetClass() or ""), "xt2", 1, true) ~= nil)
     local isXT3     = (bestEnt.MovementDirection ~= nil)
     local isGStorms = (bestEnt.MovementVector ~= nil)
 
@@ -357,6 +466,15 @@ function TIV.Wind.CalculateTornadoFuturePath(bestEnt, tPos, heading, speedUnits,
                 local stPos = bestEnt.SmartTarget:GetPos()
                 local smartDir = Vector(stPos.x - simPos.x, stPos.y - simPos.y, 0):GetNormalized()
                 simDir = LerpVector(0.002 * dt * 20, simDir, smartDir):GetNormalized()
+            end
+        elseif isXT2 then
+            -- XT2 dynamic target attraction and turbulence perturbation
+            if bestEnt.trnt and isvector(bestEnt.trnt) then
+                local toTarget = Vector(bestEnt.trnt.x - simPos.x, bestEnt.trnt.y - simPos.y, 0):GetNormalized()
+                simDir = LerpVector(math.Clamp(0.015 * dt * 10, 0, 1), simDir, toTarget):GetNormalized()
+            else
+                local devOffset = Vector(math.sin(now + t * 0.7), math.cos(now + t * 0.7), 0) * (0.02 * dt * 10)
+                simDir = (simDir + devOffset):GetNormalized()
             end
         end
 
@@ -415,7 +533,7 @@ function TIV.Wind.CalculateTornadoFuturePath(bestEnt, tPos, heading, speedUnits,
 end
 
 -- ============================================================================
--- ACTIVE TORNADO TRACKING & PATH PREDICTION (GSTORMS & XTWISTERS 3)
+-- ACTIVE TORNADO TRACKING & PATH PREDICTION (GSTORMS, XT2, & XTWISTERS 3)
 -- Locates the active tornado entity to evaluate real-time core/side interception
 -- and generate forward trajectory path prediction waypoints.
 -- ============================================================================
@@ -434,6 +552,14 @@ function TIV.Wind.GetNearestActiveTornado(pos, maxDist)
             table.insert(candidates, e)
         end
     end
+
+    -- XT2 tornado entities
+    for _, e in ipairs(ents.FindByClass("xt2_tornadoes_*")) do addCandidate(e) end
+    for _, e in ipairs(ents.FindByClass("xt2_autospawn_tornado*")) do addCandidate(e) end
+    for _, e in ipairs(ents.FindByClass("xt2_autospawn_whirlwinds_*")) do addCandidate(e) end
+    for _, e in ipairs(ents.FindByClass("xt2_whirlwinds_*")) do addCandidate(e) end
+    for _, e in ipairs(ents.FindByClass("smallnado")) do addCandidate(e) end
+    for _, e in ipairs(ents.FindByClass("xtwisters2base")) do addCandidate(e) end
 
     -- XT3 tornado entities
     for _, e in ipairs(ents.FindByClass("xt3_tornadoes*")) do addCandidate(e) end
@@ -464,6 +590,12 @@ function TIV.Wind.GetNearestActiveTornado(pos, maxDist)
         if not isExcluded then
             if string.find(cls, "xt3_tornadoes", 1, true)
                 or string.find(cls, "xtwisters3vortexbase", 1, true)
+                or string.find(cls, "xt2_tornadoes", 1, true)
+                or string.find(cls, "xt2_autospawn_tornado", 1, true)
+                or string.find(cls, "xt2_autospawn_whirlwind", 1, true)
+                or string.find(cls, "xt2_whirlwind", 1, true)
+                or string.find(cls, "xtwisters2base", 1, true)
+                or cls == "smallnado"
                 or string.find(cls, "gstorms_weather_ef", 1, true)
                 or string.find(cls, "gstorms_weather_spout", 1, true)
                 or string.find(cls, "gstorms_weather_dust_devil", 1, true)
@@ -472,7 +604,8 @@ function TIV.Wind.GetNearestActiveTornado(pos, maxDist)
                 or ent.VortexCoreSize ~= nil
                 or ent.Tornado == true
                 or (ent.GetTornado and ent:GetTornado() == true)
-                or ent.IsXT3Vortex == true or ent.IsVortex == true then
+                or ent.IsXT3Vortex == true or ent.IsVortex == true
+                or ent.Tornadic == true or ent.isTornado == true then
                 isVortex = true
             end
         end
@@ -526,7 +659,8 @@ function TIV.Wind.GetNearestActiveTornado(pos, maxDist)
     end
 
     -- Direction derivation
-    local rawDir = bestEnt.MovementDirection or bestEnt.MovementVector
+    local rawDir = (bestEnt.dir and isvector(bestEnt.dir) and bestEnt.dir)
+        or bestEnt.MovementDirection or bestEnt.MovementVector
         or (bestEnt:GetVelocity():Length2D() > 15 and bestEnt:GetVelocity():GetNormalized())
         or bestEnt._TIV_TrackDir or Vector(1, 0, 0)
     local heading = Vector(rawDir.x, rawDir.y, 0):GetNormalized()
@@ -536,6 +670,8 @@ function TIV.Wind.GetNearestActiveTornado(pos, maxDist)
     local speedMPH = bestEnt._TIV_TrackSpeed or 25
     if bestEnt.MovementSpeed and bestEnt.MovementSpeed > 0 then
         speedMPH = bestEnt.MovementSpeed * 2.23694
+    elseif bestEnt.Speed and isnumber(bestEnt.Speed) and bestEnt.Speed > 0 and (bestEnt.Base == "xtwisters2base" or string.find(string.lower(bestEnt:GetClass() or ""), "xt2", 1, true)) then
+        speedMPH = math.Clamp(bestEnt.Speed * 0.0568182 * 30, 8, 90)
     elseif bestEnt:GetVelocity():Length2D() > 15 then
         speedMPH = bestEnt:GetVelocity():Length() * 0.0568182
     end
@@ -543,14 +679,17 @@ function TIV.Wind.GetNearestActiveTornado(pos, maxDist)
     local speedUnits = speedMPH / 0.0568182
 
     -- Core radius (RMW / maximum wind zone)
-    local coreRadius = bestEnt.VortexRMWSize
+    local coreRadius = (bestEnt.InnerFunnelDistance and isnumber(bestEnt.InnerFunnelDistance) and bestEnt.InnerFunnelDistance > 0 and bestEnt.InnerFunnelDistance)
+        or bestEnt.VortexRMWSize
         or (bestEnt.GetNW2Float and bestEnt:GetNW2Float("VortexRMWSize", 0) > 0 and bestEnt:GetNW2Float("VortexRMWSize"))
         or bestEnt.VortexCoreSize
         or (bestEnt.GetNW2Float and bestEnt:GetNW2Float("VortexCoreSize", 0) > 0 and bestEnt:GetNW2Float("VortexCoreSize"))
+        or (bestEnt.range and isnumber(bestEnt.range) and (bestEnt.range * 0.25))
         or 600
 
     -- Outer vortex radius
-    local outerRadius = bestEnt.VortexSize
+    local outerRadius = (bestEnt.range and isnumber(bestEnt.range) and bestEnt.range > 0 and bestEnt.range)
+        or bestEnt.VortexSize
         or (bestEnt.GetVortexSize and bestEnt:GetVortexSize())
         or (bestEnt.GetNW2Float and bestEnt:GetNW2Float("VortexSize", 0) > 0 and bestEnt:GetNW2Float("VortexSize"))
         or (coreRadius * 4.5)
@@ -827,12 +966,13 @@ concommand.Add("tiv_wind_status", function(ply, cmd, args)
         and math.max(0, math.floor(TIV.Wind.ManualUntil - CurTime())) or 0
 
     print(string.format(
-        "[TIV] Wind: %.1f MPH | Dir: %s | Mode: %s%s | GStorms: %s | XT3: %s",
+        "[TIV] Wind: %.1f MPH | Dir: %s | Mode: %s%s | GStorms: %s | XT2: %s | XT3: %s",
         TIV.Wind.CurrentMPH,
         tostring(TIV.Wind.Direction),
         manual and "MANUAL" or "AUTO",
         manual and string.format(" (%ds left)", remaining) or "",
         isfunction(GSGetGlobalWindspeedAndVectors) and "YES" or "NO",
+        HasXT2Marker() and "YES" or "NO",
         HasXT3Marker() and "YES" or "NO"
     ))
 

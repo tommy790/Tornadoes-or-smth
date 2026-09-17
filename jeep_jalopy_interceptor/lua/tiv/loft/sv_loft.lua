@@ -27,7 +27,7 @@ CreateConVar("tiv_loft_release_spikes", "0",
 
 -- ============================================================================
 -- EXTERNAL TORNADO MOD IMMUNITY HELPERS
--- Prevents GStorms, XTwisters 3, and generic storm mods from suctioning,
+-- Prevents GStorms, XTwisters 2, XTwisters 3, and generic storm mods from suctioning,
 -- orbiting, or teleporting the anchored vehicle while constrained to the ground.
 -- ============================================================================
 function TIV.Loft.SetAnchoredImmunity(veh, enable)
@@ -38,6 +38,10 @@ function TIV.Loft.SetAnchoredImmunity(veh, enable)
         veh:SetNWBool("XT3Ignore", true)
         veh.XT3Ignore            = true
         veh.XT3DoNotApplyPhysics = true
+        veh:SetNWBool("XT2Ignore", true)
+        veh.XT2Ignore            = true
+        veh.XT2DoNotApplyPhysics = true
+        veh.XTwister2Ignore      = true
         veh.GStormsIgnoreWind    = true
         veh.XTwisterIgnore       = true
         veh.XTDoNotApplyPhysics  = true
@@ -47,6 +51,10 @@ function TIV.Loft.SetAnchoredImmunity(veh, enable)
         veh:SetNWBool("XT3Ignore", false)
         veh.XT3Ignore            = nil
         veh.XT3DoNotApplyPhysics = nil
+        veh:SetNWBool("XT2Ignore", false)
+        veh.XT2Ignore            = nil
+        veh.XT2DoNotApplyPhysics = nil
+        veh.XTwister2Ignore      = nil
         veh.GStormsIgnoreWind    = nil
         veh.XTwisterIgnore       = nil
         veh.XTDoNotApplyPhysics  = nil
@@ -97,6 +105,9 @@ function TIV.Loft.RipArmorPanel(veh, prop, windDir)
     prop.GStormsIgnore        = nil
     prop.XT3Ignore            = nil
     prop.XT3DoNotApplyPhysics = nil
+    prop.XT2Ignore            = nil
+    prop.XT2DoNotApplyPhysics = nil
+    prop.XTwister2Ignore      = nil
 
     local phys = prop:GetPhysicsObject()
     if IsValid(phys) then
@@ -462,7 +473,7 @@ timer.Create("TIV_LoftThink", 0.05, 0, function()
                     end
 
                     -- Ensure vehicle is immune to external tornado mod suction/teleporting while anchored
-                    if not veh.XT3Ignore or not veh.GStormsIgnore then
+                    if not veh.XT3Ignore or not veh.GStormsIgnore or not veh.XT2Ignore then
                         TIV.Loft.SetAnchoredImmunity(veh, true)
                     end
 

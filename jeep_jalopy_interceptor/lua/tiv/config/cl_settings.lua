@@ -1098,7 +1098,7 @@ function TIV.Menu.OpenMasterConsole()
         addSlider("Loft Threshold (MPH)", "tiv_loft_wind_threshold", 50, 350, 0)
         addSlider("Spike Force Limit (0=Unbreakable)", "tiv_spike_force", 0, 200000, 0)
         addCheck("Violently Release Spikes When Lofted", "tiv_loft_release_spikes")
-        addCheck("Compatibility Mode (GStorms / XT3)", "tiv_compat_mode")
+        addCheck("Compatibility Mode (GStorms / XT2 / XT3)", "tiv_compat_mode")
         addSlider("Compat Anchored Wind Scale", "tiv_compat_anchored_wind_scale", 0.1, 1.0, 2)
 
         local simTitle = vgui.Create("DLabel", pnl)

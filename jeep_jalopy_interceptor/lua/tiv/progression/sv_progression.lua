@@ -348,7 +348,7 @@ end)
 
 -- ============================================================================
 -- STORM INTERCEPT EVALUATION LOOP
--- Uses GStorms and XT3 to detect when a tornado is over an anchored vehicle.
+-- Uses GStorms, XT2, and XT3 to detect when a tornado is over an anchored vehicle.
 -- Immediately awards 1 intercept upon entry, then points pile up over time
 -- for both side and core intercepts while holding ground.
 -- ============================================================================
@@ -393,7 +393,7 @@ timer.Create("TIV_StormInterceptTracker", 1.0, 0, function()
                 table.insert(occupants, veh._TIVOwner)
             end
 
-            -- Evaluate active tornado presence from GStorms & XT3
+            -- Evaluate active tornado presence from GStorms, XT2, & XT3
             local tInfo = TIV.Wind and TIV.Wind.GetNearestActiveTornado and TIV.Wind.GetNearestActiveTornado(veh:GetPos())
             local inCore = false
             local inSide = false

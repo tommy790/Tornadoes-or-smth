@@ -163,7 +163,7 @@ local function DrawRadarScreen(screenEnt, veh, rData)
     surface.DrawRect(10, 10, 492, 28)
 
     draw.SimpleText("TIV TACTICAL DOPPLER RADAR", "Trebuchet18", 18, 15, Color(0, 240, 255, 255), TEXT_ALIGN_LEFT)
-    draw.SimpleText("GSTORMS // XT3 VECTOR MAP", "Trebuchet18", 494, 15, Color(160, 200, 220, 220), TEXT_ALIGN_RIGHT)
+    draw.SimpleText("GSTORMS // XT2 // XT3 VECTOR MAP", "Trebuchet18", 494, 15, Color(160, 200, 220, 220), TEXT_ALIGN_RIGHT)
 
     -- Concentric Range Rings (Track-Up view)
     local rings = {

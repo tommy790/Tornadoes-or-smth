@@ -133,11 +133,16 @@ function TIV.SpikeAnim.ApplyCompatibilityFlags(spike, veh)
     if IsValid(veh) then spike:SetNWEntity("TIV_OwnerVehicle", veh) end
     spike:SetNWBool("GStormsIgnore", true)
     spike:SetNWBool("XT3Ignore", true)
+    spike:SetNWBool("XT2Ignore", true)
+    spike:SetNWBool("XTwister2Ignore", true)
 
     spike.IsTIVSpike           = true
     spike.GStormsIgnore        = true
     spike.XT3Ignore            = true
     spike.XT3DoNotApplyPhysics = true
+    spike.XT2Ignore            = true
+    spike.XT2DoNotApplyPhysics = true
+    spike.XTwister2Ignore      = true
     spike.PhysgunDisabled      = true
     spike.DoNotDuplicate       = true
 end

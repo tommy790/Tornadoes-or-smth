@@ -9,7 +9,8 @@ All notable changes, architectural overhauls, and gameplay additions to the Torn
 - Added 3D vehicle customization editor with live interactive preview, component mirroring, duplication, grid snapping, and precision coordinate controls.
 - Added in-cabin tactical Doppler radar screen displaying real-time tornado tracking, core boundaries, and travel heading arrows with live speed badges (supports Wiremod monitors).
 - Added career progression system with spendable upgrade points, career intercept tracking, and unlockable vehicle upgrades.
-- Added GStorms and XTwisters 3 (XT3) vortex detection awarding intercepts on storm entry and accumulating points over time while holding anchored positions.
+- Added GStorms, XTwisters 2 (XT2), and XTwisters 3 (XT3) vortex detection awarding intercepts on storm entry and accumulating points over time while holding anchored positions.
+- Added comprehensive XTwisters 2 (XT2) support for wind sampling, active tornado radar tracking, forward path prediction, and anchor immunity.
 - Added rock-solid hydraulic ground anchor system with true angled spike trajectory driving and retraction.
 - Added physical front and side armor panels using PHX heavy metal plates with debris deflection and damage mitigation.
 - Added realistic storm lofting physics with sequential anchor failure, directional tipping, and failsafe un-anchoring under extreme EF4/EF5 vortex winds.
