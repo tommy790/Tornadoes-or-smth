@@ -225,8 +225,20 @@ local function DrawRadarScreen(screenEnt, veh, rData)
         local maxRangeUnits = math.max((rData.dist or 0) * 1.35, 3000)
         local scalePx = radarRadius / maxRangeUnits
 
-        -- Screen coordinates: Screen UP = Vehicle Forward, Screen RIGHT = Vehicle Right
-        local scrX = cx + relRgt * scalePx
+        -- Track-up (nose-up) display: canvas UP = vehicle forward, matching the
+        -- centre chevron and the "Track-Up view" range rings.
+        --
+        -- Canvas +y grows downward, so a vortex AHEAD must reduce cy -- that part was
+        -- already correct. Canvas +x was the problem: the blip used +relRgt, which put
+        -- a vortex on the vehicle's right onto the LEFT of the display, while the
+        -- REL BRG readout below said 090 RIGHT. relRgt is the same component that
+        -- atan2 consumes for the bearing text, so it is positive to the vehicle's
+        -- right; the blip therefore has to move the opposite way on canvas +x.
+        --
+        -- Net effect of the canvas orientation actually used by these monitors
+        -- (MONITOR_CONFIGS rot Angle(0, 90, 90)): canvas up = vehicle forward,
+        -- canvas right = vehicle LEFT. Both terms below negate their component.
+        local scrX = cx - relRgt * scalePx
         local scrY = cy - relFwd * scalePx
 
         -- ====================================================================
@@ -238,7 +250,10 @@ local function DrawRadarScreen(screenEnt, veh, rData)
         local headFwd = heading:Dot(fwd2D)
         local headRgt = heading:Dot(rgt2D)
 
-        local arrowDirX = headRgt
+        -- Same canvas orientation as the blip above: negate the right component,
+        -- keep the forward component negated for the downward-growing canvas +y.
+        -- This arrow used +headRgt, so it pointed the wrong way left/right too.
+        local arrowDirX = -headRgt
         local arrowDirY = -headFwd
         local arrowDirLen = math.sqrt(arrowDirX * arrowDirX + arrowDirY * arrowDirY)
         if arrowDirLen > 0.001 then

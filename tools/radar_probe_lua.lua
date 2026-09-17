@@ -54,8 +54,11 @@ print("GMod stub          : self-test passed (8/8 Source basis checks)")
 
 local veh       = __makeent(__newvector(0, 0, 20), __newangle(0, vehYaw, 0))
 local screenEnt = __makeent(__newvector(0, 0, 20), __newangle(0, vehYaw, 0))
--- Shipped default local angle of the jeep radar screen (sh_custom_config.lua:135)
-local screenAng = screenEnt:LocalToWorldAngles(__newangle(10, -125, 0))
+-- Shipped radar screen model is models/kobilica/wiremonitorsmall.mdl, whose
+-- MONITOR_CONFIGS entry (cl_radar_screen.lua) uses rot = Angle(0, 90, 90).
+-- The Angle(10,-125,0) in sh_custom_config.lua is the prop's mount angle, NOT
+-- cfg.rot -- using it here previously made this probe's screenAng meaningless.
+local screenAng = screenEnt:LocalToWorldAngles(__newangle(0, 90, 90))
 
 local fwd, rgt = veh:GetForward(), veh:GetRight()
 
@@ -79,7 +82,7 @@ local function blipFor(tPos)
         dist = tPos:Length(), bearing = 0, eta = 10,
         impactType = "core", waypoints = {},
     }
-    TIV.Instruments.DrawRadarScreen(screenEnt, veh, rData, screenAng)
+    TIV.Instruments.DrawRadarScreen(screenEnt, veh, rData)  -- the real fn takes 3 args; a 4th was silently ignored
 
     local blip
     for _, c in ipairs(_G.__calls) do
@@ -96,6 +99,31 @@ local function blipFor(tPos)
 end
 
 local origin = __newvector(0, 0, 20)
+
+-- ---------------------------------------------------------------------------
+-- THE CONTRACT THIS PROBE ENFORCES (and the one thing it cannot verify offline)
+--
+-- The radar is a track-up display: the centre chevron points up and the range
+-- rings are labelled "Track-Up view", so canvas UP is the vehicle's nose. That
+-- half was confirmed correct in game.
+--
+-- Canvas RIGHT could not be derived offline: it depends on how
+-- cam.Start3D2D maps canvas +x onto screenAng, and reading that off
+-- MONITOR_CONFIGS rot = Angle(0,90,90) gave the OPPOSITE answer to what the
+-- display actually does. In game a vortex on the vehicle's right was painted on
+-- the LEFT of the radar while REL BRG correctly read 090 RIGHT, which fixes the
+-- orientation empirically: increasing canvas x moves LEFT.
+--
+-- So DrawRadarScreen must negate relRgt on canvas +x. If a future
+-- change to cfg.rot or the cam.Start3D2D call flips this, this probe must be
+-- re-derived from a rendered frame, not from the config.
+-- ---------------------------------------------------------------------------
+
+-- Sign of canvas +x in display terms. Empirically canvas +x is the VIEWER'S
+-- LEFT, so DrawRadarScreen must negate relRgt. Set to +1 if a rendered frame
+-- ever shows the opposite.
+local CANVAS_X_TO_VIEWER_RIGHT = -1
+
 local cases = {
     { name = "tornado 2000u BEHIND", pos = origin - fwd * 2000, up = false, right = nil,  sector = "ASTERN" },
     { name = "tornado 2000u AHEAD",  pos = origin + fwd * 2000, up = true,  right = nil,  sector = "AHEAD" },
@@ -114,7 +142,11 @@ for _, c in ipairs(cases) do
             ok2 = ok2 and ((c.up and dy < -6) or (not c.up and dy > 6))
         end
         if c.right ~= nil then
-            ok2 = ok2 and ((c.right and dx > 6) or (not c.right and dx < -6))
+            -- A vortex on the vehicle's right must appear on the viewer's right.
+            local wantViewerRight = c.right
+            local dxIsViewerRight = dx * CANVAS_X_TO_VIEWER_RIGHT
+            ok2 = ok2 and ((wantViewerRight and dxIsViewerRight > 6)
+                        or (not wantViewerRight and dxIsViewerRight < -6))
         end
 
         local deg, sector
@@ -124,14 +156,15 @@ for _, c in ipairs(cases) do
             ok2 = ok2 and sector == c.sector
             if deg then
                 -- the printed bearing must point at the same screen region as the blip
+                local vx = dx * CANVAS_X_TO_VIEWER_RIGHT
                 if deg < 45 or deg >= 315 then
-                    ok2 = ok2 and dy < -6
+                    ok2 = ok2 and dy < -6          -- AHEAD  -> above centre
                 elseif deg < 135 then
-                    ok2 = ok2 and dx > 6
+                    ok2 = ok2 and vx > 6           -- RIGHT  -> viewer's right
                 elseif deg < 225 then
-                    ok2 = ok2 and dy > 6
+                    ok2 = ok2 and dy > 6           -- ASTERN -> below centre
                 else
-                    ok2 = ok2 and dx < -6
+                    ok2 = ok2 and vx < -6          -- LEFT   -> viewer's left
                 end
             end
         else
@@ -141,7 +174,8 @@ for _, c in ipairs(cases) do
         local ud = (dy < -6) and "ABOVE centre (=reads as AHEAD)"
             or (dy > 6) and "BELOW centre (=reads as BEHIND)"
             or "on centre line"
-        local lr = (dx > 6) and "RIGHT of centre" or (dx < -6) and "LEFT of centre" or "on centre line"
+        local vx0 = dx * CANVAS_X_TO_VIEWER_RIGHT
+        local lr = (vx0 > 6) and "viewer RIGHT of centre" or (vx0 < -6) and "viewer LEFT of centre" or "on centre line"
 
         print(string.format("[%s] %-24s dx=%+7.1f dy=%+7.1f -> %s / %s",
             ok2 and "OK " or "BAD", c.name, dx, dy, ud, lr))

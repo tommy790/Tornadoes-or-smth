@@ -42,7 +42,9 @@ PROBE_TEMPLATE = r"""
 local veh       = __makeent(__newvector(0, 0, 20), __newangle(0, __YAW__, 0))
 local screenEnt = __makeent(__newvector(0, 0, 20), __newangle(0, __YAW__, 0))
 -- shipped default local angle of the jeep radar screen (sh_custom_config.lua:135)
-local screenAng = screenEnt:LocalToWorldAngles(__newangle(10, -125, 0))
+-- cfg.rot for models/kobilica/wiremonitorsmall.mdl is Angle(0, 90, 90), NOT the
+-- prop mount angle Angle(10,-125,0) from sh_custom_config.lua.
+local screenAng = screenEnt:LocalToWorldAngles(__newangle(0, 90, 90))
 
 local info = {
     fwd = veh:GetForward(), rgt = veh:GetRight(),
@@ -60,7 +62,7 @@ local function blipFor(tPos)
         dist = tPos:Length(), bearing = 0, eta = 10,
         impactType = "core", waypoints = {},
     }
-    TIV.Instruments.DrawRadarScreen(screenEnt, veh, rData, screenAng)
+    TIV.Instruments.DrawRadarScreen(screenEnt, veh, rData)  -- 3 args; a 4th was ignored
 
     local blip
     for _, c in ipairs(_G.__calls) do
@@ -80,6 +82,10 @@ end
 local f, r = info.fwd, info.rgt
 local origin = __newvector(0, 0, 20)
 
+-- Empirically canvas +x is the VIEWER'S LEFT (see tools/radar_probe_lua.lua for
+-- how this was established), so DrawRadarScreen must negate relRgt.
+local CANVAS_X_TO_VIEWER_RIGHT = -1
+
 local cases = {
     { name = "tornado 2000u BEHIND", pos = origin - f * 2000, up = false, right = nil,  sector = "ASTERN" },
     { name = "tornado 2000u AHEAD",  pos = origin + f * 2000, up = true,  right = nil,  sector = "AHEAD" },
@@ -97,7 +103,8 @@ for _, c in ipairs(cases) do
             ok = ok and ((c.up and dy < -6) or (not c.up and dy > 6))
         end
         if c.right ~= nil then
-            ok = ok and ((c.right and dx > 6) or (not c.right and dx < -6))
+            local vx = dx * CANVAS_X_TO_VIEWER_RIGHT
+            ok = ok and ((c.right and vx > 6) or (not c.right and vx < -6))
         end
         if relLine then
             deg, sector = relLine:match("^REL BRG:%s*(%d+)%s+(%u+)")
@@ -106,14 +113,15 @@ for _, c in ipairs(cases) do
             ok = ok and sector == c.sector
             -- ...and the sector must agree with where the blip was drawn.
             if deg then
+                local vx = dx * CANVAS_X_TO_VIEWER_RIGHT
                 if deg < 45 or deg >= 315 then
                     ok = ok and dy < -6
                 elseif deg < 135 then
-                    ok = ok and dx > 6
+                    ok = ok and vx > 6
                 elseif deg < 225 then
                     ok = ok and dy > 6
                 else
-                    ok = ok and dx < -6
+                    ok = ok and vx < -6
                 end
             end
         else
@@ -125,6 +133,10 @@ end
 
 return info, out
 """
+
+
+# Mirrors the CANVAS_X_TO_VIEWER_RIGHT constant inside the embedded Lua above.
+CANVAS_X_TO_VIEWER_RIGHT_PY = -1
 
 
 def main():
@@ -181,7 +193,8 @@ def main():
             else "BELOW centre (=reads as BEHIND)" if dy > 6
             else "on centre line"
         )
-        lr = "RIGHT of centre" if dx > 6 else "LEFT of centre" if dx < -6 else "on centre line"
+        vx = dx * CANVAS_X_TO_VIEWER_RIGHT_PY
+        lr = "viewer RIGHT" if vx > 6 else "viewer LEFT" if vx < -6 else "on centre line"
         rel = row["rel"] or "(no REL BRG readout painted!)"
         print(f"[{'OK ' if ok else 'BAD'}] {name:<24} dx={dx:+7.1f} dy={dy:+7.1f} -> {ud} / {lr}")
         print(f"      {'':<24} readout: {rel}")
