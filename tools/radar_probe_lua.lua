@@ -32,6 +32,7 @@ end
 
 -- Lets the harness pin the heading correction; unset means the shipped value.
 TIV_HEADING_OFFSET_DEG = os.getenv("TIV_HEADING_OFFSET_DEG")
+TIV_RADAR_BLIP_OFFSET = os.getenv("TIV_RADAR_BLIP_OFFSET")
 
 -- sh_config.lua registers a calibration convar on the client.
 CLIENT = true
@@ -132,10 +133,10 @@ local origin = __newvector(0, 0, 20)
 -- re-derived from a rendered frame, not from the config.
 -- ---------------------------------------------------------------------------
 
--- Sign of canvas +x in display terms. Empirically canvas +x is the VIEWER'S
--- LEFT, so DrawRadarScreen must negate relRgt. Set to +1 if a rendered frame
--- ever shows the opposite.
-local CANVAS_X_TO_VIEWER_RIGHT = -1
+-- Canvas +x is the viewer's right. Verified by the two field reports: with the
+-- identity mapping the blip's vertical axis was already correct, and the
+-- left/right complaint was about the REL BRG readout rather than the blip.
+local CANVAS_X_TO_VIEWER_RIGHT = 1
 
 local cases = {
     { name = "tornado 2000u BEHIND", pos = origin - fwd * 2000, up = false, right = nil,  sector = "ASTERN" },

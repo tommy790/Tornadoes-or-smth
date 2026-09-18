@@ -25,7 +25,15 @@ TIV.Config = TIV.Config or {}
 -- Every relative-bearing consumer (radar screen, HUD, Expression 2) must go
 -- through TIV.RelativeBearing so they cannot disagree with each other.
 -- ============================================================================
-TIV.Config.HeadingOffsetDeg = 0
+-- Confirmed in game: with 0 a vortex visually dead ahead read as REL BRG 090
+-- RIGHT. +90 rotates the reference frame onto the nose.
+TIV.Config.HeadingOffsetDeg = 90
+
+-- Separate correction for where the blip is PAINTED, because cam.Start3D2D's
+-- canvas orientation is a different question from which way the vehicle's nose
+-- points. Rotates the blip (and the movement arrow) clockwise about the disc
+-- centre. Calibrate with tiv_radar_blip_offset, then put the number here.
+TIV.Config.BlipOffsetDeg = 0
 
 -- Live override so this can be calibrated in game without editing files:
 --   tiv_radar_heading_offset 90
@@ -34,6 +42,8 @@ TIV.Config.HeadingOffsetDeg = 0
 if CLIENT then
     CreateClientConVar("tiv_radar_heading_offset", "0", true, false,
         "Degrees to rotate the radar's heading basis. 0 uses TIV.Config.HeadingOffsetDeg.")
+    CreateClientConVar("tiv_radar_blip_offset", "0", true, false,
+        "Degrees to rotate the radar blip clockwise about the disc centre. 0 uses TIV.Config.BlipOffsetDeg.")
 end
 
 --- Heading correction currently in force, in degrees.
@@ -50,6 +60,21 @@ function TIV.HeadingOffsetDeg()
         end
     end
     return TIV.Config.HeadingOffsetDeg or 0
+end
+
+--- Canvas rotation applied to the painted blip, in degrees clockwise.
+-- Precedence: offline-probe override, then the client convar, then the config.
+function TIV.BlipOffsetDeg()
+    local probe = tonumber(TIV_RADAR_BLIP_OFFSET or "")
+    if probe then return probe end
+    if CLIENT and GetConVar then
+        local cv = GetConVar("tiv_radar_blip_offset")
+        if IsValid(cv) then
+            local v = tonumber(cv:GetString())
+            if v and v ~= 0 then return v end
+        end
+    end
+    return TIV.Config.BlipOffsetDeg or 0
 end
 
 --- Track-up bearing of a world position relative to a vehicle's nose.

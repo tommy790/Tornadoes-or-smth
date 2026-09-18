@@ -192,3 +192,10 @@ _G.__makeent = function(pos, ang, model)
     function e:GetNWEntity() return nil end
     return e
 end
+
+
+-- Convars. The harness has no real cvar system; returning 0 makes the TIV
+-- resolvers fall through to TIV.Config, which is what the probes want.
+if GetConVar == nil then
+    GetConVar = function() return { GetString = function() return "0" end } end
+end

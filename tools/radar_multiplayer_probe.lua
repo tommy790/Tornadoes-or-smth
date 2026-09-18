@@ -205,6 +205,7 @@ env.TIV_HEADING_OFFSET_DEG = os.getenv("TIV_HEADING_OFFSET_DEG")
 -- function instead of letting the sandbox's table fallback swallow it.
 env.CLIENT = true
 env.CreateClientConVar = function() return nil end
+env.GetConVar = function() return { GetString = function() return "0" end } end
 
 -- The radar resolves its heading correction through TIV.HeadingOffsetDeg, which
 -- lives in the shared config. Load the real file into the same sandbox.

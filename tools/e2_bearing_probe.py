@@ -88,6 +88,7 @@ def main():
     # This harness drives identity-basis vehicles, whose nose IS entity +X, so no
     # heading correction is wanted. TIV.RelativeBearing reads the override first.
     g.TIV_HEADING_OFFSET_DEG = os.environ.get("TIV_HEADING_OFFSET_DEG", "0")
+    g.TIV_RADAR_BLIP_OFFSET = os.environ.get("TIV_RADAR_BLIP_OFFSET", "0")
 
     with open(CONFIG_TARGET, "r", encoding="utf-8", errors="replace") as fh:
         try:

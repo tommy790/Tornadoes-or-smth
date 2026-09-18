@@ -85,9 +85,8 @@ end
 local f, r = info.fwd, info.rgt
 local origin = __newvector(0, 0, 20)
 
--- Empirically canvas +x is the VIEWER'S LEFT (see tools/radar_probe_lua.lua for
--- how this was established), so DrawRadarScreen must negate relRgt.
-local CANVAS_X_TO_VIEWER_RIGHT = -1
+-- Canvas +x is the viewer's right (see tools/radar_probe_lua.lua).
+local CANVAS_X_TO_VIEWER_RIGHT = 1
 
 local cases = {
     { name = "tornado 2000u BEHIND", pos = origin - f * 2000, up = false, right = nil,  sector = "ASTERN" },
@@ -139,14 +138,15 @@ return info, out
 
 
 # Mirrors the CANVAS_X_TO_VIEWER_RIGHT constant inside the embedded Lua above.
-CANVAS_X_TO_VIEWER_RIGHT_PY = -1
+CANVAS_X_TO_VIEWER_RIGHT_PY = 1
 
 
 def main():
     lua = LuaRuntime(unpack_returned_tuples=True)
     g = lua.globals()
     # Lets the harness pin the heading correction; unset means the shipped value.
-    g.TIV_HEADING_OFFSET_DEG = os.environ.get("TIV_HEADING_OFFSET_DEG")
+    g.TIV_HEADING_OFFSET_DEG = os.environ.get("TIV_HEADING_OFFSET_DEG", "0")
+    g.TIV_RADAR_BLIP_OFFSET = os.environ.get("TIV_RADAR_BLIP_OFFSET", "0")
 
     lua.execute(GMOD_STUB)
 
@@ -154,6 +154,7 @@ def main():
     # TIV.RelativeBearing uses Vector, so the stub has to be in place first.
     g.CLIENT = True
     g.CreateClientConVar = lambda *a: None
+    g.GetConVar = lambda *a: type("cv", (), {"GetString": staticmethod(lambda: "0")})()
 
     # The radar resolves its heading correction through TIV.HeadingOffsetDeg,
     # which lives in the shared config. Load the real file, not a stand-in.

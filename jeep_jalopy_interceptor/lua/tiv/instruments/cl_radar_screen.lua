@@ -312,21 +312,36 @@ local function DrawRadarScreen(screenEnt, veh, rData)
         local maxRangeUnits = math.max((rData.dist or 0) * 1.35, 3000)
         local scalePx = radarRadius / maxRangeUnits
 
-        -- Track-up (nose-up) display: canvas UP = vehicle forward, matching the
-        -- centre chevron and the "Track-Up view" range rings.
+        -- Place the blip by its track-up bearing and radius rather than by the raw
+        -- components. The heading correction and the canvas orientation are two
+        -- unrelated 90-degree questions -- one is about which way the vehicle's
+        -- nose points, the other about which way cam.Start3D2D maps canvas +x --
+        -- and folding them together is why the display kept being fixed on one
+        -- axis and broken on the other. Bearing first, then one canvas rotation.
+        local blipDist = math.sqrt(relFwd * relFwd + relRgt * relRgt)
+        local blipRadius = blipDist * scalePx
+
+        -- Unit vector toward the vortex on a track-up disc: canvas +x is the
+        -- vehicle's right and canvas +y grows downward, so forward is -y. This is
+        -- the identity mapping -- the blip's horizontal axis was never wrong. The
+        -- "tornado is right but the blip is on the left" report was about the REL
+        -- BRG readout, which is a heading-basis problem, not a canvas one, and is
+        -- handled by TIV.HeadingOffsetDeg. BlipOffsetDeg below only exists so the
+        -- canvas orientation can still be corrected in game if it ever disagrees.
         --
-        -- Canvas +y grows downward, so a vortex AHEAD must reduce cy -- that part was
-        -- already correct. Canvas +x was the problem: the blip used +relRgt, which put
-        -- a vortex on the vehicle's right onto the LEFT of the display, while the
-        -- REL BRG readout below said 090 RIGHT. relRgt is the same component that
-        -- atan2 consumes for the bearing text, so it is positive to the vehicle's
-        -- right; the blip therefore has to move the opposite way on canvas +x.
-        --
-        -- Net effect of the canvas orientation actually used by these monitors
-        -- (MONITOR_CONFIGS rot Angle(0, 90, 90)): canvas up = vehicle forward,
-        -- canvas right = vehicle LEFT. Both terms below negate their component.
-        local scrX = cx - relRgt * scalePx
-        local scrY = cy - relFwd * scalePx
+        -- Rotating the unit vector directly rather than going through atan2 and
+        -- back keeps this exact at 0 and avoids relying on sin(pi) being zero.
+        local ux, uy = 0, -1
+        if blipDist > 0.0001 then
+            ux, uy = relRgt / blipDist, -relFwd / blipDist
+        end
+        local bOff = math.rad(TIV.BlipOffsetDeg())
+        if bOff ~= 0 then
+            local bc, bs = math.cos(bOff), math.sin(bOff)
+            ux, uy = bc * ux - bs * uy, bs * ux + bc * uy
+        end
+        local scrX = cx + ux * blipRadius
+        local scrY = cy + uy * blipRadius
 
         -- ====================================================================
         -- TORNADO MOVEMENT DIRECTION ARROW
@@ -340,8 +355,20 @@ local function DrawRadarScreen(screenEnt, veh, rData)
         -- Same canvas orientation as the blip above: negate the right component,
         -- keep the forward component negated for the downward-growing canvas +y.
         -- This arrow used +headRgt, so it pointed the wrong way left/right too.
-        local arrowDirX = -headRgt
-        local arrowDirY = -headFwd
+        -- Rotate the movement vector by the same canvas correction as the blip.
+        local ax, ay = headRgt, -headFwd
+        local aLen = math.sqrt(ax * ax + ay * ay)
+        if aLen > 0.0001 then
+            ax, ay = ax / aLen, ay / aLen
+        else
+            ax, ay = 0, -1
+        end
+        local aOff = math.rad(TIV.BlipOffsetDeg())
+        if aOff ~= 0 then
+            local ac, as = math.cos(aOff), math.sin(aOff)
+            ax, ay = ac * ax - as * ay, as * ax + ac * ay
+        end
+        local arrowDirX, arrowDirY = ax, ay
         local arrowDirLen = math.sqrt(arrowDirX * arrowDirX + arrowDirY * arrowDirY)
         if arrowDirLen > 0.001 then
             arrowDirX = arrowDirX / arrowDirLen
@@ -475,7 +502,7 @@ local function DrawRadarScreen(screenEnt, veh, rData)
         draw.SimpleText(string.format("MAP BRG: %.0f", rData.bearing or 0), "DefaultFixed", 22, 126, Color(130, 155, 175, 255))
         -- Calibration aid: the heading correction currently applied. Reads 0 when
         -- the radar trusts veh:GetForward() as-is.
-        draw.SimpleText(string.format("HDG OFF: %+.0f", headingOff), "DefaultFixed", 22, 140, Color(110, 135, 155, 255))
+        draw.SimpleText(string.format("HDG %+.0f  BLIP %+.0f", headingOff, TIV.BlipOffsetDeg()), "DefaultFixed", 22, 140, Color(110, 135, 155, 255))
 
         -- Publish for other consumers (Wiremod screens, E2 chips, debug).
         TIV.Instruments.RelativeBearing = relBearing
