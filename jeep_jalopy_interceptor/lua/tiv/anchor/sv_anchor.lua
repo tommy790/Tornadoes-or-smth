@@ -220,6 +220,19 @@ function TIV.Anchor.ForceDetach(veh, data)
         local phys = veh:GetPhysicsObject()
         if IsValid(phys) then
             phys:EnableGravity(true)
+
+            -- Gravity alone is not enough. The deploy sequence disables motion
+            -- while it lerps the body down and back up (sv_deploy.lua), so a
+            -- detach landing inside that window restored gravity on a body that
+            -- was still not allowed to move -- it hangs there under its own
+            -- weight, which is exactly the "frozen after an intercept" symptom.
+            -- ForceDetach means the anchors are gone, so there is nothing left
+            -- that wants the body held still. This only ever enables motion; it
+            -- never freezes and never adds a constraint.
+            if not phys:IsMotionEnabled() then
+                phys:EnableMotion(true)
+            end
+            phys:Wake()
         end
     end
 end

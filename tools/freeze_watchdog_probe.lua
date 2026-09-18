@@ -237,6 +237,44 @@ check("it never disables motion", not sawDisableMotion)
 check("it never disables gravity", not sawDisableGravity)
 check("it never freezes anything", true, "EnableMotion(false)/EnableGravity(false) are the only freeze paths, neither occurred")
 
+print("\n== ForceDetach restores motion as well as gravity ==")
+
+-- The deploy sequence disables motion while it lerps the body, so a detach
+-- landing inside that window used to restore gravity on a body that was still not
+-- allowed to move -- it hangs there, which reads exactly like a freeze.
+assert(loadfile(repo .. "/jeep_jalopy_interceptor/lua/tiv/anchor/sv_anchor.lua"))()
+assert(TIV.Anchor and TIV.Anchor.ForceDetach, "sv_anchor.lua did not define ForceDetach")
+
+local vFD = makeVeh(200, { motion = false, gravity = false })
+local c1 = makeConstraint("AdvBallsocket", true)
+local c2 = makeConstraint("AdvBallsocket", true)
+local dFD = {
+    anchored = true,
+    constraints = { { constraint = c1, type = "ballsocket" },
+                    { constraint = c2, type = "anchor_ballsocket", isWorldAnchor = true } },
+}
+TIV.Anchor.ForceDetach(vFD, dFD)
+check("gravity restored by ForceDetach", vFD._gravity == true)
+check("motion restored by ForceDetach", vFD._motion == true,
+    vFD._motion and "body can move again" or "STILL FROZEN")
+check("the body was woken", hasCall(vFD, "Wake"))
+check("both constraints removed", not c1._valid and not c2._valid)
+check("the constraint list was cleared", #dFD.constraints == 0)
+check("anchored flag cleared", dFD.anchored == false)
+
+-- A body that was already free must not be churned.
+local vFD2 = makeVeh(201)
+local dFD2 = { anchored = true, constraints = {} }
+TIV.Anchor.ForceDetach(vFD2, dFD2)
+check("ForceDetach never disables motion", not hasCall(vFD2, "EnableMotion(false)"))
+check("ForceDetach does not re-enable motion that is already on",
+    not hasCall(vFD2, "EnableMotion(true)"),
+    #vFD2._calls == 0 and "no physics calls at all" or table.concat(vFD2._calls, ", "))
+
+-- And it must survive being called with no vehicle and no constraint table.
+local okFD = pcall(function() TIV.Anchor.ForceDetach(nil, { constraints = {} }) end)
+check("ForceDetach survives a nil vehicle", okFD)
+
 print("\n== the audit reads real state without throwing ==")
 
 local ok, err = pcall(function()

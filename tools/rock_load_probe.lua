@@ -149,8 +149,9 @@ TIV.Wind = {
 local function load_With(mph, dirWorld, opts)
     windMPH, windDir = mph, dirWorld
     local veh = makeVeh(_G.Vector(0, 0, 20), (opts and opts.yaw) or 0)
-    local stress, pitchN, rollN, deployed, failed = TIV.Rock.ComputeLoad(veh, makeData(opts))
-    return stress, pitchN, rollN, deployed, failed, veh
+    local stress, pitchN, rollN, deployed, failed, windX, windY =
+        TIV.Rock.ComputeLoad(veh, makeData(opts))
+    return stress, pitchN, rollN, deployed, failed, windX, windY, veh
 end
 
 ------------------------------------------------------------------------------
@@ -223,6 +224,75 @@ local _, _, rl = load_With(200, _G.Vector(0, -1, 0), { dead = { ["front-left"] =
 local _, _, rlWind = load_With(200, _G.Vector(0, -1, 0))
 check("losing the LEFT anchors pushes roll back toward positive", rl > rlWind,
     string.format("with left anchors gone rollN=%+.2f vs intact %+.2f", rl, rlWind))
+
+print("\n== lofting state is an input, as the spec requires ==")
+
+-- The loft system marks a vehicle once it has committed to shearing its anchors.
+-- At that point the body should be straining even if the wind momentarily drops.
+local function withShearing(mph, dirWorld, opts)
+    opts = opts or {}
+    local veh = makeVeh(_G.Vector(0, 0, 20), opts.yaw or 0, opts.idx or 7)
+    TIV.Loft.FailingGroups[veh:EntIndex()] = true
+    local a, b, c, d, e, f, g = TIV.Rock.ComputeLoad(veh, makeData(opts))
+    TIV.Loft.FailingGroups[veh:EntIndex()] = nil
+    return a, b, c, d, e, f, g
+end
+
+local calmStress = (load_With(0, _G.Vector(-1, 0, 0)))
+check("dead calm, no failure sequence -> no lean", calmStress == 0, string.format("stress=%s", tostring(calmStress)))
+
+local shearStress, shearPitch = withShearing(0, _G.Vector(-1, 0, 0))
+check("dead calm BUT anchors shearing -> still leaning", shearStress > 0 and math.abs(shearPitch) > 0,
+    string.format("stress=%.2f pitchN=%+.2f (FailingGroups set)", shearStress, shearPitch))
+
+-- gravityReleased is the other signal the loft system sets.
+local vehGR = makeVeh(_G.Vector(0, 0, 20), 0, 8)
+local grStress = TIV.Rock.ComputeLoad(vehGR, (function()
+    local d = makeData()
+    d.gravityReleased = true
+    return d
+end)())
+check("gravityReleased alone also counts as lofting state", grStress > 0,
+    string.format("stress=%.2f", grStress))
+
+-- Shearing must lean the body harder than the same wind without it.
+local plainStress = (load_With(130, _G.Vector(-1, 0, 0), { dead = { ["front-left"] = true } }))
+local shearStress2 = (withShearing(130, _G.Vector(-1, 0, 0), { dead = { ["front-left"] = true }, idx = 9 }))
+check("shearing anchors escalate the stress", shearStress2 > plainStress,
+    string.format("%.2f shearing vs %.2f steady", shearStress2, plainStress))
+
+-- Pivot weight: use a BEAM wind so the wind term contributes no pitch at all and
+-- the pivot is the only thing lifting the nose. A headwind would just clamp both
+-- cases to +1 and prove nothing.
+local deadFront = { ["front-left"] = true, ["front-right"] = true }
+local _, pivotPlain = load_With(200, _G.Vector(0, -1, 0), { dead = deadFront })
+local _, pivotShear = withShearing(200, _G.Vector(0, -1, 0), { dead = deadFront, idx = 10 })
+check("shearing anchors put more weight on the pivot",
+    math.abs(pivotShear) > math.abs(pivotPlain) + 0.2,
+    string.format("pitchN %+.3f shearing vs %+.3f steady (front anchors gone, beam wind)",
+        pivotShear, pivotPlain))
+check("the escalated pivot still stays inside -1..1", math.abs(pivotShear) <= 1.0,
+    string.format("|pitchN| = %.3f", math.abs(pivotShear)))
+
+print("\n== the wind components handed to the client ==")
+
+local _, _, _, _, _, wxF, wyF = load_With(200, _G.Vector(-1, 0, 0))
+check("headwind reports wind arriving from +x (the front)",
+    wxF > 0.99 and math.abs(wyF) < 1e-6, string.format("windX=%+.2f windY=%+.2f", wxF, wyF))
+
+local _, _, _, _, _, wxL, wyL = load_With(200, _G.Vector(0, -1, 0))
+check("beam wind from the left reports +y (local left)",
+    math.abs(wxL) < 1e-6 and wyL > 0.99, string.format("windX=%+.2f windY=%+.2f", wxL, wyL))
+
+-- The components must follow the vehicle's heading, not the map.
+local _, _, _, _, _, wxY, wyY = load_With(200, _G.Vector(-1, 0, 0), { yaw = 90 })
+check("turning 90 degrees moves the wind from +x to a side component",
+    math.abs(wxY) < 0.02 and math.abs(wyY) > 0.9,
+    string.format("windX=%+.2f windY=%+.2f at yaw 90", wxY, wyY))
+
+local _, _, _, _, _, wx0, wy0 = load_With(0, _G.Vector(-1, 0, 0))
+check("calm air reports zero wind components", wx0 == 0 and wy0 == 0,
+    string.format("windX=%s windY=%s", tostring(wx0), tostring(wy0)))
 
 print("\n== bounds and side effects ==")
 

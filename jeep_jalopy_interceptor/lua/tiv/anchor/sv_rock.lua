@@ -62,10 +62,22 @@ end
 -- Neither term is integrated over time, so nothing here can drift.
 -- ----------------------------------------------------------------------------
 function TIV.Rock.ComputeLoad(veh, data)
-    if not IsValid(veh) then return 0, 0, 0, 0, 0 end
+    if not IsValid(veh) then return 0, 0, 0, 0, 0, 0, 0 end
 
     local windMPH = TIV.Wind and TIV.Wind.GetSpeed and TIV.Wind.GetSpeed(veh) or 0
     local stress = (TIV.Loft and TIV.Loft.CalculateStress) and TIV.Loft.CalculateStress(windMPH, veh) or 0
+
+    -- LOFTING STATE, as the spec asks for. The loft system already tracks when it
+    -- has committed to shearing this vehicle's anchors (FailingGroups) and when
+    -- the body has been let off its gravity hold (gravityReleased). Both mean the
+    -- anchors are actively letting go regardless of what the wind is doing right
+    -- now, so the body should be straining even if a gust momentarily dropped.
+    local entIndex = veh:EntIndex()
+    local shearing = (TIV.Loft.FailingGroups and TIV.Loft.FailingGroups[entIndex] ~= nil)
+        or data.gravityReleased == true
+    if shearing then
+        stress = math.Clamp(stress + 0.35, 0, 1)
+    end
 
     local deployed, failed = 0, 0
     local holdX, holdY, holdN = 0, 0, 0
@@ -86,7 +98,8 @@ function TIV.Rock.ComputeLoad(veh, data)
         end
     end
 
-    if stress <= 0 then return 0, 0, 0, deployed, failed end
+    -- Nothing to show: no measurable wind AND no failure sequence under way.
+    if stress <= 0 then return 0, 0, 0, deployed, failed, 0, 0 end
 
     -- Vehicle-local direction the wind is arriving FROM. GetDirection returns the
     -- direction the wind pushes toward (that is how GetForceVector uses it), so
@@ -111,7 +124,9 @@ function TIV.Rock.ComputeLoad(veh, data)
         pivotY = math.Clamp(holdY / holdN / 60, -1, 1)
     end
 
-    local PIVOT_WEIGHT = 0.6
+    -- While anchors are actively shearing the body is pivoting on whatever is
+    -- left, so the pivot term carries more weight than it does in steady wind.
+    local PIVOT_WEIGHT = shearing and 1.0 or 0.6
 
     -- Sign conventions, measured against the Source basis rather than assumed:
     --   +pitch lifts the NOSE (Angle(90,0,0):Up() == +X)
@@ -133,7 +148,10 @@ function TIV.Rock.ComputeLoad(veh, data)
     local pitchN = math.Clamp(windFromX - pivotX * PIVOT_WEIGHT, -1, 1)
     local rollN = math.Clamp(-windFromY - pivotY * PIVOT_WEIGHT, -1, 1)
 
-    return stress, pitchN, rollN, deployed, failed
+    -- windFromX/Y go out alongside the tilt so the client can place the small
+    -- body shift downwind without re-deriving the vehicle's basis from the tilt,
+    -- which the pivot term has already polluted.
+    return stress, pitchN, rollN, deployed, failed, windFromX, windFromY
 end
 
 -- ----------------------------------------------------------------------------
@@ -151,6 +169,11 @@ local function SendRecords(records)
         net.WriteInt(math.Clamp(math.Round(r.rollN * 100), -100, 100), 8)
         net.WriteUInt(math.Clamp(r.deployed, 0, 63), 6)
         net.WriteUInt(math.Clamp(r.failed, 0, 63), 6)
+        -- Local wind-from components, for the body shift. Eight bytes per vehicle
+        -- in total, at 10 Hz, and the whole message is skipped when nothing is
+        -- anchored.
+        net.WriteInt(math.Clamp(math.Round((r.windX or 0) * 100), -100, 100), 8)
+        net.WriteInt(math.Clamp(math.Round((r.windY or 0) * 100), -100, 100), 8)
     end
     net.Broadcast()
 end
@@ -162,11 +185,11 @@ timer.Create("TIV_RockBroadcast", SEND_INTERVAL, 0, function()
     for entIndex, data in pairs(TIV.Deploy.Vehicles or {}) do
         local veh = Entity(entIndex)
         if IsValid(veh) and data.state == "anchored" then
-            local stress, pitchN, rollN, deployed, failed = TIV.Rock.ComputeLoad(veh, data)
+            local stress, pitchN, rollN, deployed, failed, windX, windY = TIV.Rock.ComputeLoad(veh, data)
             seen[entIndex] = true
             records[#records + 1] = {
                 idx = entIndex, stress = stress, pitchN = pitchN, rollN = rollN,
-                deployed = deployed, failed = failed,
+                deployed = deployed, failed = failed, windX = windX, windY = windY,
             }
         end
     end
@@ -177,6 +200,7 @@ timer.Create("TIV_RockBroadcast", SEND_INTERVAL, 0, function()
         if not seen[entIndex] then
             records[#records + 1] = {
                 idx = entIndex, stress = 0, pitchN = 0, rollN = 0, deployed = 0, failed = 0,
+                windX = 0, windY = 0,
             }
         end
     end

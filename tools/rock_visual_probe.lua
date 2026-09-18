@@ -92,7 +92,9 @@ local function makeVeh(idx, yaw)
     local v = {
         _idx = idx, _valid = true,
         _physAng = physAng,
+        _physPos = Vector(0, 0, 20),
         _renderAng = nil,
+        _renderOrigin = nil,
         _renderSetCount = 0,
         _renderClearCount = 0,
         _calls = {},
@@ -101,14 +103,17 @@ local function makeVeh(idx, yaw)
     function v:GetPhysicsObject()
         return {
             GetAngles = function() return self._physAng end,
-            GetPos = function() return Vector(0, 0, 20) end,
+            GetPos = function() return self._physPos end,
             IsMotionEnabled = function() return true end,
             IsGravityEnabled = function() return true end,
         }
     end
-    -- The physics body is the truth; the render override shadows GetAngles.
+    -- The physics body is the truth; the render overrides shadow the accessors.
+    -- GMod documents both: SetRenderAngles makes GetAngles() return the override,
+    -- and SetRenderOrigin makes GetPos() return it, "until the override is
+    -- disabled". Anything reading either one to build the next frame compounds.
     function v:GetAngles() return self._renderAng or self._physAng end
-    function v:GetPos() return Vector(0, 0, 20) end
+    function v:GetPos() return self._renderOrigin or self._physPos end
     function v:SetRenderAngles(a)
         if a == nil then
             self._renderAng = nil
@@ -116,6 +121,15 @@ local function makeVeh(idx, yaw)
         else
             self._renderAng = a
             self._renderSetCount = self._renderSetCount + 1
+        end
+    end
+    function v:SetRenderOrigin(o)
+        if o == nil then
+            self._renderOrigin = nil
+            self._originClearCount = (self._originClearCount or 0) + 1
+        else
+            self._renderOrigin = o
+            self._originSetCount = (self._originSetCount or 0) + 1
         end
     end
     for _, name in ipairs(FORBIDDEN) do
@@ -129,6 +143,7 @@ end
 local function tumble(v, dp, dr)
     v._physAng = Angle(v._physAng.p + dp, v._physAng.y, v._physAng.r + dr)
 end
+
 
 ------------------------------------------------------------------------------
 -- Frame stepping and packet delivery
@@ -151,6 +166,8 @@ local function startPacket(records)
         push(math.Clamp(math.Round(r.rollN * 100), -100, 100))
         push(math.Clamp(r.deployed, 0, 63))
         push(math.Clamp(r.failed, 0, 63))
+        push(math.Clamp(math.Round((r.windX or 0) * 100), -100, 100))
+        push(math.Clamp(math.Round((r.windY or 0) * 100), -100, 100))
     end
 end
 local readUInt = function() netPos = netPos + 1 return netQueue[netPos] end
@@ -162,9 +179,9 @@ local function deliver()
     receivers["TIV_RockData"]()
 end
 
-local function packet(idx, stress, pitchN, rollN, deployed, failed)
+local function packet(idx, stress, pitchN, rollN, deployed, failed, windX, windY)
     startPacket({ { idx = idx, stress = stress, pitchN = pitchN, rollN = rollN,
-                    deployed = deployed, failed = failed } })
+                    deployed = deployed, failed = failed, windX = windX, windY = windY } })
     deliver()
 end
 
@@ -174,12 +191,12 @@ end
 local stream = {}
 local SEND_EVERY = 6  -- frames, == 0.1 s at 60 fps
 
-local function setStream(idx, stress, pitchN, rollN, deployed, failed)
+local function setStream(idx, stress, pitchN, rollN, deployed, failed, windX, windY)
     if stress == nil then
         stream[idx] = nil
     else
         stream[idx] = { idx = idx, stress = stress, pitchN = pitchN, rollN = rollN,
-                        deployed = deployed, failed = failed }
+                        deployed = deployed, failed = failed, windX = windX, windY = windY }
     end
 end
 
@@ -231,7 +248,7 @@ local function rollOf(v) return v._renderAng and (v._renderAng.r - v._physAng.r)
 print("== it only ever touches the render override ==")
 
 local v1 = makeVeh(11, 0)
-setStream(11, 0.9, 1.0, 0.0, 4, 0)
+setStream(11, 0.9, 1.0, 0.0, 4, 0, 1.0, 0.0)
 run(120)
 
 check("the vehicle model was tilted", pitchOf(v1) > 1.0, string.format("pitch offset %+.2f deg", pitchOf(v1)))
@@ -272,7 +289,7 @@ check("the render transform tracks the physics body, not the last override",
 print("\n== bounded, smooth, and scaled by stress ==")
 
 local v2 = makeVeh(12, 0)
-setStream(12, 1.0, 1.0, 1.0, 4, 0)
+setStream(12, 1.0, 1.0, 1.0, 4, 0, 1.0, 0.3)
 local prev, worstJump, halfAt = 0, 0, nil
 local settledGuess = 4.0
 for i = 1, 300 do
@@ -294,15 +311,15 @@ check("full stress produces a lean of a few degrees, not a tip-over",
     string.format("pitch now %+.2f deg", pitchOf(v2)))
 
 local vLow = makeVeh(13, 0)
-setStream(13, 0.25, 1.0, 1.0, 4, 0)
+setStream(13, 0.25, 1.0, 1.0, 4, 0, 1.0, 0.3)
 run(300)
 check("light stress leans less than full stress", math.abs(pitchOf(vLow)) < math.abs(pitchOf(v2)) * 0.75,
     string.format("stress 0.25 -> %+.2f deg vs stress 1.0 -> %+.2f deg", pitchOf(vLow), pitchOf(v2)))
 
 local vFail = makeVeh(14, 0)
 local vHold = makeVeh(15, 0)
-setStream(14, 0.6, 1.0, 0.0, 1, 3)
-setStream(15, 0.6, 1.0, 0.0, 4, 0)
+setStream(14, 0.6, 1.0, 0.0, 1, 3, 1.0, 0.0)
+setStream(15, 0.6, 1.0, 0.0, 4, 0, 1.0, 0.0)
 run(300)
 check("losing anchors makes the same wind move the body more",
     math.abs(pitchOf(vFail)) > math.abs(pitchOf(vHold)),
@@ -312,7 +329,7 @@ print("\n== multiplayer: vehicles are independent ==")
 
 local vA = makeVeh(21, 0)
 local vB = makeVeh(22, 0)
-setStream(21, 0.85, 1.0, 0.0, 4, 0)
+setStream(21, 0.85, 1.0, 0.0, 4, 0, 1.0, 0.0)
 setStream(22, 0.0, 0.0, 0.0, 4, 0)
 run(200)
 check("the stressed TIV leans", math.abs(pitchOf(vA)) > 1.0, string.format("A pitch %+.2f", pitchOf(vA)))
@@ -343,7 +360,7 @@ check("the physics body was still untouched throughout", #vA._calls == 0)
 
 -- Explicit zero-stress record, which is what the server sends on transition.
 local vC = makeVeh(23, 0)
-setStream(23, 0.9, 1.0, 0.5, 4, 0)
+setStream(23, 0.9, 1.0, 0.5, 4, 0, 1.0, 0.0)
 run(200)
 check("vehicle is tilted before the all-clear", vC._renderAng ~= nil,
     string.format("pitch %+.2f", pitchOf(vC)))
@@ -354,7 +371,7 @@ check("an explicit all-clear packet relaxes the model", vC._renderAng == nil)
 print("\n== entity lifecycle and the off switch ==")
 
 local vD = makeVeh(24, 0)
-setStream(24, 0.9, 1.0, 0.0, 4, 0)
+setStream(24, 0.9, 1.0, 0.0, 4, 0, 1.0, 0.0)
 run(120)
 check("tilted before removal", vD._renderAng ~= nil)
 setStream(24, nil)
@@ -364,7 +381,7 @@ think()
 check("removing the vehicle drops its tracking", vD._renderAng == nil)
 
 local vE = makeVeh(25, 0)
-setStream(25, 0.9, 1.0, 0.0, 4, 0)
+setStream(25, 0.9, 1.0, 0.0, 4, 0, 1.0, 0.0)
 run(120)
 check("tilted before the convar flips", vE._renderAng ~= nil)
 cvars["tiv_visual_rock"] = "0"
@@ -376,13 +393,116 @@ check("a disabled system leaves the physics alone", #vE._calls == 0)
 -- EntIndex reuse: a different entity takes an index the rocker is still tracking.
 cvars["tiv_visual_rock"] = "1"
 local vF = makeVeh(26, 0)
-setStream(26, 0.9, 1.0, 0.0, 4, 0)
+setStream(26, 0.9, 1.0, 0.0, 4, 0, 1.0, 0.0)
 run(120)
 check("first occupant of the index is tilted", vF._renderAng ~= nil)
 local vG = makeVeh(26, 0)   -- overwrites the registry entry, same EntIndex
 run(2)
 check("reusing the EntIndex clears the old entity's override", vF._renderAng == nil)
 check("the physics of neither occupant was touched", #vF._calls == 0 and #vG._calls == 0)
+
+print("\n== the body shift ==")
+
+local function shiftOf(v)
+    if not v._renderOrigin then return nil end
+    local d = v._renderOrigin - v._physPos
+    return math.sqrt(d.x * d.x + d.y * d.y + d.z * d.z)
+end
+
+local vS = makeVeh(31, 0)
+setStream(31, 1.0, 1.0, 0.0, 4, 0, 1.0, 0.0)
+run(200)
+local sh = shiftOf(vS)
+check("the model is shifted as well as tilted", sh ~= nil and sh > 0.5,
+    sh and string.format("%.2f units", sh) or "no origin override")
+check("the shift stays within a couple of Source units", sh ~= nil and sh <= 3.0,
+    sh and string.format("%.2f units (MAX_SHIFT 2.5 + squat)", sh) or "n/a")
+
+-- The stub shadows GetPos() with the render origin, so a shift that fed itself
+-- back would run away here exactly as the tilt would.
+--
+-- Deliberately run at IDENTITY angles. gmod_stub's Angle:Up() is not a reliable
+-- basis away from (0,0,0) -- at (0,90,0) it returns a vector of length 1.414 --
+-- so converting a local offset to world space through a tumbled body measures the
+-- stub's error, not the module's. The tilt tests above DO tumble, because they
+-- compare stored angle fields and never touch the basis.
+local earlyS, lateS = 0, 0
+for i = 1, 3000 do
+    if i % SEND_EVERY == 1 then broadcastStream() end
+    think()
+    local m = shiftOf(vS) or 0
+    if i <= 600 then
+        if m > earlyS then earlyS = m end
+    elseif i > 2400 then
+        if m > lateS then lateS = m end
+    end
+end
+check("the shift does not accumulate over 3000 frames", math.abs(lateS - earlyS) < 0.01,
+    string.format("early=%.4f late=%.4f units", earlyS, lateS))
+check("the shift converges on the exact predicted magnitude", math.abs(lateS - math.sqrt(2.5^2 + 0.875^2)) < 0.01,
+    string.format("%.4f units vs predicted %.4f (MAX_SHIFT 2.5, squat 0.875)",
+        lateS, math.sqrt(2.5^2 + 0.875^2)))
+
+setStream(31, nil)
+for _ = 1, 900 do
+    think()
+    if vS._renderOrigin == nil then break end
+end
+check("the origin override is cleared with nil on settle", vS._renderOrigin == nil,
+    string.format("cleared after the relax; SetRenderOrigin(nil) called %d time(s)", vS._originClearCount or 0))
+check("GetPos() reports the real position again", vS:GetPos() == vS._physPos)
+
+local vNS = makeVeh(32, 0)
+cvars["tiv_visual_rock_shift"] = "0"
+setStream(32, 1.0, 1.0, 0.0, 4, 0, 1.0, 0.0)
+run(200)
+check("tiv_visual_rock_shift 0 leaves the tilt in place", math.abs(pitchOf(vNS)) > 1.0,
+    string.format("pitch %+.2f", pitchOf(vNS)))
+check("tiv_visual_rock_shift 0 sets no origin override", vNS._renderOrigin == nil,
+    string.format("SetRenderOrigin called %d time(s)", vNS._originSetCount or 0))
+cvars["tiv_visual_rock_shift"] = "1"
+
+-- The shift is applied on top of the PHYSICS position, so measure what it would
+-- do to the one thing in this addon that reads veh:GetPos(): the radar blip.
+-- Executed against the real DrawRadarScreen rather than estimated.
+do
+    local okLoad, loadErr = pcall(function()
+        TIV_HEADING_OFFSET_DEG = "0"
+        TIV_RADAR_BLIP_OFFSET = "0"
+        assert(loadfile(repo .. "/jeep_jalopy_interceptor/lua/tiv/config/sh_config.lua"))()
+        assert(loadfile(repo .. "/jeep_jalopy_interceptor/lua/tiv/instruments/cl_radar_screen.lua"))()
+    end)
+    if not okLoad then
+        check("radar impact of the shift could be measured", false, "could not load the radar: " .. tostring(loadErr))
+    else
+        local function blipWith(vpos)
+            local rv = {
+                GetPos = function() return vpos end,
+                GetForward = function() return Vector(1, 0, 0) end,
+                GetRight = function() return Vector(0, -1, 0) end,
+                EntIndex = function() return 77 end,
+            }
+            _G.__calls = {}
+            TIV.Instruments.DrawRadarScreen({ GetPos = function() return Vector(0,0,20) end }, rv, {
+                active = true, veh = rv, pos = Vector(12000, 0, 0), heading = Vector(1, 0, 0),
+                speedMPH = 30, coreRadius = 600, outerRadius = 3500, dist = 12000,
+                bearing = 0, eta = 10, impactType = "side", waypoints = {},
+                touchingGround = false, rotationDirection = 0, rotationSpeed = 0,
+                receivedAt = CurTime(),
+            })
+            for _, c in ipairs(_G.__calls) do
+                if c.op == "rect" and c.w == 6 and c.h == 6 then return c.x, c.y end
+            end
+            return nil
+        end
+        local x0, y0 = blipWith(Vector(0, 0, 20))
+        -- Worst case: the whole MAX_SHIFT budget applied along one axis.
+        local x1, y1 = blipWith(Vector(2.5, 0, 20))
+        local dx = math.abs((x1 or 0) - (x0 or 0))
+        check("the shift moves the radar blip by a fraction of a pixel", x0 ~= nil and dx < 0.1,
+            x0 and string.format("%.4f px at 12000u range (blip is 6 px wide)", dx) or "no blip drawn")
+    end
+end
 
 print("\n== forbidden physics calls, across every vehicle in this probe ==")
 local totalForbidden = 0
