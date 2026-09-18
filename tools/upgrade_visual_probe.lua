@@ -567,7 +567,8 @@ end
 -- The outer mounts get their own angle variables so they can mirror by yaw like
 -- the export does. They must still go vertical when angled_spikes is locked, or
 -- the upgrade would stop being the thing that tilts the anchors.
-for _, m in ipairs({ { "models/buggy.mdl", "buggy" }, { "models/vehicle.mdl", "jalopy" } }) do
+for _, m in ipairs({ { "models/buggy.mdl", "buggy" }, { "models/vehicle.mdl", "jalopy" },
+                     { "models/combine_apc.mdl", "apc" } }) do
     local locked = TIV.CustomConfig.GetDefaultConfig(m[1], false)
     local tilted = {}
     for _, c in ipairs(spikeList(locked)) do
@@ -582,6 +583,21 @@ end
 compareAgainstExport("models/buggy.mdl", here .. "/fixtures/buggy_fully_upgraded.lua", "buggy")
 compareAgainstExport("models/vehicle.mdl",
     here .. "/fixtures/jalopy_fully_upgraded.lua", "jalopy")
+compareAgainstExport("models/combine_apc.mdl",
+    here .. "/fixtures/apc_fully_upgraded.lua", "apc")
+
+-- The one placement rule that does survive all three exports: the ram height. It
+-- is z = 30.0 on every verified vehicle even though their side armour sits at
+-- 31.8, 40.8 and 49.2, which is why the two unverified branches use it too.
+local ramHeights = {}
+for _, fx in ipairs({ "buggy_fully_upgraded", "jalopy_fully_upgraded", "apc_fully_upgraded" }) do
+    local cfg = assert(loadfile(here .. "/fixtures/" .. fx .. ".lua"))()
+    ramHeights[#ramHeights + 1] = findComp(cfg, "hydraulic_ram").pos.z
+end
+local allThirty = true
+for _, z in ipairs(ramHeights) do if math.abs(z - 30.00) > 0.01 then allThirty = false end end
+check("the ram sits at z = 30 on all three verified vehicles", allThirty,
+    string.format("heights: %.2f, %.2f, %.2f", ramHeights[1], ramHeights[2], ramHeights[3]))
 
 print("\n== migration leaves a config that already has eight alone ==")
 

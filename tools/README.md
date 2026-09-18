@@ -34,6 +34,7 @@ npm install --global glua-cli@0.6.0                   # optional: the linter
 | `tools/fixtures/buggy_fully_upgraded.lua` | -- | Not a probe: the user's own fully upgraded buggy, exported from the in-game editor. Ground truth for the standard buggy branch, including the two extra mounts at `(+/-25, 20)`. |
 | `tools/fixtures/buggy_six_mounts.lua` | -- | Not a probe: the user's earlier buggy export, which predates the extra mounts. This is the saved-config case the migration has to handle -- six mounts in, eight out. |
 | `tools/fixtures/jalopy_fully_upgraded.lua` | -- | Not a probe: the same for `models/vehicle.mdl`, which shares the jalopy config branch. It already defines eight mounts, so it is the case the migration must leave alone. |
+| `tools/fixtures/apc_fully_upgraded.lua` | -- | Not a probe: the same for `models/combine_apc.mdl`. Its roof sits *forward* of centre, unlike the buggy's and the jalopy's, which is why the unverified branches are not derived from any of them. |
 | `tools/radar_probe.py [yaw]` | lupa (Lua 5.5) | Same bearing scenario, through the Python bridge. | Same. |
 | `tools/e2_bearing_probe.py [yaw]` | lupa (Lua 5.5) | The real `e2function` bodies from `lua/entities/gmod_wire_expression2/core/custom/tiv.lua`. | `tivTornadoRelativeBearing()` / `tivTornadoRelativeSector()` disagree with the vehicle's own basis, or `tivTornadoBearing()` stops being the absolute map angle. |
 
