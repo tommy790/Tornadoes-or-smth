@@ -4,6 +4,39 @@ All notable changes, architectural overhauls, and gameplay additions to the Torn
 
 ---
 
+## Simple Release Notes - Radar, Rocking & Upgrade Visibility Update
+
+- Added a Doppler velocity signature to the radar screen: two opposing curved lobes marking the air moving toward the radar on one flank and away from it on the other, centred on the vortex and sized from the detected circulation.
+- Added real ground-contact and rotation detection read from GStorms, XTwisters 2 and XTwisters 3, so the signature only appears while a vortex is genuinely on the ground and its direction is never invented.
+- Added a track-up relative bearing readout (`REL BRG: 000-359` with `AHEAD / RIGHT / ASTERN / LEFT`), an explicit `MAP BRG` line for the absolute map angle, and live heading calibration through `tiv_radar_heading_offset`.
+- Added visual anchor rocking: an anchored TIV strains into the wind, lifting its nose and leaning toward whichever side the wind arrives from, growing as anchors shear off and easing back to level when the storm lets go.
+- Added an anchor load model that derives that lean from data the systems already have -- wind speed and direction, vehicle orientation, each anchor's mount position, and how many anchors are deployed versus sheared.
+- Added a body shift to the rocking, so the model squats a couple of Source units downwind into whichever anchors are still holding.
+- Added `tiv_debug_freeze` to print the real physics and constraint state of every TIV once a second, and `tiv_freeze_watchdog` to enforce the one invariant that matters: a TIV sitting in `idle` is drivable.
+- Added a component type selector to the 3D editor, plus `+ Add Roof`, `+ Add Screen` and `+ Add Hydraulics` buttons.
+- Added a roof cowl to every vehicle preset, so the Roof Spoiler unlock finally has something to mount.
+- Added hydraulic rams as real props that telescope down their shaft as the anchors drive and retract with them.
+- Added two extra anchor mounts per vehicle for the Heavy Anchor Array, so eight anchors actually deploy and bite instead of six.
+- Added automatic migration of saved vehicle configs, so a layout saved before the extra mounts existed still gets them and the Heavy Anchor Array works for players who already used the editor.
+- Added component layouts for the standard buggy, the Episode 2 jalopy and the Combine APC taken from real in-game exports, and pinned all three as regression fixtures.
+- Added a regression harness covering every upgrade, all 128 upgrade combinations, the radar bearing maths, the multiplayer radar, circulation detection, the rocking load model and the freeze watchdog.
+- Added a GLua lint gate with a committed config so `glua lint` runs clean and can be wired into CI.
+- Fixed the radar showing another vehicle's data in multiplayer: packets are now stored per vehicle, so each screen reads only its own `DIST`, `ETA` and bearing.
+- Fixed airboats, prisoner pods and the seats of unrelated jeeps counting as tornado interceptors, which attached the radar and HUD to the wrong vehicle.
+- Fixed the radar blip and the bearing readout disagreeing about which side the vortex was on, and fixed a normalisation bug where a vortex dead ahead could read as `LEFT`.
+- Fixed the radar screen entity sweep running `ents.FindByClass` every frame on every client: 300 sweeps per 300 frames became 5.
+- Fixed the Path Screen unlock doing nothing at all -- it was silently dropped by the spawn lifecycle, so the screen never mounted.
+- Fixed the Reinforced Hydraulic Rams unlock having no visible component; it changed a stat and nothing else.
+- Fixed the Heavy Anchor Array unlock being inert, because the bonus it accumulated was read by no code at all.
+- Fixed armor panels respawning on every reconcile for 80 of the 128 possible upgrade combinations.
+- Fixed the 3D editor's Mirror, Duplicate and Grid Snap buttons never refreshing the panel, and its curated model list offering harpoon models for armor parts.
+- Fixed a vehicle lofted out of its anchors landing with the handbrake still on and unable to drive.
+- Fixed `ForceDetach` restoring gravity but not motion, which could leave a body hanging under its own weight.
+- Fixed `tiv_spike_count` being ignored, so a server's chosen anchor count is respected again, with the Heavy Anchor Array adding on top of it.
+- Removed the tornado movement arrow from the radar; `SPEED` in the telemetry box covers it.
+
+---
+
 ## Simple Release Notes - Major Update
 
 - Added 3D vehicle customization editor with live interactive preview, component mirroring, duplication, grid snapping, and precision coordinate controls.
@@ -395,3 +428,7 @@ if (TIV:isTIV()) {
 - **The Three Verified Roofs Share No Pattern**: The buggy's is a flat `metal_plate1` cowl at `y = -49.2`, the jalopy's is a `metal_plate1x2` spoiler at `y = -17.8`, and the APC's is a `metal_plate1x2` at `y = +75.9` -- forward of centre, where the other two are behind it. Positions, models and orientations all differ, so the two remaining branches (airboat, van/truck/pickup) keep plain guesses for their roofs rather than a formula fitted to any of them.
 - **One Rule Does Survive All Three**: The hydraulic ram sits at `z = 30.0` on every verified vehicle, even though their side armour is at `31.8`, `40.8` and `49.2`. It is at `x = ±35, y = 0` on two of the three, so the unverified branches now use `(±35, 0, 30)`. Their extra mounts move to `|x| = 25`, the value both verified boxy vehicles use, placed as an extra row between the front and mid pairs; that `y` is still a guess.
 - **Third Export Pinned**: `tools/fixtures/apc_fully_upgraded.lua`. 63 checks, up from 55, including an assertion that all three verified exports put the ram at `z = 30`. Reverting the APC roof, screen and extra mounts to the previous guesses fails 4 of them.
+
+- **Hydraulic Rams Actually Move**: `reinforced_hydraulics` was asked for as a moving part, and the props were static brackets. `SpawnArmorProps` now records each ram's base pose, travel and direction, and `TIV.SpikeAnim.SetRamExtension` telescopes them along that shaft. One stroke is started by each of the four anchor sequences -- deploy, retract, and both interrupt paths -- on the same job ticker as the spikes, so it is cancelled with them and cannot outlive the sequence, and it reads the current extension back off the props so an interrupted stroke starts from where the ram actually is rather than snapping.
+- **`tiv_spike_count` Restored**: Unifying the anchor count onto `TIV.Spikes.ResolveCount` left the convar read by nothing -- the count came straight from the config's mounts and the convar was only a fallback for a config that defines no spikes, so a server that set `tiv_spike_count 4` still got eight. The convar is the baseline again and the Heavy Anchor Array adds on top of it; because the upgrade is the only thing that can raise the ceiling, a server cannot configure its way past it. Measured: convar 4 gives 4, convar 4 plus the upgrade gives 6, convar 8 without the upgrade still gives 6, and convar 12 gives 8 because the layout defines eight mounts.
+- **Release Notes**: A simple `- Added / - Fixed / - Removed` summary of the whole update sits at the top of this file, matching the format of the previous release.

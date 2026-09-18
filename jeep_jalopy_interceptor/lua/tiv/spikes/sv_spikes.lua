@@ -21,13 +21,22 @@ TIV.Spikes = TIV.Spikes or {}
 -- upgrade the two extra mounts simply stay unused.
 -- ============================================================================
 function TIV.Spikes.ResolveCount(veh)
-    local lo  = TIV.Config.SpikeCountConvarMin or 0
-    local cap = TIV.Config.SpikeCountConvarMax or 6
+    local lo      = TIV.Config.SpikeCountConvarMin or 0
+    local ceiling = TIV.Config.SpikeCountConvarMax or 6
 
+    -- tiv_spike_count is the baseline the server asks for. It stays meaningful:
+    -- an early version of this took the count straight from the config's mounts,
+    -- which left the convar read by nothing at all.
+    local base = math.Clamp(TIV.Config.SpikeCount or ceiling, lo, ceiling)
+
+    -- The Heavy Anchor Array adds mounts on top of that baseline, and because it
+    -- is the only thing that can raise the ceiling, a server cannot configure its
+    -- way past the upgrade.
+    local extra = 0
     if IsValid(veh) then
         local stats = veh._TIVEffectiveStats
-        if stats and stats.max_spikes and stats.max_spikes > cap then
-            cap = stats.max_spikes
+        if stats and stats.max_spikes then
+            extra = math.max(0, stats.max_spikes - ceiling)
         end
     end
 
@@ -42,9 +51,11 @@ function TIV.Spikes.ResolveCount(veh)
     if TIV.CustomConfig and TIV.CustomConfig.CountSpikeComponents then
         defined = TIV.CustomConfig.CountSpikeComponents(veh, hasAngled) or 0
     end
-    if defined <= 0 then defined = TIV.Config.SpikeCount or 6 end
+    if defined <= 0 then defined = base + extra end
 
-    return math.Clamp(defined, lo, cap)
+    -- The config's mounts are a hard limit: there is nowhere to bolt an anchor
+    -- that the layout does not define.
+    return math.Clamp(math.min(base + extra, defined), lo, defined)
 end
 
 -- ============================================================================

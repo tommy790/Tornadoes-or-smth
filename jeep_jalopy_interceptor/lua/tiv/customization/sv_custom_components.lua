@@ -126,6 +126,17 @@ function TIV.CustomComponents.SpawnArmorProps(veh, config, unlockedUpgrades)
                     prop:SetLocalPos(localPos)
                     prop:SetLocalAngles(localAng)
 
+                    if ctype == "hydraulic_ram" then
+                        -- The ram telescopes along its shaft as the anchors drive, so
+                        -- reinforced_hydraulics is visible in motion and not just parked
+                        -- on the hull. The base pose is recorded here so the deploy
+                        -- animation never has to recompute the mount, and a retract
+                        -- always returns to exactly this transform.
+                        prop._TIVRamBasePos = Vector(localPos.x, localPos.y, localPos.z)
+                        prop._TIVRamDir     = Vector(0, 0, -1)
+                        prop._TIVRamTravel  = 10
+                    end
+
                     if isScreen then
                         prop:SetNWBool("TIV_RadarScreen", true)
                         prop.IsTIVRadarScreen = true

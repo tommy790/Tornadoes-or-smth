@@ -367,6 +367,69 @@ function TIV.SpikeAnim.ReparentSpike(veh, spike, spikeData)
 end
 
 -- ============================================================================
+-- HYDRAULIC RAM ANIMATION
+-- The rams are cosmetic props parented to the vehicle. They telescope as the
+-- anchors drive, so the reinforced_hydraulics unlock is something you see happen
+-- rather than a static bracket. Driven by the same job ticker as the spikes, so
+-- it is cancelled with them and cannot outlive the sequence.
+-- ============================================================================
+function TIV.SpikeAnim.SetRamExtension(veh, frac)
+    if not IsValid(veh) or not veh._TIVArmorProps then return end
+    frac = math.Clamp(frac or 0, 0, 1)
+    for _, prop in ipairs(veh._TIVArmorProps) do
+        if IsValid(prop) and prop._TIVRamBasePos then
+            local dir    = prop._TIVRamDir or Vector(0, 0, -1)
+            local travel = prop._TIVRamTravel or 10
+            prop:SetLocalPos(prop._TIVRamBasePos + (dir * (travel * frac)))
+        end
+    end
+end
+
+local function vehicleHasRams(veh)
+    if not IsValid(veh) or not veh._TIVArmorProps then return false end
+    for _, prop in ipairs(veh._TIVArmorProps) do
+        if IsValid(prop) and prop._TIVRamBasePos then return true end
+    end
+    return false
+end
+
+-- Reads the current extension back off the props so an interrupted stroke starts
+-- from where the ram actually is instead of snapping to an end.
+local function currentRamExtension(veh)
+    local frac = 0
+    for _, prop in ipairs(veh._TIVArmorProps or {}) do
+        if IsValid(prop) and prop._TIVRamBasePos then
+            local dir    = prop._TIVRamDir or Vector(0, 0, -1)
+            local travel = prop._TIVRamTravel or 10
+            local off    = prop:GetLocalPos() - prop._TIVRamBasePos
+            frac = math.Clamp(off:Dot(dir) / math.max(travel, 0.001), 0, 1)
+        end
+    end
+    return frac
+end
+
+local function StartRamStroke(sessionID, veh, target, duration)
+    if not vehicleHasRams(veh) then return end
+
+    local from  = currentRamExtension(veh)
+    local start = CurTime()
+    duration    = math.max(duration or 1.0, 0.01)
+
+    TIV.SpikeAnim.ActiveJobs[sessionID .. "_rams"] = {
+        veh = veh,
+        fn  = function()
+            if not IsValid(veh) then return false end
+            local frac = math.Clamp((CurTime() - start) / duration, 0, 1)
+            -- Same S-curve as the anchor stroke, so the ram and the spikes reach
+            -- the end of their travel together.
+            local ease = math.sin(Lerp(frac, from, target) * math.pi * 0.5)
+            TIV.SpikeAnim.SetRamExtension(veh, frac >= 1 and target or ease)
+            if frac >= 1 then return false end
+        end,
+    }
+end
+
+-- ============================================================================
 -- CANCEL ACTIVE JOBS FOR VEHICLE
 -- ============================================================================
 local function CancelVehicleJobs(sessionID)
@@ -395,6 +458,7 @@ function TIV.SpikeAnim.DeployToGround(veh, data, callback)
 
     local sessionID = data.sessionID or tostring(veh:EntIndex())
     CancelVehicleJobs(sessionID)
+    StartRamStroke(sessionID, veh, 1, TIV.Config.SpikeDriveDuration or 3.0)
 
     net.Start("TIV_SpikeAnimStart")
         net.WriteEntity(veh)
@@ -590,6 +654,7 @@ function TIV.SpikeAnim.RetractFromGround(veh, data, callback)
 
     local sessionID = data.sessionID or tostring(veh:EntIndex())
     CancelVehicleJobs(sessionID)
+    StartRamStroke(sessionID, veh, 0, TIV.Config.SpikeRetractDuration or 2.0)
 
     net.Start("TIV_SpikeAnimRetract")
         net.WriteEntity(veh)
@@ -712,6 +777,7 @@ function TIV.SpikeAnim.InterruptAndRetract(veh, data, callback)
 
     local sessionID = data.sessionID or tostring(veh:EntIndex())
     CancelVehicleJobs(sessionID)
+    StartRamStroke(sessionID, veh, 0, TIV.Config.SpikeRetractDuration or 2.0)
     TIV.Anchor.DetachAll(veh, data)
 
     net.Start("TIV_SpikeAnimRetract")
@@ -818,6 +884,7 @@ function TIV.SpikeAnim.InterruptAndDeploy(veh, data, callback)
 
     local sessionID = data.sessionID or tostring(veh:EntIndex())
     CancelVehicleJobs(sessionID)
+    StartRamStroke(sessionID, veh, 1, TIV.Config.SpikeDriveDuration or 3.0)
 
     net.Start("TIV_SpikeAnimStart")
         net.WriteEntity(veh)

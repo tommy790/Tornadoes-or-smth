@@ -139,6 +139,7 @@ assert(loadfile(repo .. "/jeep_jalopy_interceptor/lua/tiv/progression/sh_progres
 assert(loadfile(repo .. "/jeep_jalopy_interceptor/lua/tiv/customization/sh_custom_config.lua"))()
 assert(loadfile(repo .. "/jeep_jalopy_interceptor/lua/tiv/spikes/sv_spikes.lua"))()
 assert(loadfile(repo .. "/jeep_jalopy_interceptor/lua/tiv/customization/sv_custom_components.lua"))()
+assert(loadfile(repo .. "/jeep_jalopy_interceptor/lua/tiv/animation/sv_spike_anim.lua"))()
 
 TIV.Progression.GetPlayerProfile = function() return { unlocked_upgrades = unlocked } end
 
@@ -630,6 +631,94 @@ check("the export's own outer mounts are kept where the user put them",
 file.Exists = function() return false end
 file.Read   = function() return nil end
 TIV.CustomConfig.VehicleConfigs = {}
+
+print("\n== tiv_spike_count still means something ==")
+
+-- ResolveCount used to take the count straight from the config's mounts, which
+-- left the convar read by nothing. The server's baseline has to survive, with the
+-- Heavy Anchor Array adding on top of it -- and it has to be the only way past
+-- the stock ceiling, or a server could configure the upgrade away.
+local buggyCfg8 = TIV.CustomConfig.GetDefaultConfig("models/buggy.mdl", false)
+
+local function countFor(convarValue, unlockHeavy)
+    setUnlocked(unlockHeavy and { "heavy_cluster_spikes" } or {})
+    TIV.Config.SpikeCount = convarValue
+    local v = makeVeh("models/buggy.mdl",
+        TIV.CustomConfig.CalculateVehicleStats(buggyCfg8, unlocked))
+    local n = TIV.Spikes.ResolveCount(v)
+    TIV.Config.SpikeCount = 6
+    return n
+end
+
+check("the convar sets the baseline", countFor(4, false) == 4,
+    string.format("tiv_spike_count 4 -> %d anchors", countFor(4, false)))
+check("the upgrade adds on top of the baseline", countFor(4, true) == 6,
+    string.format("tiv_spike_count 4 + Heavy Anchor Array -> %d", countFor(4, true)))
+check("the default baseline with the upgrade reaches eight", countFor(6, true) == 8,
+    string.format("tiv_spike_count 6 + Heavy Anchor Array -> %d", countFor(6, true)))
+check("the default baseline without it stays at six", countFor(6, false) == 6,
+    string.format("tiv_spike_count 6 -> %d", countFor(6, false)))
+check("the convar cannot be used to skip the upgrade", countFor(8, false) == 6,
+    string.format("tiv_spike_count 8 without the upgrade -> %d (ceiling holds)", countFor(8, false)))
+check("the layout is still the hard limit", countFor(12, true) == 8,
+    string.format("tiv_spike_count 12 -> %d (the config defines eight mounts)", countFor(12, true)))
+
+print("\n== the hydraulic rams telescope ==")
+
+-- reinforced_hydraulics was asked for as a moving part, not a static bracket.
+-- SetRamExtension is what actually moves the props, so it is exercised directly
+-- against fake rams carrying the base pose SpawnArmorProps records.
+local ramVeh = makeVeh("models/buggy.mdl")
+ramVeh._TIVArmorProps = {}
+for side = -1, 1, 2 do
+    local base = Vector(side * 35.00, 0.00, 30.00)
+    local ram = { __isentity = true, _lp = Vector(base.x, base.y, base.z) }
+    ram._TIVRamBasePos = Vector(base.x, base.y, base.z)
+    ram._TIVRamDir     = Vector(0, 0, -1)
+    ram._TIVRamTravel  = 10
+    function ram:SetLocalPos(v) self._lp = Vector(v.x, v.y, v.z) end
+    function ram:GetLocalPos() return self._lp end
+    ramVeh._TIVArmorProps[#ramVeh._TIVArmorProps + 1] = ram
+end
+
+TIV.SpikeAnim.SetRamExtension(ramVeh, 0)
+local atRest = ramVeh._TIVArmorProps[1]._lp.z
+TIV.SpikeAnim.SetRamExtension(ramVeh, 1)
+local extended = ramVeh._TIVArmorProps[1]._lp.z
+TIV.SpikeAnim.SetRamExtension(ramVeh, 0.5)
+local halfway = ramVeh._TIVArmorProps[1]._lp.z
+
+check("fully retracted sits at the mount", math.abs(atRest - 30.00) < 0.001,
+    string.format("z = %.2f", atRest))
+check("fully extended has dropped by the full travel", math.abs((atRest - extended) - 10.00) < 0.001,
+    string.format("z %.2f -> %.2f (travel %.2f)", atRest, extended, atRest - extended))
+check("halfway is half the travel", math.abs((atRest - halfway) - 5.00) < 0.001,
+    string.format("z = %.2f", halfway))
+check("both rams move together",
+    math.abs(ramVeh._TIVArmorProps[1]._lp.z - ramVeh._TIVArmorProps[2]._lp.z) < 0.001,
+    string.format("%.2f and %.2f", ramVeh._TIVArmorProps[1]._lp.z, ramVeh._TIVArmorProps[2]._lp.z))
+
+TIV.SpikeAnim.SetRamExtension(ramVeh, 0)
+check("a retract returns them to exactly the recorded base",
+    math.abs(ramVeh._TIVArmorProps[1]._lp.z - 30.00) < 0.001
+        and math.abs(ramVeh._TIVArmorProps[1]._lp.x + 35.00) < 0.001,
+    string.format("back to (%.2f, %.2f, %.2f)", ramVeh._TIVArmorProps[1]._lp.x,
+        ramVeh._TIVArmorProps[1]._lp.y, ramVeh._TIVArmorProps[1]._lp.z))
+
+TIV.SpikeAnim.SetRamExtension(ramVeh, 5)
+check("the fraction is clamped, so a bad value cannot run the ram away",
+    math.abs(ramVeh._TIVArmorProps[1]._lp.z - 20.00) < 0.001,
+    string.format("frac 5 -> z = %.2f, same as frac 1", ramVeh._TIVArmorProps[1]._lp.z))
+
+-- A vehicle with no rams must not error, and armor panels must not be moved.
+local panelVeh = makeVeh("models/buggy.mdl")
+local panel = { __isentity = true, _lp = Vector(43.5, -24.5, 31.8) }
+function panel:SetLocalPos(v) self._lp = v end
+function panel:GetLocalPos() return self._lp end
+panelVeh._TIVArmorProps = { panel }
+TIV.SpikeAnim.SetRamExtension(panelVeh, 1)
+check("armor panels are left alone", math.abs(panel._lp.z - 31.8) < 0.001,
+    string.format("side plate still at z = %.2f", panel._lp.z))
 
 print(string.format("\nRESULT: %d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)
