@@ -365,6 +365,15 @@ function TIV.Loft.TriggerLoft(veh, data)
     TIV.Loft.SetAnchoredImmunity(veh, false)
 
     -- 3. Restore vehicle gravity, motion, and physics
+    -- finalizeAnchored applied the handbrake; StartRetract releases it on the
+    -- normal path but a loft bypasses retract entirely, so without this the
+    -- vehicle lands with the handbrake on and will not drive. That presents as a
+    -- frozen vehicle even though the physics are healthy.
+    if TIV.Deploy.ReleaseHandbrake then
+        TIV.Deploy.ReleaseHandbrake(veh)
+    end
+    data.handbrakeOn = nil
+
     local phys = veh:GetPhysicsObject()
     if IsValid(phys) then
         phys:EnableGravity(true)
@@ -427,8 +436,25 @@ function TIV.Loft.TriggerLoft(veh, data)
         liveData.anchored        = false
         liveData.gravityReleased = false
         liveData.plantedPos      = nil
+        liveData.handbrakeOn     = nil
 
         if IsValid(liveVeh) then
+            -- Re-assert the "idle means drivable" invariant rather than assuming
+            -- the loft path left things clean. Every one of these calls only ever
+            -- enables physics or removes this addon's own constraints, so this
+            -- cannot itself be what traps a vehicle.
+            TIV.Anchor.DetachAll(liveVeh, liveData)
+            if TIV.Deploy.ReleaseHandbrake then TIV.Deploy.ReleaseHandbrake(liveVeh) end
+
+            local p = liveVeh:GetPhysicsObject()
+            if IsValid(p) then
+                if not p:IsGravityEnabled() then p:EnableGravity(true) end
+                if not p:IsMotionEnabled() then
+                    p:EnableMotion(true)
+                    p:Wake()
+                end
+            end
+
             TIV.Deploy.BroadcastState(liveVeh, "idle")
             if TIV.CustomComponents and TIV.CustomComponents.EnsureArmor then
                 TIV.CustomComponents.EnsureArmor(liveVeh)

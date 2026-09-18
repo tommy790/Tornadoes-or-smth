@@ -23,6 +23,8 @@ Vector.__unm = function(a) return setmetatable({x=-a.x, y=-a.y, z=-a.z}, Vector)
 function Vector:Dot(o) return self.x*o.x + self.y*o.y + self.z*o.z end
 function Vector:Length() return math.sqrt(self:Dot(self)) end
 function Vector:LengthSqr() return self:Dot(self) end
+function Vector:Distance(o) return (self - o):Length() end
+function Vector:DistToSqr(o) return (self - o):LengthSqr() end
 function Vector:GetNormalized()
     local l = self:Length()
     if l == 0 then return setmetatable({x=0, y=0, z=0}, Vector) end

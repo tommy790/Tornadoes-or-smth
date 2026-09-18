@@ -72,12 +72,24 @@ local function ApplyHandbrake(veh)
         phys:SetAngleVelocity(Vector(0, 0, 0))
     end
     if veh.SetHandbrake then veh:SetHandbrake(true) end
+    -- Recorded so the freeze watchdog can tell a deliberate handbrake from a
+    -- leaked one. A handbrake left on after an intercept looks exactly like a
+    -- frozen vehicle from the driver's seat while the physics are perfectly fine.
+    local data = TIV.Deploy.GetState(veh)
+    if data then data.handbrakeOn = true end
 end
 
 local function ReleaseHandbrake(veh)
     if not IsValid(veh) then return end
     if veh.SetHandbrake then veh:SetHandbrake(false) end
+    local data = TIV.Deploy.GetState(veh)
+    if data then data.handbrakeOn = nil end
 end
+
+-- Exposed so the loft system can release it too. TriggerLoft used to skip this,
+-- so a vehicle that was lofted out of its anchors came back down with the
+-- handbrake still applied and would not drive.
+TIV.Deploy.ReleaseHandbrake = ReleaseHandbrake
 
 -- ============================================================================
 -- ENSURE SPIKES EXIST
