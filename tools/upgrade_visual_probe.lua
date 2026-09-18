@@ -264,18 +264,18 @@ print("\n== a saved config that predates the extra mounts still gets them ==")
 
 -- The Heavy Anchor Array's ceiling comes from max_spikes, but the count comes
 -- from the mounts the config defines. A layout saved before the extra mounts
--- existed -- which is every layout anyone has actually saved, including the one
--- the user exported -- defines six, so the upgrade stayed invisible for exactly
--- the players who had already used the editor. This drives the real
--- GetSavedConfig, which is where migration runs.
-local fixturePath = here .. "/fixtures/buggy_fully_upgraded.lua"
-local fh = io.open(fixturePath, "r")
-local fixtureText = fh and fh:read("*a") or ""
+-- existed defines six, so the upgrade stayed invisible for exactly the players
+-- who had already used the editor. This drives the real GetSavedConfig, which is
+-- where migration runs. The six-mount export is the user's first buggy export,
+-- kept alongside the corrected eight-mount one.
+local sixPath = here .. "/fixtures/buggy_six_mounts.lua"
+local fh = io.open(sixPath, "r")
+local sixText = fh and fh:read("*a") or ""
 if fh then fh:close() end
 
 local savedPath = TIV.CustomConfig.GetConfigFileName("models/buggy.mdl")
 file.Exists = function(p) return p == savedPath end
-file.Read   = function() return fixtureText end
+file.Read   = function() return sixText end
 TIV.CustomConfig.VehicleConfigs = {}
 
 local function countSpikes(cfg)
@@ -286,56 +286,56 @@ local function countSpikes(cfg)
     return n
 end
 
-local raw = assert(loadfile(fixturePath))()
-check("the exported layout really defines only six mounts", countSpikes(raw) == 6,
-    string.format("%d spike components in the file", countSpikes(raw)))
+local function spikesOf(cfg)
+    local out = {}
+    for _, c in ipairs(cfg and cfg.components or {}) do
+        if c.type == "spike" then out[#out + 1] = c end
+    end
+    return out
+end
+
+local sixMounts = assert(loadfile(sixPath))()
+check("the six-mount export really defines only six", countSpikes(sixMounts) == 6,
+    string.format("%d spike components in the file", countSpikes(sixMounts)))
 
 local loaded = TIV.CustomConfig.GetSavedConfig("models/buggy.mdl")
 check("the saved config loads through the real GetSavedConfig", loaded ~= nil)
 check("migration brings it up to the factory count", loaded and countSpikes(loaded) == 8,
-    string.format("%d -> %d", countSpikes(raw), loaded and countSpikes(loaded) or -1))
+    string.format("%d -> %d", countSpikes(sixMounts), loaded and countSpikes(loaded) or -1))
 
--- The added mounts must sit outboard of the widest existing row, on that row's
--- own line, so they land on the layout the player arranged.
-local maxX, widestY = 0, nil
-for _, c in ipairs(raw.components) do
-    if c.type == "spike" and math.abs(c.pos.x) > maxX then
-        maxX, widestY = math.abs(c.pos.x), c.pos.y
+-- The added mounts must be that model's own verified factory mounts. The first
+-- version of this derived them from the saved layout's geometry -- outboard of
+-- the widest row -- and both exports disproved that, so the check is now that
+-- they equal the factory's trailing mounts rather than any computed position.
+local factorySpikes = spikesOf(TIV.CustomConfig.GetDefaultConfig("models/buggy.mdl", true))
+local loadedSpikes = spikesOf(loaded)
+local mismatch = {}
+for i = 7, 8 do
+    local f, g = factorySpikes[i], loadedSpikes[i]
+    if not (f and g
+            and math.abs(f.pos.x - g.pos.x) < 0.01
+            and math.abs(f.pos.y - g.pos.y) < 0.01
+            and math.abs(f.pos.z - g.pos.z) < 0.01
+            and math.abs(f.ang.p - g.ang.p) < 0.01
+            and math.abs(f.ang.y - g.ang.y) < 0.01
+            and f.model == g.model) then
+        mismatch[#mismatch + 1] = string.format("#%d got (%.2f, %.2f, %.2f) want (%.2f, %.2f, %.2f)",
+            i, g and g.pos.x or 0, g and g.pos.y or 0, g and g.pos.z or 0,
+            f and f.pos.x or 0, f and f.pos.y or 0, f and f.pos.z or 0)
     end
 end
-local added = {}
-for _, c in ipairs(loaded.components) do
-    if c.type == "spike" and c.group == "migrated" then added[#added + 1] = c end
-end
-check("exactly two mounts were added", #added == 2, string.format("%d added", #added))
-local outboard, online, mirrored = true, true, {}
-for _, c in ipairs(added) do
-    if math.abs(c.pos.x) <= maxX then outboard = false end
-    if c.pos.y ~= widestY then online = false end
-    mirrored[c.pos.x > 0 and "right" or "left"] = math.abs(c.pos.x)
-end
-check("the new mounts sit outboard of the widest row", outboard,
-    string.format("widest existing |x| = %.2f, added at +/-%.2f", maxX, mirrored.right or -1))
-check("symmetrically, on the widest row's own line",
-    online and mirrored.left == mirrored.right,
-    string.format("y = %.2f for both", added[1] and added[1].pos.y or -1))
+check("the added mounts are the buggy's verified factory mounts", #mismatch == 0,
+    #mismatch == 0 and string.format("both at the verified (+/-%.2f, %.2f, %.2f)",
+        math.abs(factorySpikes[7] and factorySpikes[7].pos.x or 0),
+        factorySpikes[7] and factorySpikes[7].pos.y or 0,
+        factorySpikes[7] and factorySpikes[7].pos.z or 0)
+        or table.concat(mismatch, "; "))
 
--- A mount added on the right must inherit the right-hand angle convention, so an
--- angled-spike layout does not get two vertical anchors bolted onto it.
-local rightPitch = nil
-for _, c in ipairs(raw.components) do
-    if c.type == "spike" and c.pos.x > 0 and not rightPitch and c.ang then
-        rightPitch = c.ang.p
-    end
-end
-local rightAdded = nil
-for _, c in ipairs(added) do if c.pos.x > 0 then rightAdded = c end end
-check("the added mount inherits the side's angle convention",
-    rightAdded and rightPitch and rightAdded.ang.p == rightPitch,
-    string.format("existing right pitch %.2f, added %.2f", rightPitch or -1,
-        rightAdded and rightAdded.ang.p or -1))
+check("the six mounts the player placed are untouched",
+    loadedSpikes[1] and math.abs(loadedSpikes[1].pos.y - 50.00) < 0.01
+        and loadedSpikes[6] and math.abs(loadedSpikes[6].pos.y + 100.00) < 0.01,
+    "front row still at y=50, rear row still at y=-100")
 
--- Idempotence: a config that already has eight must not grow.
 local function deepCopy(t)
     local out = {}
     for k, v in pairs(t) do
@@ -580,7 +580,7 @@ for _, m in ipairs({ { "models/buggy.mdl", "buggy" }, { "models/vehicle.mdl", "j
 end
 
 compareAgainstExport("models/buggy.mdl", here .. "/fixtures/buggy_fully_upgraded.lua", "buggy")
-local jalopyExport = compareAgainstExport("models/vehicle.mdl",
+compareAgainstExport("models/vehicle.mdl",
     here .. "/fixtures/jalopy_fully_upgraded.lua", "jalopy")
 
 print("\n== migration leaves a config that already has eight alone ==")

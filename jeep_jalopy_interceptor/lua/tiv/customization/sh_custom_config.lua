@@ -116,54 +116,48 @@ end
 --- who had already saved one. Measured against the user's own exported buggy
 --- config: max_spikes 8, ResolveCount 6.
 ---
---- New mounts are placed from the saved config's own spike geometry -- outboard
---- of its widest row, at that row's height, matching the angle convention of the
---- spike already on that side -- so they land on whatever the player arranged
---- rather than on factory coordinates.
+--- The missing mounts are copied from the factory config for that model rather
+--- than derived from the saved layout's geometry. Deriving them was tried first
+--- -- "outboard of the widest row, at that row's height" -- and both exports
+--- disproved it: the verified buggy mounts are an extra row at (+/-25, 20), not
+--- outboard, and the verified jalopy mounts sit far behind the rear axle. Each
+--- model's extra mounts are bespoke, so the only defensible source is that
+--- model's own verified factory placement.
 function TIV.CustomConfig.MigrateSpikeMounts(config)
     if not config or not istable(config.components) then return config end
 
-    local spikes = {}
+    local count = 0
     for _, c in ipairs(config.components) do
-        if c.type == "spike" and c.pos then spikes[#spikes + 1] = c end
+        if c.type == "spike" then count = count + 1 end
     end
-    if #spikes == 0 then return config end
+    if count == 0 then return config end
 
-    local target = 0
     local factory = TIV.CustomConfig.GetDefaultConfig(config.vehicle_model, true)
+    local factorySpikes = {}
     for _, c in ipairs(factory.components or {}) do
-        if c.type == "spike" then target = target + 1 end
+        if c.type == "spike" then factorySpikes[#factorySpikes + 1] = c end
     end
-    if target <= #spikes then return config end
-
-    -- The widest row is the reference for how far outboard "outboard" is.
-    local widest, widestAbs = spikes[1], math.abs(spikes[1].pos.x)
-    local rightAng, leftAng = nil, nil
-    for _, sp in ipairs(spikes) do
-        local ax = math.abs(sp.pos.x)
-        if ax > widestAbs then widest, widestAbs = sp, ax end
-        if sp.pos.x > 0 and not rightAng and sp.ang then rightAng = sp.ang end
-        if sp.pos.x < 0 and not leftAng  and sp.ang then leftAng  = sp.ang end
-    end
+    if #factorySpikes <= count then return config end
 
     local used = {}
     for _, c in ipairs(config.components) do if c.id then used[c.id] = true end end
 
-    for i = 1, (target - #spikes) do
-        local side = (i % 2 == 1) and 1 or -1
-        local srcAng = (side > 0) and rightAng or leftAng
-        local id = (side > 0) and "spike_or" or "spike_ol"
+    -- The factory lists its standard mounts first and the extra ones last, so
+    -- the tail is exactly what a config saved before they existed cannot have.
+    for i = count + 1, #factorySpikes do
+        local src = factorySpikes[i]
+        local id = src.id
         if used[id] then id = "spike_added_" .. (#config.components + 1) end
         used[id] = true
 
         table.insert(config.components, {
             id    = id,
             type  = "spike",
-            name  = (side > 0) and "Outer Right Spike" or "Outer Left Spike",
+            name  = src.name,
             group = "migrated",
-            model = widest.model or "models/props_junk/harpoon002a.mdl",
-            pos   = Vector(side * (widestAbs + 16.00), widest.pos.y, widest.pos.z),
-            ang   = srcAng and Angle(srcAng.p, srcAng.y, srcAng.r) or Angle(90.00, 0.00, 0.00),
+            model = src.model,
+            pos   = Vector(src.pos.x, src.pos.y, src.pos.z),
+            ang   = Angle(src.ang.p, src.ang.y, src.ang.r),
             scale = Vector(1.00, 1.00, 1.00),
         })
     end
@@ -193,11 +187,11 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
     local rightSpikeAng = (hasAngledSpikes == true) and Angle( 80.00, 0.00, 0.00) or Angle(90.00, 0.00, 0.00)
     local leftSpikeAng  = (hasAngledSpikes == true) and Angle(100.00, 0.00, 0.00) or Angle(90.00, 0.00, 0.00)
 
-    -- The two outboard mounts mirror by yaw rather than by pitch in the verified
-    -- jalopy layout -- Angle(80, 180, 0) on the left, not Angle(100, 0, 0). Both
-    -- conventions splay the spike the same way; these keep the exported
-    -- orientation exactly while still going vertical when angled_spikes is
-    -- locked, which the upgrade check depends on.
+    -- Only the jalopy mirrors its two extra mounts by yaw -- Angle(80, 180, 0) on
+    -- the left rather than Angle(100, 0, 0). The verified buggy mounts use the
+    -- ordinary pitch convention above, so these apply to the jalopy branch alone.
+    -- Both still go vertical when angled_spikes is locked, which the upgrade
+    -- check depends on.
     local rightOuterAng = (hasAngledSpikes == true) and Angle( 80.00,   0.00, 0.00) or Angle(90.00, 0.00, 0.00)
     local leftOuterAng  = (hasAngledSpikes == true) and Angle( 80.00, 180.00, 0.00) or Angle(90.00, 0.00, 0.00)
 
@@ -246,8 +240,8 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
 
             -- Heavy Anchor Array: two extra mounts, only used once
             -- heavy_cluster_spikes is unlocked (the count is capped without it).
-            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  51.00,   10.00,    0.00), ang = rightOuterAng, scale = Vector(1.00, 1.00, 1.00) },  -- NOT user-verified
-            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -51.00,   10.00,    0.00), ang = leftOuterAng, scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  51.00,   10.00,    0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },  -- NOT user-verified
+            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -51.00,   10.00,    0.00), ang = leftSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
 
             { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-56.40,  -6.20, 49.20), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
             { id = "armor_sr", type = "armor_side",  name = "Right Metal Plate", group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector( 56.40,  -6.20, 49.20), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
@@ -278,8 +272,8 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
 
             -- Heavy Anchor Array: two extra mounts, only used once
             -- heavy_cluster_spikes is unlocked (the count is capped without it).
-            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  44.00,    0.00,    0.00), ang = rightOuterAng, scale = Vector(1.00, 1.00, 1.00) },  -- NOT user-verified
-            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -44.00,    0.00,    0.00), ang = leftOuterAng, scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  44.00,    0.00,    0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },  -- NOT user-verified
+            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -44.00,    0.00,    0.00), ang = leftSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
 
             { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-36.00, -10.00, 16.00), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
             { id = "armor_sr", type = "armor_side",  name = "Right Metal Plate", group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector( 36.00, -10.00, 16.00), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
@@ -310,8 +304,8 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
 
             -- Heavy Anchor Array: two extra mounts, only used once
             -- heavy_cluster_spikes is unlocked (the count is capped without it).
-            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  56.00,    0.00,    0.00), ang = rightOuterAng, scale = Vector(1.00, 1.00, 1.00) },  -- NOT user-verified
-            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -56.00,    0.00,    0.00), ang = leftOuterAng, scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  56.00,    0.00,    0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },  -- NOT user-verified
+            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -56.00,    0.00,    0.00), ang = leftSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
 
             { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-48.00, -20.00, 35.00), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
             { id = "armor_sr", type = "armor_side",  name = "Right Metal Plate", group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector( 48.00, -20.00, 35.00), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
@@ -343,8 +337,8 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
 
             -- Heavy Anchor Array: two extra mounts, only used once
             -- heavy_cluster_spikes is unlocked (the count is capped without it).
-            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  46.00,  -20.00,    0.00), ang = rightOuterAng, scale = Vector(1.00, 1.00, 1.00) },  -- NOT user-verified
-            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -46.00,  -20.00,    0.00), ang = leftOuterAng, scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  25.00,   20.00,    0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },  -- user-verified in game
+            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -25.00,   20.00,    0.00), ang = leftSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
 
             { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-43.50, -24.50, 31.80), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
             { id = "armor_sr", type = "armor_side",  name = "Right Metal Plate", group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector( 43.50, -24.50, 31.80), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
