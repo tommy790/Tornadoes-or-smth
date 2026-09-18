@@ -27,6 +27,13 @@ TIV.Instruments = TIV.Instruments or {}
 local radarByVehicle = {}
 local EMPTY_RADAR = { active = false }
 
+-- Degrees to rotate the vehicle's own heading basis before the radar uses it.
+-- See the HEADING BASIS CORRECTION note in DrawRadarScreen for why this exists.
+-- Positive rotates the reference frame anticlockwise. -90 maps the config's
+-- documented "+Y is the nose" convention onto the entity's +X.
+-- Set to 0 to disable, or to +90 if the correction reads the wrong way round.
+local HEADING_OFFSET_DEG = tonumber(TIV_HEADING_OFFSET_DEG or "") or -90
+
 --- Radar telemetry for one vehicle.
 -- @param veh  Entity   the vehicle whose radar is being drawn
 -- @param ply  Player   whose view this is (defaults to LocalPlayer). Passing the
@@ -279,6 +286,27 @@ local function DrawRadarScreen(screenEnt, veh, rData)
         local rel = tPos - vehPos
         local relFwd = rel:Dot(fwd2D)
         local relRgt = rel:Dot(rgt2D)
+
+        -- ----------------------------------------------------------------
+        -- HEADING BASIS CORRECTION
+        --
+        -- sh_custom_config.lua documents this addon's vehicle-local space as
+        -- "Forward: +Y (along veh:GetForward())". In GMod that is not possible:
+        -- Angle:Forward() is local +X and Angle:Right() is local -Y, so the two
+        -- halves of that line disagree by 90 degrees. Everything the radar draws
+        -- takes its reference frame from veh:GetForward()/GetRight() below, so if
+        -- the jeep's nose is the config's +Y rather than the entity's +X, the whole
+        -- display reads 90 degrees out -- a vortex dead ahead reports as 090 RIGHT.
+        --
+        -- This rotates the vehicle-relative components into the nose's frame.
+        -- The bearing text, the blip and the movement arrow all consume the
+        -- corrected pair, so they cannot drift apart.
+        -- ----------------------------------------------------------------
+        if HEADING_OFFSET_DEG ~= 0 then
+            local hr = math.rad(HEADING_OFFSET_DEG)
+            local c, s = math.cos(hr), math.sin(hr)
+            relFwd, relRgt = c * relFwd - s * relRgt, s * relFwd + c * relRgt
+        end
 
         -- Auto-scaling radar range
         local maxRangeUnits = math.max((rData.dist or 0) * 1.35, 3000)

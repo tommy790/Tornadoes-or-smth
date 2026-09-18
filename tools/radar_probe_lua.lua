@@ -29,6 +29,9 @@ if #bad > 0 then
     os.exit(1)
 end
 
+-- Lets the harness pin the heading correction; unset means the shipped value.
+TIV_HEADING_OFFSET_DEG = os.getenv("TIV_HEADING_OFFSET_DEG")
+
 local chunk, lerr = loadfile(TARGET)
 if not chunk then
     io.stderr:write("FAILED TO LOAD " .. TARGET .. ": " .. tostring(lerr) .. "\n")

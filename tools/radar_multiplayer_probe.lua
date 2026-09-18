@@ -198,6 +198,8 @@ setmetatable(env, {
     end,
 })
 
+env.TIV_HEADING_OFFSET_DEG = os.getenv("TIV_HEADING_OFFSET_DEG")
+
 local chunk, err = loadfile(TARGET, "t", env)
 if not chunk then io.stderr:write("FAIL: could not load " .. TARGET .. ": " .. tostring(err) .. "\n") os.exit(1) end
 local ok, lerr = pcall(chunk)

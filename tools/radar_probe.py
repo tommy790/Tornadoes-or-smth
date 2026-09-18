@@ -142,6 +142,8 @@ CANVAS_X_TO_VIEWER_RIGHT_PY = -1
 def main():
     lua = LuaRuntime(unpack_returned_tuples=True)
     g = lua.globals()
+    # Lets the harness pin the heading correction; unset means the shipped value.
+    g.TIV_HEADING_OFFSET_DEG = os.environ.get("TIV_HEADING_OFFSET_DEG")
     lua.execute(GMOD_STUB)
 
     with open(TARGET, "r", encoding="utf-8", errors="replace") as fh:
