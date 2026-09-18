@@ -184,10 +184,26 @@ TIV.SupportedClasses = {
     prop_vehicle_jeep_old  = true,
     prop_vehicle_jalopy    = true,
     prop_vehicle_apc       = true,
-    prop_vehicle_airboat   = true,
 }
 
-TIV.SupportedModelKeywords = { "jeep", "jalopy", "apc", "airboat", "interceptor" }
+TIV.SupportedModelKeywords = { "jeep", "jalopy", "apc", "interceptor" }
+
+-- Checked BEFORE the tag and class lists, so an entity here is never a TIV even
+-- if something tags it. Seats in particular are worth excluding explicitly:
+-- GMod gives a jeep's own seats the class prop_vehicle_jeep, so they would
+-- otherwise match SupportedClasses and resolve as a vehicle in their own right,
+-- heading and position included.
+TIV.ExcludedClasses = {
+    prop_vehicle_prisoner_pod = true,
+    prop_vehicle_airboat      = true,
+}
+
+TIV.ExcludedModelKeywords = {
+    "prisoner_pod",
+    "airboat",
+    "pod",
+    "seat",
+}
 
 function TIV.TagAsInterceptor(ent, isInterceptor)
     if not IsValid(ent) then return end
@@ -206,16 +222,25 @@ end
 
 function TIV.IsSupportedVehicle(ent)
     if not IsValid(ent) then return false end
+
+    -- Exclusions win over everything below, including an explicit tag.
+    local class = string.lower(ent:GetClass() or "")
+    if TIV.ExcludedClasses[class] then return false end
+    local model = string.lower(ent:GetModel() or "")
+    for _, kw in ipairs(TIV.ExcludedModelKeywords) do
+        if string.find(model, kw, 1, true) then return false end
+    end
+
     if ent.IsTIVVehicle or ent:GetNWBool("TIV_Interceptor", false) or ent:GetNWBool("IsTIVVehicle", false) then
         return true
     end
     if ent._TIVConfig ~= nil or ent.TIV_HasArmor or (ent.TIV_Controller and IsValid(ent.TIV_Controller)) then
         return true
     end
-    local class = string.lower(ent:GetClass() or "")
     if TIV.SupportedClasses[class] then return true end
-    if ent:IsVehicle() then return true end
-    local model = string.lower(ent:GetModel() or "")
+    -- There used to be a bare `ent:IsVehicle() then return true` here. It made
+    -- every vehicle on the map a TIV -- airboats, prisoner pods, and the seats of
+    -- unrelated jeeps -- which is why the radar and HUD would attach to them.
     if string.find(model, "vehicle.mdl", 1, true) then return true end
     for _, kw in ipairs(TIV.SupportedModelKeywords) do
         if string.find(model, kw, 1, true) then return true end
