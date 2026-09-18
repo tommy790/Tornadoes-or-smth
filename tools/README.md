@@ -25,6 +25,8 @@ npm install --global glua-cli@0.6.0                   # optional: the linter
 | `tools/radar_cache_probe.lua` | **LuaJIT 2.1** | The real `PostDrawTranslucentRenderables` hook body, with a simulated map and entity lifecycle. | The radar screen stops rendering, `ents.FindByClass` is called more than once a second, a late-tagged prop is never adopted, or a removed prop keeps rendering. |
 | `tools/radar_multiplayer_probe.lua` | **LuaJIT 2.1** | The real `net.Receive("TIV_RadarPathData")` handler and render hook, with two jeeps on opposite sides of one vortex. | A screen renders another vehicle's packet: its `REL BRG` reads the opposite sector, or the result depends on which packet arrived last. |
 | `tools/vehicle_detection_probe.lua` | **LuaJIT 2.1** | The real `TIV.IsSupportedVehicle` and `TIV.GetIdentifiedInterceptors` over 19 real GMod vehicle classes and models. | An airboat, prisoner pod, vehicle seat, or unlisted vehicle class is treated as a TIV interceptor. |
+| `tools/circulation_probe.lua` | **LuaJIT 2.1** | The real `TIV.Wind.GetTornadoGroundContact` / `GetTornadoRotationDirection` / `GetTornadoRotationSpeed` / `GetTornadoCirculationReport` from `lua/tiv/wind/sv_wind.lua`, against entities built to match what GStorms, XT2 and XT3 actually publish. | An aloft or unmeasurable vortex reports ground contact, or a circulation direction is invented when no addon publishes one. |
+| `tools/doppler_signature_probe.lua` | **LuaJIT 2.1** | The real `DrawRadarScreen` again, inspecting the recorded `surface.DrawLine` calls for the velocity-couplet layer. | The signature appears without real ground contact, the two lobes stop opposing each other or stop flipping with the reported circulation, an unknown direction draws a coloured lobe, the couplet crosses the core or outer circle, or it eases in on a packet boundary. |
 | `tools/radar_probe.py [yaw]` | lupa (Lua 5.5) | Same bearing scenario, through the Python bridge. | Same. |
 | `tools/e2_bearing_probe.py [yaw]` | lupa (Lua 5.5) | The real `e2function` bodies from `lua/entities/gmod_wire_expression2/core/custom/tiv.lua`. | `tivTornadoRelativeBearing()` / `tivTornadoRelativeSector()` disagree with the vehicle's own basis, or `tivTornadoBearing()` stops being the absolute map angle. |
 
@@ -38,6 +40,8 @@ tools/bin/luajit tools/radar_probe_lua.lua
 tools/bin/luajit tools/radar_cache_probe.lua
 tools/bin/luajit tools/radar_multiplayer_probe.lua
 tools/bin/luajit tools/vehicle_detection_probe.lua
+tools/bin/luajit tools/circulation_probe.lua
+tools/bin/luajit tools/doppler_signature_probe.lua
 .venv/bin/python tools/e2_bearing_probe.py
 ```
 

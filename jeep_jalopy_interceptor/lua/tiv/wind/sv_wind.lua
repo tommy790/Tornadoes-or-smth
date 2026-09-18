@@ -533,6 +533,188 @@ function TIV.Wind.CalculateTornadoFuturePath(bestEnt, tPos, heading, speedUnits,
 end
 
 -- ============================================================================
+-- CIRCULATION & GROUND-CONTACT COMPATIBILITY LAYER
+--
+-- The radar paints a Doppler velocity signature only while a vortex is actually
+-- on the ground, and colours its two lobes by the direction the vortex really
+-- turns. Both facts are addon-specific, and no addon exposes them under the same
+-- name, so they are read here once instead of being guessed in the client
+-- renderer.
+--
+-- Nothing in this section invents a state. Every branch returns nil when the
+-- addon does not publish the value, and the callers treat nil as "unknown" --
+-- unknown ground contact means the signature is not drawn, and unknown rotation
+-- direction means it is drawn in a neutral colour that claims no direction.
+-- ============================================================================
+
+TIV.Wind.ROTATION_UNKNOWN = 0
+TIV.Wind.ROTATION_CYCLONIC = 1        -- Northern-hemisphere default: counter-clockwise
+TIV.Wind.ROTATION_ANTICYCLONIC = -1   -- the reverse circulation
+
+-- Reads a field that an addon may expose either as a plain value or through a
+-- networked accessor. Returns the value, or nil when it is absent or unusable.
+local function ReadAddonValue(ent, field, getter)
+    if not ent then return nil end
+    local direct = ent[field]
+    if direct ~= nil then return direct end
+    if getter and ent[getter] then
+        local ok, value = pcall(ent[getter], ent)
+        if ok and value ~= nil then return value end
+    end
+    return nil
+end
+
+-- Returns v only when it is a finite number above zero, otherwise nil, so that
+-- the `or` chains below never settle on a zero-valued or NaN placeholder.
+local function PositiveNumber(v)
+    if isnumber(v) and IsFiniteNumber(v) and v > 0 then return v end
+    return nil
+end
+
+-- Coerces an addon flag into a boolean. Returns nil rather than false when the
+-- value is absent or of an unexpected type, so "addon says cyclonic" stays
+-- distinguishable from "addon said nothing".
+local function ToTriStateBool(v)
+    if v == true then return true end
+    if v == false then return false end
+    if isnumber(v) then
+        if v ~= 0 then return true end
+        return false
+    end
+    if isstring(v) then
+        local s = string.lower(v)
+        if s == "true" or s == "1" then return true end
+        if s == "false" or s == "0" then return false end
+    end
+    return nil
+end
+
+-- ----------------------------------------------------------------------------
+-- ROTATION DIRECTION
+--
+-- GStorms publishes `Anticyclonic` and derives its own spin from it as
+-- `spinDir = anticyclonic and -1 or 1` (gstorms_subvortex.lua:127). XT3 publishes
+-- `AntiCyclonic` on every vortex class, XT2 publishes `IsAnticyclonic` on
+-- xtwisters2base. A boolean from any of those is taken at face value.
+-- ----------------------------------------------------------------------------
+function TIV.Wind.GetTornadoRotationDirection(ent)
+    if not ent then return TIV.Wind.ROTATION_UNKNOWN end
+
+    local anti = ToTriStateBool(ReadAddonValue(ent, "Anticyclonic", "GetAnticyclonic"))
+    if anti == nil then anti = ToTriStateBool(ReadAddonValue(ent, "AntiCyclonic", "GetAntiCyclonic")) end
+    if anti == nil then anti = ToTriStateBool(ReadAddonValue(ent, "IsAnticyclonic", "GetIsAnticyclonic")) end
+
+    if anti ~= nil then
+        return anti and TIV.Wind.ROTATION_ANTICYCLONIC or TIV.Wind.ROTATION_CYCLONIC
+    end
+
+    -- XT2's EF variants do not always set the boolean: an anticyclonic EF0 only
+    -- flips `rotforce` from -54 to +54 (xt2_tornadoes_ef-0.lua:39-40), while every
+    -- cyclonic class ships a negative rotforce. The sign is a real property of
+    -- the spawned vortex, so it is a legitimate fallback -- but only as a sign.
+    local rotforce = ReadAddonValue(ent, "rotforce")
+    if isnumber(rotforce) and IsFiniteNumber(rotforce) and rotforce ~= 0 then
+        return rotforce > 0 and TIV.Wind.ROTATION_ANTICYCLONIC or TIV.Wind.ROTATION_CYCLONIC
+    end
+
+    return TIV.Wind.ROTATION_UNKNOWN
+end
+
+-- ----------------------------------------------------------------------------
+-- ROTATION STRENGTH
+--
+-- Tangential wind in MPH, used only to pace the signature's pulse. Absent or
+-- non-positive values yield nil, and the renderer falls back to the translation
+-- speed it already has rather than inventing a number here.
+-- ----------------------------------------------------------------------------
+function TIV.Wind.GetTornadoRotationSpeed(ent)
+    if not ent then return nil end
+    local mph = ReadAddonValue(ent, "VortexWindspeed", "GetVortexWindspeed")
+        or ReadAddonValue(ent, "MaxWinds", "GetMaxWinds")
+        or ReadAddonValue(ent, "Force", "GetForce")
+    return PositiveNumber(mph)
+end
+
+-- ----------------------------------------------------------------------------
+-- GROUND CONTACT
+--
+-- Returns true when the vortex is measured to be on the ground, false when it is
+-- measured to be clear of it, and nil when it cannot be measured. It never
+-- returns true merely because a tornado happens to exist.
+-- ----------------------------------------------------------------------------
+local GROUND_CONTACT_GAP = 512 -- Source units of clearance that still count as "on the ground"
+
+function TIV.Wind.GetTornadoGroundContact(ent)
+    if not IsValid(ent) then return nil end
+
+    -- GStorms tracks the funnel's bottom height above the vortex origin. It is
+    -- set to FunnelMaxHeight while the funnel is fully aloft and lerped toward
+    -- the configured start height -- 0 by default -- as the tornado touches down,
+    -- then back up again as it lifts (gstorms_dynamic_entity_handler.lua:205,218,
+    -- 260). Only that addon can be aloft at all, so its own state decides.
+    local startH = ReadAddonValue(ent, "FunnelStartHeight", "GetFunnelStartHeight")
+    local maxH = ReadAddonValue(ent, "FunnelMaxHeight", "GetFunnelMaxHeight")
+    startH = (isnumber(startH) and IsFiniteNumber(startH)) and startH or nil
+    maxH = PositiveNumber(maxH)
+
+    if startH ~= nil or maxH ~= nil then
+        if startH ~= nil and startH <= 0 then return true end
+        if maxH ~= nil and startH ~= nil then
+            -- A funnel still at (or above) its ceiling is entirely off the ground,
+            -- as is one configured to stop short of it.
+            if startH >= maxH or startH > GROUND_CONTACT_GAP then return false end
+            return true
+        end
+        -- Only one of the two is published, so the funnel height alone cannot
+        -- settle it; fall through to the measurement below.
+    end
+
+    -- XT2 and XT3 anchor the vortex at the ground -- XT3 sets the entity to a
+    -- downward trace on spawn and keeps it there through MovementHeightGoal
+    -- (xtwisters3vortexbase.lua:76-85, 140-149) -- and neither publishes an aloft
+    -- state, so measure the gap directly. The trace failing or running short is
+    -- reported as unknown rather than as an answer.
+    if not ent.GetPos then return nil end
+
+    local origin = ent:GetPos()
+    if not IsUsableVector(origin) then return nil end
+
+    local tr = util.TraceLine({
+        start  = origin + Vector(0, 0, 64),
+        endpos = origin - Vector(0, 0, 16384),
+        mask   = MASK_SOLID_BRUSHONLY + MASK_WATER,
+        filter = ent,
+    })
+    if not tr or not tr.Hit or not IsUsableVector(tr.HitPos) then return nil end
+
+    return (origin.z - tr.HitPos.z) <= GROUND_CONTACT_GAP
+end
+
+-- Bundles the three values the radar needs. Anything the addons do not publish
+-- arrives as nil / 0, and the renderer suppresses the signature rather than
+-- filling the gap with an assumption.
+function TIV.Wind.GetTornadoCirculationReport(ent)
+    if not IsValid(ent) then
+        return {
+            touchingGround = false,
+            rotationDirection = TIV.Wind.ROTATION_UNKNOWN,
+            rotationSpeed = 0,
+        }
+    end
+
+    local contact = TIV.Wind.GetTornadoGroundContact(ent)
+    local rotSpeed = TIV.Wind.GetTornadoRotationSpeed(ent)
+
+    return {
+        -- nil is deliberately collapsed to false here: the client renders one
+        -- boolean, and "cannot be determined" must not draw a signature.
+        touchingGround = contact == true,
+        rotationDirection = TIV.Wind.GetTornadoRotationDirection(ent),
+        rotationSpeed = rotSpeed or 0,
+    }
+end
+
+-- ============================================================================
 -- ACTIVE TORNADO TRACKING & PATH PREDICTION (GSTORMS, XT2, & XTWISTERS 3)
 -- Locates the active tornado entity to evaluate real-time core/side interception
 -- and generate forward trajectory path prediction waypoints.
@@ -749,6 +931,10 @@ function TIV.Wind.GetNearestActiveTornado(pos, maxDist)
     local bearing = math.deg(math.atan2(tPos.y - pos.y, tPos.x - pos.x))
     if bearing < 0 then bearing = bearing + 360 end
 
+    -- Ground contact and circulation are resolved by the compatibility layer, so
+    -- the radar never has to reach into an addon's fields itself.
+    local circulation = TIV.Wind.GetTornadoCirculationReport(bestEnt)
+
     return {
         ent         = bestEnt,
         pos         = tPos,
@@ -763,6 +949,9 @@ function TIV.Wind.GetNearestActiveTornado(pos, maxDist)
         cpaDist     = math.Round(cpaDist, 1),
         impactType  = impactType,
         waypoints   = waypoints,
+        touchingGround    = circulation.touchingGround,
+        rotationDirection = circulation.rotationDirection,
+        rotationSpeed     = circulation.rotationSpeed,
     }
 end
 

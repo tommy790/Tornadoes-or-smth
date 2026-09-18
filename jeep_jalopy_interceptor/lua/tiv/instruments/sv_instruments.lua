@@ -114,6 +114,19 @@ timer.Create("TIV_RadarPathUpdate", 0.35, 0, function()
                         net.WriteVector(waypoints[i].pos or Vector(0, 0, 0))
                         net.WriteUInt(math.Clamp(math.Round(waypoints[i].time or (i * 4)), 0, 255), 8)
                     end
+
+                    -- Circulation telemetry for the Doppler signature. Appended
+                    -- after the waypoints so the existing payload order is
+                    -- unchanged, and still sent on the same 0.35 s timer -- the
+                    -- signature is interpolated client-side, never per frame.
+                    --
+                    -- Rotation direction is a signed byte because there is no
+                    -- neutral spelling of "clockwise": -1/0/+1 carries
+                    -- anticyclonic / unknown / cyclonic without inventing a
+                    -- direction for the unknown case.
+                    net.WriteBool(tInfo.touchingGround == true)
+                    net.WriteInt(math.Clamp(math.Round(tInfo.rotationDirection or 0), -1, 1), 8)
+                    net.WriteFloat(math.Clamp(tInfo.rotationSpeed or 0, 0, 400))
                 else
                     net.WriteBool(false)
                 end

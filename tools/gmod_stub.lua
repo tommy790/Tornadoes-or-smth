@@ -108,8 +108,13 @@ surface = {
             r = _G.__curcol.r, g = _G.__curcol.g, b = _G.__curcol.b,
         }
     end,
+    -- Records the current colour/alpha too: the radar distinguishes layers by
+    -- colour, so a probe that cannot see the colour cannot tell them apart.
     DrawLine = function(x0, y0, x1, y1)
-        _G.__calls[#_G.__calls + 1] = { op = "line", x = x0, y = y0, x2 = x1, y2 = y1 }
+        _G.__calls[#_G.__calls + 1] = {
+            op = "line", x = x0, y = y0, x2 = x1, y2 = y1,
+            r = _G.__curcol.r, g = _G.__curcol.g, b = _G.__curcol.b, a = _G.__curcol.a,
+        }
     end,
     DrawOutlinedRect = function() end,
     SetFont = function() end,
@@ -134,7 +139,10 @@ hook   = { Add = noop, Run = noop }
 ents   = { FindByClass = function() return {} end, GetAll = function() return {} end }
 player = { GetAll = function() return {} end }
 
-function CurTime() return 100 end
+function CurTime() return _G.__curtime or 100 end
+-- FrameTime drives any per-frame interpolation the HUD does (the Doppler
+-- signature fade, for one), so a probe needs to be able to step it.
+function FrameTime() return _G.__frametime or 0.016 end
 function RealTime() return 100 end
 function SysTime() return 100 end
 function IsValid(e) return e ~= nil and e ~= false end

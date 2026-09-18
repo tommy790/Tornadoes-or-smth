@@ -150,6 +150,10 @@ env.Angle = mkAngle
 env.Color = function(r, g, b, a) return { r=r, g=g, b=b, a=a } end
 env.CurTime = function() return clock end
 env.RealTime = function() return clock end
+-- Must be stubbed explicitly: the sandbox's fallback metatable hands back a
+-- table for any unknown global, and the radar calls FrameTime() to step the
+-- Doppler signature fade.
+env.FrameTime = function() return 0.016 end
 env.IsValid = function(e) return e ~= nil and e ~= false and e._valid ~= false end
 env.istable = function(v) return type(v) == "table" end
 env.isvector = function(v) return type(v) == "table" and v.x ~= nil end
@@ -288,8 +292,12 @@ env.TIV = env.TIV
 
 -- Deliver one server packet. Mirrors sv_instruments.lua's TIV_RadarPathData.
 local function deliver(veh, tornadoPos, dist, bearing)
+    -- Trailing false/0/0 are the circulation fields the server appends after the
+    -- waypoints: touchingGround, rotationDirection, rotationSpeed. Left off the
+    -- ground so this probe measures bearing separation only.
     local i, args = 0, { veh, true, tornadoPos, setmetatable({x=1,y=0,z=0}, Vector),
-                         30, 600, 3500, dist, bearing, 10, "core", 0 }
+                         30, 600, 3500, dist, bearing, 10, "core", 0,
+                         false, 0, 0 }
     local saved = env.net
     env.net = setmetatable({
         ReadEntity = function() i = i + 1 return args[i] end,
@@ -298,6 +306,7 @@ local function deliver(veh, tornadoPos, dist, bearing)
         ReadFloat  = function() i = i + 1 return args[i] end,
         ReadString = function() i = i + 1 return args[i] end,
         ReadUInt   = function() i = i + 1 return args[i] end,
+        ReadInt    = function() i = i + 1 return args[i] end,
     }, { __index = saved })
     netReceivers["TIV_RadarPathData"]()
     env.net = saved

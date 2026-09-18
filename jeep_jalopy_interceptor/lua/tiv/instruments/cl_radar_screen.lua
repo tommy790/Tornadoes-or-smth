@@ -25,6 +25,10 @@ TIV.Instruments = TIV.Instruments or {}
 -- HUD and any external reader keep working.
 -- ============================================================================
 local radarByVehicle = {}
+-- Per-vehicle fade for the Doppler velocity signature, so touchdown and lift-off
+-- ease in and out instead of popping on a 0.35 s packet boundary. Declared up
+-- here because PruneRadarData below clears it alongside the packets.
+local signatureFade = {}
 local EMPTY_RADAR = { active = false }
 
 -- Heading basis correction, shared with the HUD and the Expression 2 functions
@@ -59,6 +63,11 @@ local function PruneRadarData()
     for veh in pairs(radarByVehicle) do
         if not IsValid(veh) then radarByVehicle[veh] = nil end
     end
+    -- The signature fade is keyed the same way; drop it with the radar entry so a
+    -- removed vehicle cannot leave a fade behind.
+    for veh in pairs(signatureFade) do
+        if not IsValid(veh) then signatureFade[veh] = nil end
+    end
 end
 
 -- ============================================================================
@@ -89,6 +98,12 @@ net.Receive("TIV_RadarPathData", function()
             table.insert(waypoints, { pos = wpPos, time = wpTime })
         end
 
+        -- Read last because the server appends them last. Keeping the order
+        -- identical on both sides is what stops every field above from shifting.
+        local touchingGround = net.ReadBool()
+        local rotationDir    = net.ReadInt(8)
+        local rotationSpeed  = net.ReadFloat()
+
         local data = {
             active      = true,
             veh         = veh,
@@ -102,6 +117,12 @@ net.Receive("TIV_RadarPathData", function()
             eta         = eta,
             impactType  = impactType,
             waypoints   = waypoints,
+            -- Ground contact, as measured by sv_wind's compatibility layer. The
+            -- server collapses "could not be determined" to false before sending,
+            -- so an unknown state never reaches the renderer as a signature.
+            touchingGround    = touchingGround,
+            rotationDirection = rotationDir,
+            rotationSpeed     = rotationSpeed,
             receivedAt  = CurTime(),
         }
         radarByVehicle[veh] = data
@@ -199,6 +220,143 @@ local function DrawClippedLine(x0, y0, x1, y1, r, g, b, a)
         surface.SetDrawColor(r, g, b, a)
         surface.DrawLine(c0x, c0y, c1x, c1y)
     end
+end
+
+-- ============================================================================
+-- DOPPLER VELOCITY SIGNATURE
+--
+-- A pair of opposing curved lobes marking the air moving toward the radar on one
+-- flank of the vortex and away from it on the other -- the velocity couplet a
+-- real Doppler shows on a tornado. It is drawn only while the server reports the
+-- vortex is actually on the ground, and it is deliberately not a spinning disc:
+-- nothing here rotates, so it cannot read as an animation of the vortex turning.
+--
+-- All tornado detection stays in sv_wind.lua's compatibility layer. This layer
+-- only consumes the three values it is handed.
+-- ============================================================================
+
+-- Fade per vehicle, so touchdown and lift-off ease in and out instead of popping
+-- on a 0.35 s packet boundary. The table itself lives up with radarByVehicle.
+-- Eased in over roughly a third of a second. There is deliberately no matching
+-- fade-out rate: when the server stops reporting ground contact the signature is
+-- dropped immediately, because easing out a reading we no longer have would mean
+-- drawing something the tornado system is not currently saying.
+local SIGNATURE_FADE_IN = 3.5   -- per second
+local SIGNATURE_ARC_SPAN = math.rad(120)
+local SIGNATURE_ARC_STEP = math.rad(6)
+
+-- One stroked curved band: two concentric arcs joined at both ends. Stroked
+-- rather than filled so the windfield circles underneath stay readable.
+local function DrawDopplerArcBand(cx, cy, rInner, rOuter, centerAngle, span, r, g, b, a)
+    if a <= 1 or rInner <= 0 or rOuter <= rInner then return end
+
+    local half = span * 0.5
+    local segments = math.max(4, math.floor(span / SIGNATURE_ARC_STEP))
+
+    for band = 0, 1 do
+        local radius = (band == 0) and rInner or rOuter
+        local px, py
+        for i = 0, segments do
+            local ang = centerAngle - half + (span * i / segments)
+            local nx = cx + math.cos(ang) * radius
+            local ny = cy + math.sin(ang) * radius
+            if px then DrawClippedLine(px, py, nx, ny, r, g, b, a) end
+            px, py = nx, ny
+        end
+    end
+
+    -- Cap both ends so the band reads as a sector instead of two loose arcs.
+    for _, off in ipairs({ -half, half }) do
+        local ang = centerAngle + off
+        local cosA, sinA = math.cos(ang), math.sin(ang)
+        DrawClippedLine(
+            cx + cosA * rInner, cy + sinA * rInner,
+            cx + cosA * rOuter, cy + sinA * rOuter,
+            r, g, b, a
+        )
+    end
+end
+
+-- Advances one vehicle's signature fade. Returns the fade to draw with, or nil
+-- when the signature should not be drawn at all.
+local function SignatureFadeFor(veh, rData, dt)
+    if not IsValid(veh) then return nil end
+
+    -- No tornado, or a packet too old to trust: the signature is gone rather
+    -- than eased out, because fading a reading we no longer have would be
+    -- drawing something the server is not currently reporting.
+    if not rData or not rData.active or not rData.pos or rData.touchingGround ~= true then
+        signatureFade[veh] = nil
+        return nil
+    end
+
+    local st = signatureFade[veh]
+    if not st then
+        st = { cur = 0 }
+        signatureFade[veh] = st
+    end
+
+    st.cur = math.Clamp(st.cur + SIGNATURE_FADE_IN * dt, 0, 1)
+    return st.cur
+end
+
+-- Draws the couplet centred on the vortex's radar position. `ux, uy` is the
+-- canvas unit vector from the radar (canvas centre) toward the vortex.
+local SIGNATURE_MIN_THICKNESS = 6 -- px; below this a couplet stops reading as one
+
+local function DrawDopplerSignature(scrX, scrY, cx, cy, ux, uy, corePx, outerPx, rotSign, rotMPH, fade, now)
+    -- The signature has to live in the annulus between the two circles the radar
+    -- already draws, without crossing either stroke. Both radii are taken from
+    -- what was actually drawn, and the band is then sized to fit what is left --
+    -- which matters because the core circle has an 8 px floor while the outer
+    -- windfield does not, so a distant vortex leaves barely any gap and a close
+    -- one leaves a lot. Deriving the band from the real radii is the only way it
+    -- cannot end up painted over the core.
+    local lo = corePx + 2
+    local hi = outerPx - 2
+    if hi - lo < SIGNATURE_MIN_THICKNESS then return end
+
+    -- Scale with the detected circulation where there is room for it.
+    local want = math.Clamp(corePx * 1.5, 8, 46)
+    local bandInner = math.Clamp(want, lo, hi - SIGNATURE_MIN_THICKNESS)
+    local bandOuter = math.Clamp(want * 1.45, bandInner + SIGNATURE_MIN_THICKNESS, hi)
+    if bandOuter - bandInner < 2 then return end
+
+    -- Which flank is inbound is set by the circulation and the radar geometry
+    -- together, never by the screen's orientation. For a counter-clockwise vortex
+    -- (rotSign +1, the Northern-hemisphere default) the tangential wind at the
+    -- point nearest the radar runs along +n x +z, which in the game's
+    -- left-handed basis is (n.y, -n.x) -- toward the radar. Reversing the
+    -- circulation reverses that, which is exactly what the sign does here.
+    local lobeDir = (rotSign < 0) and -1 or 1
+    local inX, inY = -uy * lobeDir, ux * lobeDir
+
+    local inboundR, inboundG, inboundB
+    local outboundR, outboundG, outboundB
+
+    if rotSign == 0 then
+        -- Direction genuinely unavailable: both lobes share one neutral colour,
+        -- so the signature shows that air is circulating without claiming which
+        -- way round.
+        inboundR, inboundG, inboundB = 150, 200, 225
+        outboundR, outboundG, outboundB = 150, 200, 225
+    else
+        inboundR, inboundG, inboundB = 90, 235, 255    -- toward the radar
+        outboundR, outboundG, outboundB = 255, 120, 45 -- away from it
+    end
+
+    -- Pulse paced by the measured circulation rather than by a fixed rate, so a
+    -- faster vortex reads as more energetic. Falls back to the translation speed
+    -- when the addon publishes no wind value.
+    local paceMPH = (rotMPH and rotMPH > 0) and rotMPH or 0
+    local pulse = 0.72 + 0.28 * math.sin(now * (2.0 + math.Clamp(paceMPH, 0, 320) / 110))
+    local baseA = math.floor(170 * fade * pulse)
+
+    local inboundAngle = math.atan2(inY, inX)
+    DrawDopplerArcBand(scrX, scrY, bandInner, bandOuter, inboundAngle, SIGNATURE_ARC_SPAN,
+        inboundR, inboundG, inboundB, baseA)
+    DrawDopplerArcBand(scrX, scrY, bandInner, bandOuter, inboundAngle + math.pi, SIGNATURE_ARC_SPAN,
+        outboundR, outboundG, outboundB, baseA)
 end
 
 local function DrawRadarScreen(screenEnt, veh, rData)
@@ -367,6 +525,34 @@ local function DrawRadarScreen(screenEnt, veh, rData)
             local p2x = scrX + math.cos(a2) * corePx
             local p2y = scrY + math.sin(a2) * corePx
             DrawClippedLine(p1x, p1y, p2x, p2y, 255, 45, 45, 120 * corePulse)
+        end
+
+        -- ----------------------------------------------------------------
+        -- DOPPLER VELOCITY SIGNATURE (additional layer)
+        --
+        -- Inserted between the two windfield circles and the centre icon, so it
+        -- reads as an overlay on the vortex without painting over the core, the
+        -- outer windfield, the centre marker, the sweep or the vehicle chevron.
+        -- Only drawn while the server reports real ground contact.
+        -- ----------------------------------------------------------------
+        local sigFade = SignatureFadeFor(veh, rData, FrameTime())
+        if sigFade then
+            local sigUX, sigUY = ux, uy
+            local sigDist = math.sqrt((scrX - cx) * (scrX - cx) + (scrY - cy) * (scrY - cy))
+            if sigDist > 0.5 then
+                -- Re-derive the radar-to-vortex direction on the canvas rather than
+                -- reusing the blip unit vector: the blip can carry BlipOffsetDeg,
+                -- and a canvas correction must not swing the velocity lobes.
+                sigUX, sigUY = (scrX - cx) / sigDist, (scrY - cy) / sigDist
+            end
+
+            DrawDopplerSignature(
+                scrX, scrY, cx, cy, sigUX, sigUY,
+                corePx, outerPx,
+                rData.rotationDirection or 0,
+                (rData.rotationSpeed and rData.rotationSpeed > 0) and rData.rotationSpeed or (rData.speedMPH or 0),
+                sigFade, now
+            )
         end
 
         -- Vortex Center Icon (on-screen icon or clamped off-screen edge pip)
