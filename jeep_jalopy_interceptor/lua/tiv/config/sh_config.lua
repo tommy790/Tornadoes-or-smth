@@ -274,6 +274,24 @@ function TIV.IsSupportedVehicle(ent)
 end
 
 -- Resolve a player's TIV vehicle, walking seat parent / GetBase if needed.
+-- ----------------------------------------------------------------------------
+-- Who owns/drives this vehicle. sv_spike_anim, sv_custom_components and the
+-- spike-count resolver all needed the same lookup and each had their own copy;
+-- the upgrade-gated visuals depend on getting the same answer everywhere.
+-- ----------------------------------------------------------------------------
+function TIV.ResolveOwner(veh)
+    if not IsValid(veh) then return nil end
+    local ply = (veh.GetDriver and veh:GetDriver()) or veh._TIVOwner
+    if not IsValid(ply) and veh.CPPIGetOwner then
+        ply = veh:CPPIGetOwner()
+    end
+    if not IsValid(ply) and game.SinglePlayer then
+        local humans = player.GetHumans()
+        ply = humans and humans[1] or nil
+    end
+    return IsValid(ply) and ply or nil
+end
+
 function TIV.ResolveVehicle(ply)
     if not IsValid(ply) then return nil end
     local seat = ply:GetVehicle()

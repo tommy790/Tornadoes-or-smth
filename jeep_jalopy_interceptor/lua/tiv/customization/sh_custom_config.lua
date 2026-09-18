@@ -23,7 +23,7 @@ TIV.CustomConfig.CuratedModels = {
         { name = "Industrial Hydraulic Ram", model = "models/props_wasteland/panel_lever001.mdl" },
         { name = "Ladder Rail Penetrators",  model = "models/props_c17/metalladder001.mdl" },
     },
-    side_armor = {
+    armor_side = {
         { name = "PHX Metal Plate 1x2",      model = "models/props_phx/construct/metal_plate1x2.mdl" },
         { name = "PHX Metal Plate 2x2",      model = "models/props_phx/construct/metal_plate2x2.mdl" },
         { name = "PHX Metal Plate 1x1",      model = "models/props_phx/construct/metal_plate1x1.mdl" },
@@ -33,7 +33,7 @@ TIV.CustomConfig.CuratedModels = {
         { name = "Slag Armor Panel",         model = "models/props_debris/metal_panel01a.mdl" },
         { name = "Ribbed Alloy Plate",       model = "models/props_debris/metal_panel02a.mdl" },
     },
-    front_armor = {
+    armor_front = {
         { name = "PHX Metal Plate 1x2",      model = "models/props_phx/construct/metal_plate1x2.mdl" },
         { name = "PHX Metal Plate 2x2",      model = "models/props_phx/construct/metal_plate2x2.mdl" },
         { name = "PHX Metal Plate 1x1",      model = "models/props_phx/construct/metal_plate1x1.mdl" },
@@ -42,12 +42,18 @@ TIV.CustomConfig.CuratedModels = {
         { name = "Heavy Vault Shutter",      model = "models/props_lab/blastdoor001c.mdl" },
         { name = "Grille Cowling Plate",     model = "models/props_trainstation/traincar_rack001.mdl" },
     },
-    roof_armor = {
+    armor_roof = {
         { name = "PHX Metal Plate 1x2",      model = "models/props_phx/construct/metal_plate1x2.mdl" },
         { name = "PHX Metal Plate 2x2",      model = "models/props_phx/construct/metal_plate2x2.mdl" },
         { name = "Combine Roof Shield",      model = "models/props_combine/combine_fence01b.mdl" },
         { name = "Corrugated Air Deflector", model = "models/props_c17/fence01a.mdl" },
         { name = "Slag Roof Plate",          model = "models/props_debris/metal_panel02a.mdl" },
+    },
+    hydraulic_ram = {
+        { name = "Combine Ram Lever",        model = "models/props_c17/TrapPropeller_Lever.mdl" },
+        { name = "Industrial Hydraulic Ram", model = "models/props_wasteland/panel_lever001.mdl" },
+        { name = "Reinforced Steel Rod",     model = "models/props_c17/trappropbars_klab.mdl" },
+        { name = "Heavy Piston Column",      model = "models/props_c17/utilityconnectors006.mdl" },
     },
     radar_screen = {
         { name = "Wiremod Small Monitor",    model = "models/kobilica/wiremonitorsmall.mdl" },
@@ -56,6 +62,11 @@ TIV.CustomConfig.CuratedModels = {
         { name = "Lab Desktop Terminal",     model = "models/props_lab/monitor02.mdl" },
     }
 }
+
+-- Components are typed "spike" (singular) but this list was originally keyed
+-- "spikes", so the editor's CuratedModels[curComp.type] lookup missed and fell
+-- back to the spike list by luck. Alias it so the lookup is correct either way.
+TIV.CustomConfig.CuratedModels.spike = TIV.CustomConfig.CuratedModels.spikes
 
 -- ============================================================================
 -- MODEL CONFIGURATION PERSISTENCE & FILE HELPERS
@@ -126,10 +137,21 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
             { id = "spike_rr", type = "spike", name = "Rear Right Spike",   group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector( 25.00,-100.00, 0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
             { id = "spike_rl", type = "spike", name = "Rear Left Spike",    group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector(-25.00,-100.00, 0.00), ang = leftSpikeAng,  scale = Vector(1.00, 1.00, 1.00) },
 
+            -- Heavy Anchor Array: two extra mounts, only used once
+            -- heavy_cluster_spikes is unlocked (the count is capped without it).
+            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  41.00,    0.00, 0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -41.00,    0.00, 0.00), ang = leftSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
+
             -- Armor Panels (Metal Plates 1x2)
             { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-48.00, -39.00, 40.80), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
             { id = "armor_sr", type = "armor_side",  name = "Right Metal Plate", group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector( 44.00, -39.00, 40.80), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
             { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  57.40, 45.00), ang = Angle(-165.00, 90.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
+
+            -- Roof cowl (roof_spoiler) and hydraulic rams (reinforced_hydraulics).
+            -- Positions are first-pass defaults; adjust them in the 3D editor.
+            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  -25.00,  58.80), ang = Angle(  0.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  33.00,    0.00,  30.80), ang = Angle( 90.00,  0.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -33.00,    0.00,  30.80), ang = Angle( 90.00,  0.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Tactical Path Prediction Screen
             { id = "screen_radar", type = "radar_screen", name = "Path Prediction Screen", group = "interior", model = "models/kobilica/wiremonitorsmall.mdl", pos = Vector( 14.00,  14.00, 42.00), ang = Angle(10.00, -125.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
@@ -143,9 +165,20 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
             { id = "spike_rr", type = "spike", name = "Rear Right Spike",   group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector( 35.00,-110.00, 0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
             { id = "spike_rl", type = "spike", name = "Rear Left Spike",    group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector(-35.00,-110.00, 0.00), ang = leftSpikeAng,  scale = Vector(1.00, 1.00, 1.00) },
 
+            -- Heavy Anchor Array: two extra mounts, only used once
+            -- heavy_cluster_spikes is unlocked (the count is capped without it).
+            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  51.00,   10.00, 0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -51.00,   10.00, 0.00), ang = leftSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
+
             { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-56.40,  -6.20, 49.20), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
             { id = "armor_sr", type = "armor_side",  name = "Right Metal Plate", group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector( 56.40,  -6.20, 49.20), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
             { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00, 106.70, 61.70), ang = Angle(-120.00, 90.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
+
+            -- Roof cowl (roof_spoiler) and hydraulic rams (reinforced_hydraulics).
+            -- Positions are first-pass defaults; adjust them in the 3D editor.
+            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  -15.00,  67.20), ang = Angle(  0.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  43.00,   10.00,  39.20), ang = Angle( 90.00,  0.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -43.00,   10.00,  39.20), ang = Angle( 90.00,  0.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Tactical Path Prediction Screen
             { id = "screen_radar", type = "radar_screen", name = "Path Prediction Screen", group = "interior", model = "models/kobilica/wiremonitorsmall.mdl", pos = Vector( 15.00,  52.00, 50.00), ang = Angle(10.00, -125.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
@@ -159,9 +192,20 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
             { id = "spike_rr", type = "spike", name = "Rear Right Spike",   group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector( 26.00, -60.00, 0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
             { id = "spike_rl", type = "spike", name = "Rear Left Spike",    group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector(-26.00, -60.00, 0.00), ang = leftSpikeAng,  scale = Vector(1.00, 1.00, 1.00) },
 
+            -- Heavy Anchor Array: two extra mounts, only used once
+            -- heavy_cluster_spikes is unlocked (the count is capped without it).
+            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  44.00,    0.00, 0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -44.00,    0.00, 0.00), ang = leftSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
+
             { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-36.00, -10.00, 16.00), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
             { id = "armor_sr", type = "armor_side",  name = "Right Metal Plate", group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector( 36.00, -10.00, 16.00), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
             { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  70.00, 18.00), ang = Angle(-85.00, 90.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
+
+            -- Roof cowl (roof_spoiler) and hydraulic rams (reinforced_hydraulics).
+            -- Positions are first-pass defaults; adjust them in the 3D editor.
+            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  -25.00,  34.00), ang = Angle(  0.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  36.00,    0.00,   6.00), ang = Angle( 90.00,  0.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -36.00,    0.00,   6.00), ang = Angle( 90.00,  0.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Tactical Path Prediction Screen
             { id = "screen_radar", type = "radar_screen", name = "Path Prediction Screen", group = "interior", model = "models/kobilica/wiremonitorsmall.mdl", pos = Vector( 10.00,  20.00, 22.00), ang = Angle(10.00, -125.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
@@ -175,9 +219,20 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
             { id = "spike_rr", type = "spike", name = "Rear Right Spike",   group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector( 38.00,-100.00, 0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
             { id = "spike_rl", type = "spike", name = "Rear Left Spike",    group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector(-38.00,-100.00, 0.00), ang = leftSpikeAng,  scale = Vector(1.00, 1.00, 1.00) },
 
+            -- Heavy Anchor Array: two extra mounts, only used once
+            -- heavy_cluster_spikes is unlocked (the count is capped without it).
+            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  56.00,    0.00, 0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -56.00,    0.00, 0.00), ang = leftSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
+
             { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-48.00, -20.00, 35.00), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
             { id = "armor_sr", type = "armor_side",  name = "Right Metal Plate", group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector( 48.00, -20.00, 35.00), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
             { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00, 105.00, 35.00), ang = Angle(-90.00, 90.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
+
+            -- Roof cowl (roof_spoiler) and hydraulic rams (reinforced_hydraulics).
+            -- Positions are first-pass defaults; adjust them in the 3D editor.
+            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  -25.00,  53.00), ang = Angle(  0.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  48.00,    0.00,  25.00), ang = Angle( 90.00,  0.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -48.00,    0.00,  25.00), ang = Angle( 90.00,  0.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Tactical Path Prediction Screen
             { id = "screen_radar", type = "radar_screen", name = "Path Prediction Screen", group = "interior", model = "models/kobilica/wiremonitorsmall.mdl", pos = Vector( 15.00,  25.00, 38.00), ang = Angle(10.00, -125.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
@@ -192,9 +247,20 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
             { id = "spike_rr", type = "spike", name = "Rear Right Spike",   group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector( 20.00,-100.00, 0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
             { id = "spike_rl", type = "spike", name = "Rear Left Spike",    group = "rear",  model = "models/props_junk/harpoon002a.mdl", pos = Vector(-20.00,-100.00, 0.00), ang = leftSpikeAng,  scale = Vector(1.00, 1.00, 1.00) },
 
+            -- Heavy Anchor Array: two extra mounts, only used once
+            -- heavy_cluster_spikes is unlocked (the count is capped without it).
+            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  46.00,  -20.00, 0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -46.00,  -20.00, 0.00), ang = leftSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
+
             { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-43.50, -24.50, 31.80), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
             { id = "armor_sr", type = "armor_side",  name = "Right Metal Plate", group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector( 43.50, -24.50, 31.80), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
             { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  64.00, 31.80), ang = Angle(-95.30, 90.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
+
+            -- Roof cowl (roof_spoiler) and hydraulic rams (reinforced_hydraulics).
+            -- Positions are first-pass defaults; adjust them in the 3D editor.
+            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  -45.00,  49.80), ang = Angle(  0.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  38.00,  -20.00,  21.80), ang = Angle( 90.00,  0.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -38.00,  -20.00,  21.80), ang = Angle( 90.00,  0.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Tactical Path Prediction Screen
             { id = "screen_radar", type = "radar_screen", name = "Path Prediction Screen", group = "interior", model = "models/kobilica/wiremonitorsmall.mdl", pos = Vector( 19.20,  -9.20, 37.30), ang = Angle(-6.90, -125.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
@@ -348,6 +414,34 @@ end
 -- VEHICLE STATS & PHYSICS EVALUATOR
 -- Calculates cumulative physical parameters for a configuration and upgrades.
 -- ============================================================================
+-- ----------------------------------------------------------------------------
+-- Resolve the component config for a vehicle, caching it the same way
+-- sv_spike_anim.lua does, and count how many spike mounts it defines.
+--
+-- Both of the places that decide "how many spikes should this vehicle have" go
+-- through here. They used to resolve it independently -- one from the config's
+-- spike components, one from a convar -- which agreed only while every config
+-- happened to define exactly six. With eight mounts in the defaults they would
+-- disagree, and EnsureSpikes would rebuild the spikes every call.
+-- ----------------------------------------------------------------------------
+function TIV.CustomConfig.ResolveConfigFor(veh, hasAngled)
+    if not IsValid(veh) then return nil end
+    if not veh._TIVConfig and TIV.CustomConfig.GetSavedConfig then
+        veh._TIVConfig = TIV.CustomConfig.GetSavedConfig(veh:GetModel())
+    end
+    return veh._TIVConfig
+        or (TIV.CustomConfig.GetDefaultConfig and TIV.CustomConfig.GetDefaultConfig(veh:GetModel(), hasAngled))
+end
+
+function TIV.CustomConfig.CountSpikeComponents(veh, hasAngled)
+    local config = TIV.CustomConfig.ResolveConfigFor(veh, hasAngled)
+    local n = 0
+    for _, c in ipairs(config and config.components or {}) do
+        if c.type == "spike" then n = n + 1 end
+    end
+    return n
+end
+
 function TIV.CustomConfig.CalculateVehicleStats(config, unlockedUpgrades)
     unlockedUpgrades = unlockedUpgrades or {}
     local upgBonuses = TIV.Progression.CalculateBonuses(unlockedUpgrades)
@@ -365,6 +459,10 @@ function TIV.CustomConfig.CalculateVehicleStats(config, unlockedUpgrades)
         total_ballast_mass   = upgBonuses.added_mass,
         impact_reduction     = upgBonuses.impact_reduction,
         drive_depth_bonus    = upgBonuses.drive_depth_bonus,
+        -- Carried through so the spike system can honour the Heavy Anchor Array.
+        -- CalculateBonuses already worked this out; nothing used to read it.
+        max_spikes           = upgBonuses.max_spikes,
+        hydraulic_ram_count  = 0,
     }
 
     if not config or not config.components then
@@ -394,6 +492,15 @@ function TIV.CustomConfig.CalculateVehicleStats(config, unlockedUpgrades)
             stats.wind_force_mult    = stats.wind_force_mult * 0.92
             stats.total_ballast_mass = stats.total_ballast_mass + 140
             stats.impact_reduction   = math.Clamp(stats.impact_reduction + 0.12, 0, 0.70)
+        elseif ctype == "hydraulic_ram" then
+            stats.hydraulic_ram_count = stats.hydraulic_ram_count + 1
+            stats.total_armor_count   = stats.total_armor_count + 1
+            -- Rams are the visible half of reinforced_hydraulics; the deeper drive
+            -- comes from drive_depth_bonus, which sv_spike_anim already applies.
+            if unlockedUpgrades["reinforced_hydraulics"] then
+                stats.anchor_hold_mult     = stats.anchor_hold_mult * 1.05
+                stats.total_ballast_mass   = stats.total_ballast_mass + 60
+            end
         elseif ctype == "armor_roof" then
             stats.total_armor_count  = stats.total_armor_count + 1
             stats.effective_loft_mph = stats.effective_loft_mph + 10

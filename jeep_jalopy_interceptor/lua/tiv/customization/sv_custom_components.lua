@@ -49,10 +49,12 @@ function TIV.CustomComponents.SpawnArmorProps(veh, config, unlockedUpgrades)
     local hasFrontUpgrade  = unlockedUpgrades["front_armor"] == true
     local hasRoofUpgrade   = unlockedUpgrades["roof_spoiler"] == true
     local hasScreenUpgrade = unlockedUpgrades["path_screen"] == true
+    local hasHydraulicUpgrade = unlockedUpgrades["reinforced_hydraulics"] == true
 
     for i, comp in ipairs(config.components) do
         local ctype = comp.type or ""
-        local isArmor = (ctype == "armor_side" or ctype == "armor_front" or ctype == "armor_roof")
+        local isArmor = (ctype == "armor_side" or ctype == "armor_front" or ctype == "armor_roof"
+            or ctype == "hydraulic_ram")
         local isScreen = (ctype == "radar_screen" or ctype == "screen")
 
         if isArmor or isScreen then
@@ -60,6 +62,7 @@ function TIV.CustomComponents.SpawnArmorProps(veh, config, unlockedUpgrades)
             if ctype == "armor_side" and not hasSideUpgrade then allowed = false end
             if ctype == "armor_front" and not hasFrontUpgrade then allowed = false end
             if ctype == "armor_roof" and not hasRoofUpgrade then allowed = false end
+            if ctype == "hydraulic_ram" and not hasHydraulicUpgrade then allowed = false end
             if isScreen and not hasScreenUpgrade then allowed = false end
 
             if allowed then
@@ -68,6 +71,11 @@ function TIV.CustomComponents.SpawnArmorProps(veh, config, unlockedUpgrades)
                     model = model or "models/kobilica/wiremonitorsmall.mdl"
                     if not util.IsValidModel(model) then
                         model = "models/props_lab/monitor01b.mdl"
+                    end
+                elseif ctype == "hydraulic_ram" then
+                    model = model or "models/props_c17/TrapPropeller_Lever.mdl"
+                    if not util.IsValidModel(model) then
+                        model = "models/props_c17/TrapPropeller_Lever.mdl"
                     end
                 else
                     model = model or "models/props_phx/construct/metal_plate1x2.mdl"
@@ -175,10 +183,20 @@ function TIV.CustomComponents.EnsureArmor(veh, ply)
     local profile = TIV.Progression.GetPlayerProfile(ply)
     local unlocked = profile and profile.unlocked_upgrades or {}
 
-    local hasSideUpgrade  = (unlocked["side_armor"] == true)
-    local hasFrontUpgrade = (unlocked["front_armor"] == true)
-    local hasRoofUpgrade  = (unlocked["roof_spoiler"] == true)
-    local hasAnyArmor     = hasSideUpgrade or hasFrontUpgrade or hasRoofUpgrade
+    local hasSideUpgrade      = (unlocked["side_armor"] == true)
+    local hasFrontUpgrade     = (unlocked["front_armor"] == true)
+    local hasRoofUpgrade      = (unlocked["roof_spoiler"] == true)
+    local hasScreenUpgrade    = (unlocked["path_screen"] == true)
+    local hasHydraulicUpgrade = (unlocked["reinforced_hydraulics"] == true)
+
+    -- This used to test only the three armor upgrades, so a player who unlocked
+    -- the Path Screen -- or the hydraulic rams -- and nothing else fell into the
+    -- "no components wanted" branch, which removed any existing props and
+    -- returned without spawning anything. The screen upgrade did nothing at all
+    -- through the normal spawn/enter lifecycle; it only appeared if you happened
+    -- to re-apply the config by hand.
+    local hasAnyArmor = hasSideUpgrade or hasFrontUpgrade or hasRoofUpgrade
+        or hasScreenUpgrade or hasHydraulicUpgrade
 
     local existingProps = TIV.CustomComponents.VehicleArmor[veh:EntIndex()] or veh._TIVArmorProps or {}
     local validProps = 0
@@ -198,12 +216,16 @@ function TIV.CustomComponents.EnsureArmor(veh, ply)
         veh._TIVConfig = TIV.CustomConfig.GetSavedConfig(veh:GetModel())
     end
     local config = veh._TIVConfig or TIV.CustomConfig.GetDefaultConfig(veh:GetModel(), unlocked["angled_spikes"] == true)
+    -- Must count exactly the set SpawnArmorProps will actually build, or this
+    -- reconciler disagrees with it and respawns every component on every call.
     local desiredCount = 0
     for _, comp in ipairs(config.components or {}) do
         local ctype = comp.type or ""
         if (ctype == "armor_side" and hasSideUpgrade)
            or (ctype == "armor_front" and hasFrontUpgrade)
-           or (ctype == "armor_roof" and hasRoofUpgrade) then
+           or (ctype == "armor_roof" and hasRoofUpgrade)
+           or (ctype == "hydraulic_ram" and hasHydraulicUpgrade)
+           or ((ctype == "radar_screen" or ctype == "screen") and hasScreenUpgrade) then
             desiredCount = desiredCount + 1
         end
     end

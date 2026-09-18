@@ -836,6 +836,73 @@ function TIV.Editor3D.Open()
             RefreshEditor()
         end)
 
+        -- Roof cowl, radar screen and hydraulic rams had no way to be created at
+        -- all: "+ Add Armor" hardcodes armor_side and nothing else wrote a type,
+        -- so roof_spoiler / path_screen / reinforced_hydraulics could not be laid
+        -- out in the editor even once unlocked.
+        local btnRow2 = vgui.Create("DPanel", controlsContainer)
+        btnRow2:Dock(TOP)
+        btnRow2:DockMargin(0, 0, 0, 12)
+        btnRow2:SetTall(30)
+        btnRow2.Paint = function() end
+        local function AddActionBtn2(label, color, onClick)
+            local btn = vgui.Create("DButton", btnRow2)
+            btn:Dock(LEFT)
+            btn:DockMargin(0, 0, 6, 0)
+            btn:SetWide(96)
+            btn:SetText(label)
+            btn:SetTextColor(Color(240, 240, 240))
+            btn.Paint = function(s, w, h)
+                draw.RoundedBox(4, 0, 0, w, h, s:IsHovered() and Color(color.r + 20, color.g + 20, color.b + 20) or color)
+            end
+            btn.DoClick = onClick
+        end
+
+        AddActionBtn2("+ Add Roof", Color(95, 80, 40), function()
+            table.insert(components, {
+                id    = "armor_roof_" .. (#components + 1),
+                type  = "armor_roof",
+                name  = "Roof Cowl " .. (#components + 1),
+                group = "roof",
+                model = "models/props_phx/construct/metal_plate1x2.mdl",
+                pos   = Vector(0, -20, 55),
+                ang   = Angle(0, 90, 90),
+                scale = Vector(1, 1, 1),
+            })
+            TIV.Editor3D.SelectedIndex = #components
+            RefreshEditor()
+        end)
+
+        AddActionBtn2("+ Add Screen", Color(40, 80, 100), function()
+            table.insert(components, {
+                id    = "screen_" .. (#components + 1),
+                type  = "radar_screen",
+                name  = "Path Screen " .. (#components + 1),
+                group = "interior",
+                model = "models/kobilica/wiremonitorsmall.mdl",
+                pos   = Vector(14, 14, 42),
+                ang   = Angle(10, -125, 0),
+                scale = Vector(1, 1, 1),
+            })
+            TIV.Editor3D.SelectedIndex = #components
+            RefreshEditor()
+        end)
+
+        AddActionBtn2("+ Add Hydraulics", Color(100, 70, 45), function()
+            table.insert(components, {
+                id    = "hyd_" .. (#components + 1),
+                type  = "hydraulic_ram",
+                name  = "Hydraulic Ram " .. (#components + 1),
+                group = "hydraulics",
+                model = "models/props_c17/TrapPropeller_Lever.mdl",
+                pos   = Vector(35, 0, 30),
+                ang   = Angle(90, 0, 0),
+                scale = Vector(1, 1, 1),
+            })
+            TIV.Editor3D.SelectedIndex = #components
+            RefreshEditor()
+        end)
+
         AddActionBtn("Duplicate", Color(80, 65, 120), function()
             if not curComp then return end
             local clone = table.Copy(curComp)
@@ -886,11 +953,12 @@ function TIV.Editor3D.Open()
         local metaPanel = vgui.Create("DPanel", controlsContainer)
         metaPanel:Dock(TOP)
         metaPanel:DockMargin(0, 0, 0, 10)
-        metaPanel:SetTall(102)
+        metaPanel:SetTall(140)
         metaPanel.Paint = function(s, w, h)
             draw.RoundedBox(4, 0, 0, w, h, Color(16, 20, 28, 200))
             draw.SimpleText("Component Name", "DermaDefault", 10, 10, Color(180, 190, 210), TEXT_ALIGN_LEFT)
             draw.SimpleText("Model / Prop Path", "DermaDefault", 10, 48, Color(180, 190, 210), TEXT_ALIGN_LEFT)
+            draw.SimpleText("Component Type", "DermaDefault", 10, 110, Color(180, 190, 210), TEXT_ALIGN_LEFT)
         end
 
         local nameEntry = vgui.Create("DTextEntry", metaPanel)
@@ -922,6 +990,36 @@ function TIV.Editor3D.Open()
         curatedCombo.OnSelect = function(s, idx, val, modelPath)
             curComp.model = modelPath
             modelEntry:SetText(modelPath)
+        end
+
+        -- ====================================================================
+        -- COMPONENT TYPE
+        -- The type decides which upgrade gates the part (armor_roof needs
+        -- roof_spoiler, hydraulic_ram needs reinforced_hydraulics, and so on), so
+        -- it has to be editable or whole upgrades stay unplaceable.
+        -- ====================================================================
+        local typeCombo = vgui.Create("DComboBox", metaPanel)
+        typeCombo:SetPos(124, 106)
+        typeCombo:SetSize(275, 24)
+        local typeChoices = {
+            { label = "Spike (anchor)",      value = "spike" },
+            { label = "Side Armor Panel",    value = "armor_side" },
+            { label = "Front Armor Panel",   value = "armor_front" },
+            { label = "Roof Cowl",           value = "armor_roof" },
+            { label = "Hydraulic Ram",       value = "hydraulic_ram" },
+            { label = "Radar / Path Screen", value = "radar_screen" },
+        }
+        local curType = curComp.type or "spike"
+        for _, tc in ipairs(typeChoices) do
+            typeCombo:AddChoice(tc.label, tc.value, tc.value == curType)
+        end
+        typeCombo.OnSelect = function(sel, idx, label, value)
+            if value and value ~= curComp.type then
+                curComp.type = value
+                -- Rebuild so the curated model list matches the new type.
+                TIV.Editor3D.ClearClientsideModels()
+                RefreshEditor()
+            end
         end
 
         -- ====================================================================

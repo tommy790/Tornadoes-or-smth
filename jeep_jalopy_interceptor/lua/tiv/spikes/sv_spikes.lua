@@ -6,6 +6,48 @@
 TIV.Spikes = TIV.Spikes or {}
 
 -- ============================================================================
+-- HOW MANY SPIKES THIS VEHICLE SHOULD HAVE
+--
+-- One answer, used by both the creator (sv_spike_anim.CreateSpikes) and the
+-- reconciler (sv_deploy.EnsureSpikes). They used to work it out separately --
+-- one from the config's spike mounts, one from a convar -- which agreed only
+-- while every default config happened to define exactly six. The Heavy Anchor
+-- Array adds two more mounts, so without a single source of truth the two would
+-- disagree and EnsureSpikes would tear the anchors down and rebuild them on
+-- every call.
+--
+-- The config's mounts decide the LAYOUT; the ceiling is the stock convar max,
+-- raised by heavy_cluster_spikes when the owner has unlocked it. Without that
+-- upgrade the two extra mounts simply stay unused.
+-- ============================================================================
+function TIV.Spikes.ResolveCount(veh)
+    local lo  = TIV.Config.SpikeCountConvarMin or 0
+    local cap = TIV.Config.SpikeCountConvarMax or 6
+
+    if IsValid(veh) then
+        local stats = veh._TIVEffectiveStats
+        if stats and stats.max_spikes and stats.max_spikes > cap then
+            cap = stats.max_spikes
+        end
+    end
+
+    local hasAngled = false
+    local ply = TIV.ResolveOwner and TIV.ResolveOwner(veh)
+    if IsValid(ply) and TIV.Progression and TIV.Progression.GetPlayerProfile then
+        local prof = TIV.Progression.GetPlayerProfile(ply)
+        hasAngled = not not (prof and prof.unlocked_upgrades and prof.unlocked_upgrades["angled_spikes"])
+    end
+
+    local defined = 0
+    if TIV.CustomConfig and TIV.CustomConfig.CountSpikeComponents then
+        defined = TIV.CustomConfig.CountSpikeComponents(veh, hasAngled) or 0
+    end
+    if defined <= 0 then defined = TIV.Config.SpikeCount or 6 end
+
+    return math.Clamp(defined, lo, cap)
+end
+
+-- ============================================================================
 -- CREATE
 -- ============================================================================
 function TIV.Spikes.Create(veh, data)

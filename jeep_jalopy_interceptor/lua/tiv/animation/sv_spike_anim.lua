@@ -217,11 +217,13 @@ function TIV.SpikeAnim.CreateSpikes(veh, data)
         offsets = GetOffsetsForVehicle(veh)
     end
 
-    local spikeCount = math.Clamp(
-        customSpikes and #customSpikes or TIV.Config.SpikeCount,
-        0,
-        12
-    )
+    -- The ceiling comes from the same resolver EnsureSpikes uses. Without the
+    -- Heavy Anchor Array unlocked the two outer mounts in the default configs are
+    -- simply beyond the cap, so the layout stays at six; with it, all eight build.
+    -- They are appended last in the config, so the first six are always the
+    -- original ones -- the stock anchor geometry is unchanged.
+    local spikeCount = (TIV.Spikes and TIV.Spikes.ResolveCount and TIV.Spikes.ResolveCount(veh))
+        or math.Clamp(customSpikes and #customSpikes or TIV.Config.SpikeCount, 0, 12)
 
     TIV.SpikeAnim._sessionCounter = TIV.SpikeAnim._sessionCounter + 1
     data.sessionID = tostring(TIV.Config.SessionSeed or 1000)

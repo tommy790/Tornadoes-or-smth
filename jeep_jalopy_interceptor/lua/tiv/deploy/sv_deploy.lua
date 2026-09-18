@@ -95,11 +95,10 @@ TIV.Deploy.ReleaseHandbrake = ReleaseHandbrake
 -- ENSURE SPIKES EXIST
 -- ============================================================================
 function TIV.Deploy.EnsureSpikes(veh, data)
-    local desiredSpikeCount = math.Clamp(
-        TIV.Config.SpikeCount,
-        TIV.Config.SpikeCountConvarMin,
-        TIV.Config.SpikeCountConvarMax
-    )
+    -- Must agree with what CreateSpikes actually builds, or this reconciler
+    -- would rebuild the anchors on every call. See TIV.Spikes.ResolveCount.
+    local desiredSpikeCount = (TIV.Spikes.ResolveCount and TIV.Spikes.ResolveCount(veh))
+        or math.Clamp(TIV.Config.SpikeCount, TIV.Config.SpikeCountConvarMin, TIV.Config.SpikeCountConvarMax)
 
     if desiredSpikeCount == 0 then
         if not data.spikesCreated then

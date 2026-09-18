@@ -30,8 +30,19 @@ npm install --global glua-cli@0.6.0                   # optional: the linter
 | `tools/rock_load_probe.lua` | **LuaJIT 2.1** | The real `TIV.Rock.ComputeLoad` from `lua/tiv/anchor/sv_rock.lua`, against the real `TIV.Loft.CalculateStress` from `sv_loft.lua`. | The lean points the wrong way for a given wind, the signed weights leave -1..1, a calm vehicle leans, or the module writes to the vehicle's transform. |
 | `tools/rock_visual_probe.lua` | **LuaJIT 2.1** | The real `cl_rock.lua`, driven frame by frame with a stub whose `GetAngles()` and `GetPos()` return the render overrides exactly as GMod does, plus the real `DrawRadarScreen` to measure what the shift does to the blip. | The model is moved through physics instead of the render overrides, the tilt or shift accumulates, it snaps instead of easing, it survives the server going quiet, or two TIVs stop being independent. |
 | `tools/freeze_watchdog_probe.lua` | **LuaJIT 2.1** | The real `TIV.Debug.WatchdogVehicle` / `AuditVehicle`, plus the real `TIV.Anchor.ForceDetach` from `sv_anchor.lua`. | The watchdog fails to undo a leaked anchor, touches a vehicle mid-sequence, removes a constraint it does not own, disables motion/gravity itself, or `ForceDetach` leaves a body it just detached unable to move. |
+| `tools/upgrade_visual_probe.lua` | **LuaJIT 2.1** | The real `sh_progression.lua`, `sh_custom_config.lua`, `sv_custom_components.lua` and `sv_spikes.lua`: `SpawnArmorProps` and `EnsureArmor` with fake props, and `TIV.Spikes.ResolveCount`. | An upgrade unlocks without putting anything on the vehicle, `EnsureArmor` respawns its panels on a repeat call (its tally disagrees with what the spawner builds), the Heavy Anchor Array stops changing the anchor count, or the editor's curated model list has no entry for a component type. |
 | `tools/radar_probe.py [yaw]` | lupa (Lua 5.5) | Same bearing scenario, through the Python bridge. | Same. |
 | `tools/e2_bearing_probe.py [yaw]` | lupa (Lua 5.5) | The real `e2function` bodies from `lua/entities/gmod_wire_expression2/core/custom/tiv.lua`. | `tivTornadoRelativeBearing()` / `tivTornadoRelativeSector()` disagree with the vehicle's own basis, or `tivTornadoBearing()` stops being the absolute map angle. |
+
+`TIV_HEADING_OFFSET_DEG=0` is required for the two probes that assert on `REL BRG`.
+The shipped addon rotates the readout by `HeadingOffsetDeg = 90`, which was confirmed
+correct in game; these probes assert against the unrotated geometry, so without the
+override they report `0/4 blips land on the correct side` and `jeep A reads RIGHT`
+instead of `AHEAD`. That is the probe checking the wrong basis, not an addon bug.
+
+`tools/radar_probe_lua.lua` exits 1 when run standalone: it is a library `dofile`d by
+`tools/radar_probe.py`, and its `os.exit` is the Python bridge's signal. Read its
+`RESULT:` line, not its exit code.
 
 Run everything (this is what the CI workflow at the bottom of this file does):
 
@@ -39,9 +50,10 @@ Run everything (this is what the CI workflow at the bottom of this file does):
 glua lint jeep_jalopy_interceptor/lua
 .venv/bin/python tools/lua_syntax_check.py
 ./tools/build_luajit.sh
-tools/bin/luajit tools/radar_probe_lua.lua
+TIV_HEADING_OFFSET_DEG=0 tools/bin/luajit tools/radar_probe_lua.lua
 tools/bin/luajit tools/radar_cache_probe.lua
-tools/bin/luajit tools/radar_multiplayer_probe.lua
+TIV_HEADING_OFFSET_DEG=0 tools/bin/luajit tools/radar_multiplayer_probe.lua
+tools/bin/luajit tools/upgrade_visual_probe.lua
 tools/bin/luajit tools/vehicle_detection_probe.lua
 tools/bin/luajit tools/circulation_probe.lua
 tools/bin/luajit tools/doppler_signature_probe.lua
