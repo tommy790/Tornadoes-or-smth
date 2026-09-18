@@ -55,6 +55,29 @@ MASK_SOLID = 3
 -- One fake player, whose unlocks the test drives.
 local unlocked = {}
 local fakePlayer = { __isentity = true }
+string.Trim = string.Trim or function(str)
+    return (tostring(str):gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+-- GMod compiles a saved config chunk and hands back either a function or, when
+-- handleError is false, the error message as a string.
+function CompileString(code, name, handleError)
+    local fn, err = loadstring(code, name)
+    if fn then return fn end
+    return err or "compile error"
+end
+
+-- GMod stdlib. Deep copy that preserves metatables, so Vector/Angle survive it.
+table.Copy = table.Copy or function(t, lookup)
+    if type(t) ~= "table" then return t end
+    lookup = lookup or {}
+    if lookup[t] then return lookup[t] end
+    local out = {}
+    lookup[t] = out
+    for k, v in pairs(t) do out[k] = table.Copy(v, lookup) end
+    return setmetatable(out, getmetatable(t))
+end
+
 game = game or {}
 function player.GetHumans() return { fakePlayer } end
 function game.SinglePlayer() return true end
@@ -237,6 +260,112 @@ check("the first six are the original layout",
     table.concat(spikeIds, ",", 1, 6) == "spike_fr,spike_fl,spike_mr,spike_ml,spike_rr,spike_rl",
     table.concat(spikeIds, ",", 1, 6))
 
+print("\n== a saved config that predates the extra mounts still gets them ==")
+
+-- The Heavy Anchor Array's ceiling comes from max_spikes, but the count comes
+-- from the mounts the config defines. A layout saved before the extra mounts
+-- existed -- which is every layout anyone has actually saved, including the one
+-- the user exported -- defines six, so the upgrade stayed invisible for exactly
+-- the players who had already used the editor. This drives the real
+-- GetSavedConfig, which is where migration runs.
+local fixturePath = here .. "/fixtures/buggy_fully_upgraded.lua"
+local fh = io.open(fixturePath, "r")
+local fixtureText = fh and fh:read("*a") or ""
+if fh then fh:close() end
+
+local savedPath = TIV.CustomConfig.GetConfigFileName("models/buggy.mdl")
+file.Exists = function(p) return p == savedPath end
+file.Read   = function() return fixtureText end
+TIV.CustomConfig.VehicleConfigs = {}
+
+local function countSpikes(cfg)
+    local n = 0
+    for _, c in ipairs(cfg and cfg.components or {}) do
+        if c.type == "spike" then n = n + 1 end
+    end
+    return n
+end
+
+local raw = assert(loadfile(fixturePath))()
+check("the exported layout really defines only six mounts", countSpikes(raw) == 6,
+    string.format("%d spike components in the file", countSpikes(raw)))
+
+local loaded = TIV.CustomConfig.GetSavedConfig("models/buggy.mdl")
+check("the saved config loads through the real GetSavedConfig", loaded ~= nil)
+check("migration brings it up to the factory count", loaded and countSpikes(loaded) == 8,
+    string.format("%d -> %d", countSpikes(raw), loaded and countSpikes(loaded) or -1))
+
+-- The added mounts must sit outboard of the widest existing row, on that row's
+-- own line, so they land on the layout the player arranged.
+local maxX, widestY = 0, nil
+for _, c in ipairs(raw.components) do
+    if c.type == "spike" and math.abs(c.pos.x) > maxX then
+        maxX, widestY = math.abs(c.pos.x), c.pos.y
+    end
+end
+local added = {}
+for _, c in ipairs(loaded.components) do
+    if c.type == "spike" and c.group == "migrated" then added[#added + 1] = c end
+end
+check("exactly two mounts were added", #added == 2, string.format("%d added", #added))
+local outboard, online, mirrored = true, true, {}
+for _, c in ipairs(added) do
+    if math.abs(c.pos.x) <= maxX then outboard = false end
+    if c.pos.y ~= widestY then online = false end
+    mirrored[c.pos.x > 0 and "right" or "left"] = math.abs(c.pos.x)
+end
+check("the new mounts sit outboard of the widest row", outboard,
+    string.format("widest existing |x| = %.2f, added at +/-%.2f", maxX, mirrored.right or -1))
+check("symmetrically, on the widest row's own line",
+    online and mirrored.left == mirrored.right,
+    string.format("y = %.2f for both", added[1] and added[1].pos.y or -1))
+
+-- A mount added on the right must inherit the right-hand angle convention, so an
+-- angled-spike layout does not get two vertical anchors bolted onto it.
+local rightPitch = nil
+for _, c in ipairs(raw.components) do
+    if c.type == "spike" and c.pos.x > 0 and not rightPitch and c.ang then
+        rightPitch = c.ang.p
+    end
+end
+local rightAdded = nil
+for _, c in ipairs(added) do if c.pos.x > 0 then rightAdded = c end end
+check("the added mount inherits the side's angle convention",
+    rightAdded and rightPitch and rightAdded.ang.p == rightPitch,
+    string.format("existing right pitch %.2f, added %.2f", rightPitch or -1,
+        rightAdded and rightAdded.ang.p or -1))
+
+-- Idempotence: a config that already has eight must not grow.
+local function deepCopy(t)
+    local out = {}
+    for k, v in pairs(t) do
+        out[k] = (type(v) == "table") and deepCopy(v) or v
+    end
+    return out
+end
+local again = TIV.CustomConfig.MigrateSpikeMounts(deepCopy(loaded))
+check("migration is idempotent", countSpikes(again) == 8,
+    string.format("%d after a second pass", countSpikes(again)))
+
+-- And the point of all of it: the upgrade now actually changes the anchors.
+setUnlocked({ "heavy_cluster_spikes" })
+local savedVeh = makeVeh("models/buggy.mdl",
+    TIV.CustomConfig.CalculateVehicleStats(loaded, unlocked))
+check("heavy_cluster_spikes yields eight anchors on a saved config",
+    TIV.Spikes.ResolveCount(savedVeh) == 8,
+    string.format("ResolveCount = %d (was 6 before migration)", TIV.Spikes.ResolveCount(savedVeh)))
+
+setUnlocked({})
+local savedVeh2 = makeVeh("models/buggy.mdl",
+    TIV.CustomConfig.CalculateVehicleStats(loaded, unlocked))
+check("...and still six without the upgrade", TIV.Spikes.ResolveCount(savedVeh2) == 6,
+    string.format("ResolveCount = %d", TIV.Spikes.ResolveCount(savedVeh2)))
+
+-- Put the file stub back for the sections below.
+file.Exists = function() return false end
+file.Read   = function() return nil end
+TIV.CustomConfig.VehicleConfigs = {}
+
 print("\n== the creator and the reconciler cannot disagree ==")
 
 -- EnsureSpikes rebuilds whenever validCount ~= desiredSpikeCount. If the two sides
@@ -339,6 +468,64 @@ for _, model in ipairs({ "models/buggy.mdl", "models/vehicle.mdl", "models/props
             have.armor_roof or 0, have.hydraulic_ram or 0, have.radar_screen or 0)
             or ("missing: " .. table.concat(missing, ", ")))
 end
+
+print("\n== the factory buggy layout matches the user's exported one ==")
+
+-- The user aligned these parts in the 3D editor and exported them, so their
+-- values are ground truth. The factory defaults are derived from the same
+-- offsets, so they must agree -- if someone re-guesses a coordinate this fails.
+local function findComp(cfg, ctype, nth)
+    local n = 0
+    for _, c in ipairs(cfg.components or {}) do
+        if c.type == ctype then
+            n = n + 1
+            if not nth or n == nth then return c end
+        end
+    end
+end
+
+local factory = TIV.CustomConfig.GetDefaultConfig("models/buggy.mdl", false)
+local roofF, roofU = findComp(factory, "armor_roof"), findComp(raw, "armor_roof")
+check("factory roof position matches the exported one",
+    roofF and roofU
+        and math.abs(roofF.pos.x - roofU.pos.x) < 0.01
+        and math.abs(roofF.pos.y - roofU.pos.y) < 0.01
+        and math.abs(roofF.pos.z - roofU.pos.z) < 0.01,
+    string.format("factory (%.2f, %.2f, %.2f) vs exported (%.2f, %.2f, %.2f)",
+        roofF and roofF.pos.x or 0, roofF and roofF.pos.y or 0, roofF and roofF.pos.z or 0,
+        roofU and roofU.pos.x or 0, roofU and roofU.pos.y or 0, roofU and roofU.pos.z or 0))
+check("factory roof angle matches the exported one",
+    roofF and roofU and math.abs(roofF.ang.p - roofU.ang.p) < 0.01
+        and math.abs(roofF.ang.r - roofU.ang.r) < 0.01,
+    string.format("factory (%.2f, %.2f, %.2f) vs exported (%.2f, %.2f, %.2f)",
+        roofF and roofF.ang.p or 0, roofF and roofF.ang.y or 0, roofF and roofF.ang.r or 0,
+        roofU and roofU.ang.p or 0, roofU and roofU.ang.y or 0, roofU and roofU.ang.r or 0))
+check("factory roof uses the exported model", roofF and roofU and roofF.model == roofU.model,
+    tostring(roofF and roofF.model))
+
+local ramF, ramU = findComp(factory, "hydraulic_ram"), findComp(raw, "hydraulic_ram")
+check("factory ram position matches the exported one",
+    ramF and ramU and math.abs(math.abs(ramF.pos.x) - math.abs(ramU.pos.x)) < 0.01
+        and math.abs(ramF.pos.y - ramU.pos.y) < 0.01
+        and math.abs(ramF.pos.z - ramU.pos.z) < 0.01,
+    string.format("factory (+/-%.2f, %.2f, %.2f) vs exported (%.2f, %.2f, %.2f)",
+        math.abs(ramF and ramF.pos.x or 0), ramF and ramF.pos.y or 0, ramF and ramF.pos.z or 0,
+        ramU and ramU.pos.x or 0, ramU and ramU.pos.y or 0, ramU and ramU.pos.z or 0))
+
+-- The six original mounts, the side panels, the front panel and the screen were
+-- already identical to the export, so the export also pins them.
+local pins = { { "armor_side", 1 }, { "armor_side", 2 }, { "armor_front", 1 }, { "radar_screen", 1 } }
+local unpinned = {}
+for _, pn in ipairs(pins) do
+    local f, u = findComp(factory, pn[1], pn[2]), findComp(raw, pn[1], pn[2])
+    if not (f and u and math.abs(f.pos.x - u.pos.x) < 0.01
+              and math.abs(f.pos.y - u.pos.y) < 0.01
+              and math.abs(f.pos.z - u.pos.z) < 0.01) then
+        unpinned[#unpinned + 1] = pn[1] .. " #" .. pn[2]
+    end
+end
+check("the other exported parts still match the factory layout", #unpinned == 0,
+    #unpinned == 0 and "side x2, front, screen all agree" or ("drifted: " .. table.concat(unpinned, ", ")))
 
 print(string.format("\nRESULT: %d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

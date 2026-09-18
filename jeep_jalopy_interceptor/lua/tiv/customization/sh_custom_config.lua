@@ -96,6 +96,7 @@ function TIV.CustomConfig.GetSavedConfig(model)
         local decoded, err = TIV.CustomConfig.DeserializeFromLua(raw or "")
         if decoded and istable(decoded.components) then
             decoded.vehicle_model = model
+            TIV.CustomConfig.MigrateSpikeMounts(decoded)
             TIV.CustomConfig.VehicleConfigs = TIV.CustomConfig.VehicleConfigs or {}
             TIV.CustomConfig.VehicleConfigs[model] = decoded
             return table.Copy(decoded)
@@ -103,6 +104,71 @@ function TIV.CustomConfig.GetSavedConfig(model)
     end
 
     return nil
+end
+
+--- Brings a saved config's spike mounts up to what the factory config for the
+--- same model defines.
+---
+--- Configs saved before the Heavy Anchor Array existed hold only six mounts.
+--- TIV.Spikes.ResolveCount takes its *ceiling* from max_spikes but its *value*
+--- from how many mounts the config actually defines, so a saved layout keeps
+--- six anchors forever and the upgrade stays invisible for exactly the players
+--- who had already saved one. Measured against the user's own exported buggy
+--- config: max_spikes 8, ResolveCount 6.
+---
+--- New mounts are placed from the saved config's own spike geometry -- outboard
+--- of its widest row, at that row's height, matching the angle convention of the
+--- spike already on that side -- so they land on whatever the player arranged
+--- rather than on factory coordinates.
+function TIV.CustomConfig.MigrateSpikeMounts(config)
+    if not config or not istable(config.components) then return config end
+
+    local spikes = {}
+    for _, c in ipairs(config.components) do
+        if c.type == "spike" and c.pos then spikes[#spikes + 1] = c end
+    end
+    if #spikes == 0 then return config end
+
+    local target = 0
+    local factory = TIV.CustomConfig.GetDefaultConfig(config.vehicle_model, true)
+    for _, c in ipairs(factory.components or {}) do
+        if c.type == "spike" then target = target + 1 end
+    end
+    if target <= #spikes then return config end
+
+    -- The widest row is the reference for how far outboard "outboard" is.
+    local widest, widestAbs = spikes[1], math.abs(spikes[1].pos.x)
+    local rightAng, leftAng = nil, nil
+    for _, sp in ipairs(spikes) do
+        local ax = math.abs(sp.pos.x)
+        if ax > widestAbs then widest, widestAbs = sp, ax end
+        if sp.pos.x > 0 and not rightAng and sp.ang then rightAng = sp.ang end
+        if sp.pos.x < 0 and not leftAng  and sp.ang then leftAng  = sp.ang end
+    end
+
+    local used = {}
+    for _, c in ipairs(config.components) do if c.id then used[c.id] = true end end
+
+    for i = 1, (target - #spikes) do
+        local side = (i % 2 == 1) and 1 or -1
+        local srcAng = (side > 0) and rightAng or leftAng
+        local id = (side > 0) and "spike_or" or "spike_ol"
+        if used[id] then id = "spike_added_" .. (#config.components + 1) end
+        used[id] = true
+
+        table.insert(config.components, {
+            id    = id,
+            type  = "spike",
+            name  = (side > 0) and "Outer Right Spike" or "Outer Left Spike",
+            group = "migrated",
+            model = widest.model or "models/props_junk/harpoon002a.mdl",
+            pos   = Vector(side * (widestAbs + 16.00), widest.pos.y, widest.pos.z),
+            ang   = srcAng and Angle(srcAng.p, srcAng.y, srcAng.r) or Angle(90.00, 0.00, 0.00),
+            scale = Vector(1.00, 1.00, 1.00),
+        })
+    end
+
+    return config
 end
 
 -- ============================================================================
@@ -148,10 +214,12 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
             { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  57.40, 45.00), ang = Angle(-165.00, 90.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Roof cowl (roof_spoiler) and hydraulic rams (reinforced_hydraulics).
-            -- Positions are first-pass defaults; adjust them in the 3D editor.
-            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  -25.00,  58.80), ang = Angle(  0.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
-            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  33.00,    0.00,  30.80), ang = Angle( 90.00,  0.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
-            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -33.00,    0.00,  30.80), ang = Angle( 90.00,  0.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
+            -- Placed by the same offsets as the standard buggy, whose layout was
+            -- verified in game: roof at (midY - 29.2, sideZ + 47.2) laid flat with
+            -- metal_plate1, rams at (+/- maxX + 5.9, midY - 4.6, sideZ - 1.8).
+            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1.mdl", pos = Vector(  0.00,  -29.20,   88.00), ang = Angle(  0.00,   0.00, 168.50), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  30.90,   -4.60,   39.00), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -30.90,   -4.60,   39.00), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Tactical Path Prediction Screen
             { id = "screen_radar", type = "radar_screen", name = "Path Prediction Screen", group = "interior", model = "models/kobilica/wiremonitorsmall.mdl", pos = Vector( 14.00,  14.00, 42.00), ang = Angle(10.00, -125.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
@@ -175,10 +243,12 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
             { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00, 106.70, 61.70), ang = Angle(-120.00, 90.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Roof cowl (roof_spoiler) and hydraulic rams (reinforced_hydraulics).
-            -- Positions are first-pass defaults; adjust them in the 3D editor.
-            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  -15.00,  67.20), ang = Angle(  0.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
-            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  43.00,   10.00,  39.20), ang = Angle( 90.00,  0.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
-            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -43.00,   10.00,  39.20), ang = Angle( 90.00,  0.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
+            -- Placed by the same offsets as the standard buggy, whose layout was
+            -- verified in game: roof at (midY - 29.2, sideZ + 47.2) laid flat with
+            -- metal_plate1, rams at (+/- maxX + 5.9, midY - 4.6, sideZ - 1.8).
+            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1.mdl", pos = Vector(  0.00,  -19.20,   96.40), ang = Angle(  0.00,   0.00, 168.50), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  40.90,    5.40,   47.40), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -40.90,    5.40,   47.40), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Tactical Path Prediction Screen
             { id = "screen_radar", type = "radar_screen", name = "Path Prediction Screen", group = "interior", model = "models/kobilica/wiremonitorsmall.mdl", pos = Vector( 15.00,  52.00, 50.00), ang = Angle(10.00, -125.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
@@ -202,10 +272,12 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
             { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  70.00, 18.00), ang = Angle(-85.00, 90.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Roof cowl (roof_spoiler) and hydraulic rams (reinforced_hydraulics).
-            -- Positions are first-pass defaults; adjust them in the 3D editor.
-            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  -25.00,  34.00), ang = Angle(  0.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
-            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  36.00,    0.00,   6.00), ang = Angle( 90.00,  0.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
-            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -36.00,    0.00,   6.00), ang = Angle( 90.00,  0.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
+            -- Placed by the same offsets as the standard buggy, whose layout was
+            -- verified in game: roof at (midY - 29.2, sideZ + 47.2) laid flat with
+            -- metal_plate1, rams at (+/- maxX + 5.9, midY - 4.6, sideZ - 1.8).
+            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1.mdl", pos = Vector(  0.00,  -29.20,   63.20), ang = Angle(  0.00,   0.00, 168.50), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  33.90,   -4.60,   14.20), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -33.90,   -4.60,   14.20), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Tactical Path Prediction Screen
             { id = "screen_radar", type = "radar_screen", name = "Path Prediction Screen", group = "interior", model = "models/kobilica/wiremonitorsmall.mdl", pos = Vector( 10.00,  20.00, 22.00), ang = Angle(10.00, -125.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
@@ -229,10 +301,12 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
             { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00, 105.00, 35.00), ang = Angle(-90.00, 90.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Roof cowl (roof_spoiler) and hydraulic rams (reinforced_hydraulics).
-            -- Positions are first-pass defaults; adjust them in the 3D editor.
-            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  -25.00,  53.00), ang = Angle(  0.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
-            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  48.00,    0.00,  25.00), ang = Angle( 90.00,  0.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
-            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -48.00,    0.00,  25.00), ang = Angle( 90.00,  0.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
+            -- Placed by the same offsets as the standard buggy, whose layout was
+            -- verified in game: roof at (midY - 29.2, sideZ + 47.2) laid flat with
+            -- metal_plate1, rams at (+/- maxX + 5.9, midY - 4.6, sideZ - 1.8).
+            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1.mdl", pos = Vector(  0.00,  -29.20,   82.20), ang = Angle(  0.00,   0.00, 168.50), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  45.90,   -4.60,   33.20), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },
+            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -45.90,   -4.60,   33.20), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Tactical Path Prediction Screen
             { id = "screen_radar", type = "radar_screen", name = "Path Prediction Screen", group = "interior", model = "models/kobilica/wiremonitorsmall.mdl", pos = Vector( 15.00,  25.00, 38.00), ang = Angle(10.00, -125.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
@@ -257,10 +331,12 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
             { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  64.00, 31.80), ang = Angle(-95.30, 90.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Roof cowl (roof_spoiler) and hydraulic rams (reinforced_hydraulics).
-            -- Positions are first-pass defaults; adjust them in the 3D editor.
-            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  -45.00,  49.80), ang = Angle(  0.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
-            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  38.00,  -20.00,  21.80), ang = Angle( 90.00,  0.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
-            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -38.00,  -20.00,  21.80), ang = Angle( 90.00,  0.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
+            -- Placed by the same offsets as the standard buggy, whose layout was
+            -- verified in game: roof at (midY - 29.2, sideZ + 47.2) laid flat with
+            -- metal_plate1, rams at (+/- maxX + 5.9, midY - 4.6, sideZ - 1.8).
+            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1.mdl", pos = Vector(  0.00,  -49.20,   79.00), ang = Angle(  0.00,   0.00, 168.50), scale = Vector(1.00, 1.00, 1.00) },  -- user-verified in game
+            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  35.90,  -24.60,   30.00), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },  -- user-verified in game
+            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -35.90,  -24.60,   30.00), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Tactical Path Prediction Screen
             { id = "screen_radar", type = "radar_screen", name = "Path Prediction Screen", group = "interior", model = "models/kobilica/wiremonitorsmall.mdl", pos = Vector( 19.20,  -9.20, 37.30), ang = Angle(-6.90, -125.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
