@@ -324,15 +324,10 @@ local function RelativeBearingToTornado(veh)
     local info = TIV.Wind.GetNearestActiveTornado(veh:GetPos())
     if not info or not info.pos then return nil end
 
-    local fwd = veh:GetForward()
-    local rgt = veh:GetRight()
-    local fwd2D = Vector(fwd.x, fwd.y, 0):GetNormalized()
-    local rgt2D = Vector(rgt.x, rgt.y, 0):GetNormalized()
-    local rel   = info.pos - veh:GetPos()
-
-    local deg = math.deg(math.atan2(rel:Dot(rgt2D), rel:Dot(fwd2D)))
-    if deg < 0 then deg = deg + 360 end
-    return deg
+    -- Shared helper, so a chip-driven needle applies the same heading correction
+    -- as the built-in radar screen and can never disagree with it.
+    if not TIV.RelativeBearing then return nil end
+    return TIV.RelativeBearing(veh, info.pos)
 end
 
 --- Returns the bearing of the nearest tornado in degrees (0-360) RELATIVE TO <this> TIV's nose: 0=ahead, 90=right, 180=astern, 270=left. Use this for track-up displays; tivTornadoBearing() is a fixed map angle instead.

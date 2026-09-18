@@ -23,6 +23,13 @@ E2_TARGET = os.path.join(
     "gmod_wire_expression2", "core", "custom", "tiv.lua",
 )
 
+# The E2 relative-bearing function delegates to TIV.RelativeBearing, which lives
+# in the shared config. Load the real one rather than re-implementing it, or the
+# probe would be testing a stand-in.
+CONFIG_TARGET = os.path.join(
+    REPO, "jeep_jalopy_interceptor", "lua", "tiv", "config", "sh_config.lua",
+)
+
 # Reuse the radar probe's vetted GMod API stub (Vector/Angle/entity/...).
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from radar_probe import GMOD_STUB, SELF_TEST  # noqa: E402
@@ -78,6 +85,20 @@ def main():
     lua.execute(GMOD_STUB)
     lua.execute(E2_SHIM)
 
+    # This harness drives identity-basis vehicles, whose nose IS entity +X, so no
+    # heading correction is wanted. TIV.RelativeBearing reads the override first.
+    g.TIV_HEADING_OFFSET_DEG = os.environ.get("TIV_HEADING_OFFSET_DEG", "0")
+
+    with open(CONFIG_TARGET, "r", encoding="utf-8", errors="replace") as fh:
+        try:
+            lua.execute(fh.read())
+        except Exception as exc:  # noqa: BLE001
+            print(f"FAIL: could not load {os.path.relpath(CONFIG_TARGET, REPO)}: {exc}")
+            return 1
+    if lua.eval("TIV.RelativeBearing") is None:
+        print("FAIL: TIV.RelativeBearing is not defined after loading sh_config.lua")
+        return 1
+
     bad = lua.execute(SELF_TEST)
     if len(bad) > 0:
         print("FAIL: GMod stub does not match Source conventions:")
@@ -97,6 +118,7 @@ def main():
 
     veh_yaw = float(sys.argv[1]) if len(sys.argv) > 1 else 0.0
     print(f"Compiled real file : {os.path.relpath(E2_TARGET, REPO)}")
+    print(f"Shared helper      : {os.path.relpath(CONFIG_TARGET, REPO)} (offset {g.TIV_HEADING_OFFSET_DEG})")
     print(f"Lua runtime        : {lua.eval('_VERSION')}")
     print(f"vehicle yaw        : {veh_yaw:g}")
     print()

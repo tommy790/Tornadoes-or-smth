@@ -5,6 +5,85 @@
 TIV = TIV or {}
 TIV.Config = TIV.Config or {}
 
+-- ============================================================================
+-- VEHICLE HEADING BASIS
+--
+-- This file documents the addon's vehicle-local space as
+--     Forward: +Y (along veh:GetForward())
+--     Right:   +X (along veh:GetRight())
+-- In GMod that cannot hold: Angle:Forward() is local +X and Angle:Right() is
+-- local -Y, so the two halves disagree by 90 degrees. Anything that derives a
+-- direction from veh:GetForward()/GetRight() therefore needs to know which of
+-- the two the vehicle's nose actually is.
+--
+-- TIV.Config.HeadingOffsetDeg rotates the vehicle-relative components so that
+-- "forward" means along the nose. Derived from two field reports: with 0 a
+-- vortex visually dead ahead read as 090 RIGHT, and with -90 the same vortex
+-- read as 180 ASTERN. Each 90 degrees of offset moves the reading 90 degrees,
+-- so -90 overshot by 180 and +90 is correct.
+--
+-- Every relative-bearing consumer (radar screen, HUD, Expression 2) must go
+-- through TIV.RelativeBearing so they cannot disagree with each other.
+-- ============================================================================
+TIV.Config.HeadingOffsetDeg = 0
+
+-- Live override so this can be calibrated in game without editing files:
+--   tiv_radar_heading_offset 90
+-- The radar screen also paints the value currently in force. Once the correct
+-- number is known, put it in HeadingOffsetDeg above and this can stay at 0.
+if CLIENT then
+    CreateClientConVar("tiv_radar_heading_offset", "0", true, false,
+        "Degrees to rotate the radar's heading basis. 0 uses TIV.Config.HeadingOffsetDeg.")
+end
+
+--- Heading correction currently in force, in degrees.
+-- Precedence: offline-probe override, then the client convar, then the config.
+-- Returns 0 when nothing is set, i.e. veh:GetForward() is taken at face value.
+function TIV.HeadingOffsetDeg()
+    local probe = tonumber(TIV_HEADING_OFFSET_DEG or "")
+    if probe then return probe end
+    if CLIENT and GetConVar then
+        local cv = GetConVar("tiv_radar_heading_offset")
+        if IsValid(cv) then
+            local v = tonumber(cv:GetString())
+            if v and v ~= 0 then return v end
+        end
+    end
+    return TIV.Config.HeadingOffsetDeg or 0
+end
+
+--- Track-up bearing of a world position relative to a vehicle's nose.
+-- @param veh      Entity  the vehicle whose nose defines 000
+-- @param targetPos Vector world position of the thing being reported on
+-- @return number   degrees in [0, 360), clockwise from the nose
+function TIV.RelativeBearing(veh, targetPos)
+    if not IsValid(veh) or not targetPos then return 0 end
+
+    local fwd = veh:GetForward()
+    local rgt = veh:GetRight()
+    local fwd2D = Vector(fwd.x, fwd.y, 0):GetNormalized()
+    local rgt2D = Vector(rgt.x, rgt.y, 0):GetNormalized()
+
+    local rel    = targetPos - veh:GetPos()
+    local relFwd = rel:Dot(fwd2D)
+    local relRgt = rel:Dot(rgt2D)
+
+    local off = TIV.HeadingOffsetDeg()
+    if off ~= 0 then
+        local hr = math.rad(off)
+        local c, s = math.cos(hr), math.sin(hr)
+        -- With +90 this is (newFwd, newRgt) = (-relRgt, relFwd): relFwd ends up
+        -- measuring along local +Y and relRgt along local +X.
+        relFwd, relRgt = c * relFwd - s * relRgt, s * relFwd + c * relRgt
+    end
+
+    -- Normalise into [0, 360). atan2 can return exactly -0.0 and -0.0 < 0 is
+    -- false, so "if negative then add 360" leaves it at -0, which then fails
+    -- both "< 45" and ">= 315" in the usual sector chain and lands in the LEFT
+    -- else. A vortex dead ahead would read as LEFT.
+    return math.deg(math.atan2(relRgt, relFwd)) % 360
+end
+
 -- Runtime setting bounds
 TIV.Config.SpikeCountConvarMin     = 0
 TIV.Config.SpikeCountConvarMax     = 6

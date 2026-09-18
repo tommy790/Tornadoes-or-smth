@@ -27,12 +27,9 @@ TIV.Instruments = TIV.Instruments or {}
 local radarByVehicle = {}
 local EMPTY_RADAR = { active = false }
 
--- Degrees to rotate the vehicle's own heading basis before the radar uses it.
--- See the HEADING BASIS CORRECTION note in DrawRadarScreen for why this exists.
--- Positive rotates the reference frame anticlockwise. -90 maps the config's
--- documented "+Y is the nose" convention onto the entity's +X.
--- Set to 0 to disable, or to +90 if the correction reads the wrong way round.
-local HEADING_OFFSET_DEG = tonumber(TIV_HEADING_OFFSET_DEG or "") or -90
+-- Heading basis correction, shared with the HUD and the Expression 2 functions
+-- so all three can never disagree. TIV.HeadingOffsetDeg resolves the offline
+-- probe override, then the tiv_radar_heading_offset convar, then the config.
 
 --- Radar telemetry for one vehicle.
 -- @param veh  Entity   the vehicle whose radar is being drawn
@@ -294,17 +291,20 @@ local function DrawRadarScreen(screenEnt, veh, rData)
         -- "Forward: +Y (along veh:GetForward())". In GMod that is not possible:
         -- Angle:Forward() is local +X and Angle:Right() is local -Y, so the two
         -- halves of that line disagree by 90 degrees. Everything the radar draws
-        -- takes its reference frame from veh:GetForward()/GetRight() below, so if
-        -- the jeep's nose is the config's +Y rather than the entity's +X, the whole
-        -- display reads 90 degrees out -- a vortex dead ahead reports as 090 RIGHT.
+        -- takes its reference frame from veh:GetForward()/GetRight() below, so with
+        -- the nose on the config's +Y the whole display read 90 degrees out -- a
+        -- vortex dead ahead reported as 090 RIGHT.
         --
-        -- This rotates the vehicle-relative components into the nose's frame.
-        -- The bearing text, the blip and the movement arrow all consume the
-        -- corrected pair, so they cannot drift apart.
+        -- This rotates the vehicle-relative components so that relFwd measures
+        -- along the nose. The bearing text, the blip and the movement arrow all
+        -- consume the corrected pair, so they cannot drift apart.
         -- ----------------------------------------------------------------
-        if HEADING_OFFSET_DEG ~= 0 then
-            local hr = math.rad(HEADING_OFFSET_DEG)
+        local headingOff = TIV.HeadingOffsetDeg()
+        if headingOff ~= 0 then
+            local hr = math.rad(headingOff)
             local c, s = math.cos(hr), math.sin(hr)
+            -- With +90 this is (newFwd, newRgt) = (-relRgt, relFwd), i.e. relFwd now
+            -- measures along local +Y and relRgt along local +X.
             relFwd, relRgt = c * relFwd - s * relRgt, s * relFwd + c * relRgt
         end
 
@@ -440,7 +440,12 @@ local function DrawRadarScreen(screenEnt, veh, rData)
         -- 090 = vehicle right, 180 = dead astern, 270 = vehicle left.
         -- ====================================================================
         local relBearing = math.deg(math.atan2(relRgt, relFwd))
-        if relBearing < 0 then relBearing = relBearing + 360 end
+        -- Normalise into [0, 360). atan2 can return exactly -0.0, and -0.0 < 0 is
+        -- false, so a plain "if negative then add 360" leaves it at -0 -- which
+        -- then fails every branch below (not < 45, not >= 315) and lands in the
+        -- LEFT else. A vortex dead ahead would read as LEFT.
+        relBearing = relBearing % 360
+        if relBearing >= 360 then relBearing = 0 end
 
         local sector, sectorCol
         if relBearing < 45 or relBearing >= 315 then
@@ -455,9 +460,9 @@ local function DrawRadarScreen(screenEnt, veh, rData)
 
         -- Telemetry data box (Top Left)
         surface.SetDrawColor(0, 20, 25, 200)
-        surface.DrawRect(14, 46, 170, 114)
+        surface.DrawRect(14, 46, 170, 128)
         surface.SetDrawColor(0, 180, 220, 160)
-        surface.DrawOutlinedRect(14, 46, 170, 114)
+        surface.DrawOutlinedRect(14, 46, 170, 128)
 
         local distM = math.Round((rData.dist or 0) * 0.01905)
         draw.SimpleText(string.format("DIST:  %d m", distM), "Trebuchet18", 22, 52, Color(0, 240, 255, 255))
@@ -468,6 +473,9 @@ local function DrawRadarScreen(screenEnt, veh, rData)
         draw.SimpleText(string.format("REL BRG: %03.0f %s", relBearing, sector), "Trebuchet18", 22, 88, sectorCol)
         draw.SimpleText(string.format("CORE:  %d m", math.Round((rData.coreRadius or 600) * 0.01905)), "Trebuchet18", 22, 106, Color(255, 100, 100, 255))
         draw.SimpleText(string.format("MAP BRG: %.0f", rData.bearing or 0), "DefaultFixed", 22, 126, Color(130, 155, 175, 255))
+        -- Calibration aid: the heading correction currently applied. Reads 0 when
+        -- the radar trusts veh:GetForward() as-is.
+        draw.SimpleText(string.format("HDG OFF: %+.0f", headingOff), "DefaultFixed", 22, 140, Color(110, 135, 155, 255))
 
         -- Publish for other consumers (Wiremod screens, E2 chips, debug).
         TIV.Instruments.RelativeBearing = relBearing

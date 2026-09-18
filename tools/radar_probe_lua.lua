@@ -19,6 +19,7 @@ local here = (arg and arg[0] or "tools/radar_probe_lua.lua"):match("^(.*)[/\\][^
 local repo = here:match("^(.*)[/\\]tools$") or "."
 
 local TARGET = repo .. "/jeep_jalopy_interceptor/lua/tiv/instruments/cl_radar_screen.lua"
+local CONFIG_TARGET = "jeep_jalopy_interceptor/lua/tiv/config/sh_config.lua"
 
 dofile(here .. "/gmod_stub.lua")
 
@@ -31,6 +32,15 @@ end
 
 -- Lets the harness pin the heading correction; unset means the shipped value.
 TIV_HEADING_OFFSET_DEG = os.getenv("TIV_HEADING_OFFSET_DEG")
+
+-- sh_config.lua registers a calibration convar on the client.
+CLIENT = true
+CreateClientConVar = function() return nil end
+
+-- The radar resolves its heading correction through TIV.HeadingOffsetDeg, which
+-- lives in the shared config. Load the real file rather than stubbing it.
+local cfgChunk = loadfile(repo .. "/" .. CONFIG_TARGET)
+if cfgChunk then cfgChunk() end
 
 local chunk, lerr = loadfile(TARGET)
 if not chunk then

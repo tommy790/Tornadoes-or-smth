@@ -200,6 +200,19 @@ setmetatable(env, {
 
 env.TIV_HEADING_OFFSET_DEG = os.getenv("TIV_HEADING_OFFSET_DEG")
 
+
+-- sh_config.lua registers a calibration convar on the client. Give it a real
+-- function instead of letting the sandbox's table fallback swallow it.
+env.CLIENT = true
+env.CreateClientConVar = function() return nil end
+
+-- The radar resolves its heading correction through TIV.HeadingOffsetDeg, which
+-- lives in the shared config. Load the real file into the same sandbox.
+local cfgChunk, cfgErr = loadfile(repo .. "/jeep_jalopy_interceptor/lua/tiv/config/sh_config.lua", "t", env)
+if not cfgChunk then io.stderr:write("FAIL: could not load sh_config.lua: " .. tostring(cfgErr) .. "\n") os.exit(1) end
+local cfgOk, cfgRunErr = pcall(cfgChunk)
+if not cfgOk then io.stderr:write("FAIL: error in sh_config.lua: " .. tostring(cfgRunErr) .. "\n") os.exit(1) end
+
 local chunk, err = loadfile(TARGET, "t", env)
 if not chunk then io.stderr:write("FAIL: could not load " .. TARGET .. ": " .. tostring(err) .. "\n") os.exit(1) end
 local ok, lerr = pcall(chunk)

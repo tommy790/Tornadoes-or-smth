@@ -25,6 +25,9 @@ TARGET = os.path.join(
 )
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
+CONFIG_TARGET = os.path.join(
+    REPO, "jeep_jalopy_interceptor", "lua", "tiv", "config", "sh_config.lua",
+)
 STUB_PATH = os.path.join(TOOLS, "gmod_stub.lua")
 SELFTEST_PATH = os.path.join(TOOLS, "radar_selftest.lua")
 
@@ -144,7 +147,18 @@ def main():
     g = lua.globals()
     # Lets the harness pin the heading correction; unset means the shipped value.
     g.TIV_HEADING_OFFSET_DEG = os.environ.get("TIV_HEADING_OFFSET_DEG")
+
     lua.execute(GMOD_STUB)
+
+    # sh_config.lua registers a calibration convar on the client, and
+    # TIV.RelativeBearing uses Vector, so the stub has to be in place first.
+    g.CLIENT = True
+    g.CreateClientConVar = lambda *a: None
+
+    # The radar resolves its heading correction through TIV.HeadingOffsetDeg,
+    # which lives in the shared config. Load the real file, not a stand-in.
+    with open(CONFIG_TARGET, "r", encoding="utf-8", errors="replace") as fh:
+        lua.execute(fh.read())
 
     with open(TARGET, "r", encoding="utf-8", errors="replace") as fh:
         lua.execute(fh.read())

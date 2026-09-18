@@ -501,11 +501,9 @@ hook.Add("HUDPaint", "TIV_DrawHUD", function()
                 or ((TIV.ResolveVehicle and TIV.ResolveVehicle(LocalPlayer())) or nil)
             local relTxt, relDeg = "", nil
             if IsValid(rbVeh) and rData.pos then
-                local rbFwd = Vector(rbVeh:GetForward().x, rbVeh:GetForward().y, 0):GetNormalized()
-                local rbRgt = Vector(rbVeh:GetRight().x, rbVeh:GetRight().y, 0):GetNormalized()
-                local rbRel = rData.pos - rbVeh:GetPos()
-                relDeg = math.deg(math.atan2(rbRel:Dot(rbRgt), rbRel:Dot(rbFwd)))
-                if relDeg < 0 then relDeg = relDeg + 360 end
+                -- Shared helper: same heading correction and normalisation as the
+                -- radar screen and the Expression 2 functions.
+                relDeg = TIV.RelativeBearing(rbVeh, rData.pos)
                 if relDeg < 45 or relDeg >= 315 then
                     relTxt = "AHEAD"
                 elseif relDeg < 135 then
