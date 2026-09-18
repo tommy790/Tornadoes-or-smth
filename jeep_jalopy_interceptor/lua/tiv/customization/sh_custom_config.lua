@@ -193,6 +193,14 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
     local rightSpikeAng = (hasAngledSpikes == true) and Angle( 80.00, 0.00, 0.00) or Angle(90.00, 0.00, 0.00)
     local leftSpikeAng  = (hasAngledSpikes == true) and Angle(100.00, 0.00, 0.00) or Angle(90.00, 0.00, 0.00)
 
+    -- The two outboard mounts mirror by yaw rather than by pitch in the verified
+    -- jalopy layout -- Angle(80, 180, 0) on the left, not Angle(100, 0, 0). Both
+    -- conventions splay the spike the same way; these keep the exported
+    -- orientation exactly while still going vertical when angled_spikes is
+    -- locked, which the upgrade check depends on.
+    local rightOuterAng = (hasAngledSpikes == true) and Angle( 80.00,   0.00, 0.00) or Angle(90.00, 0.00, 0.00)
+    local leftOuterAng  = (hasAngledSpikes == true) and Angle( 80.00, 180.00, 0.00) or Angle(90.00, 0.00, 0.00)
+
     if string.find(vehicleModel, "jalopy", 1, true) or string.find(vehicleModel, "vehicle.mdl", 1, true) then
         config.components = {
             -- 6 Standard Spikes
@@ -205,8 +213,8 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
 
             -- Heavy Anchor Array: two extra mounts, only used once
             -- heavy_cluster_spikes is unlocked (the count is capped without it).
-            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  41.00,    0.00, 0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
-            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -41.00,    0.00, 0.00), ang = leftSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  44.90, -135.00,   10.00), ang = rightOuterAng, scale = Vector(1.00, 1.00, 1.00) },  -- user-verified in game
+            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -44.90, -135.00,   10.00), ang = leftOuterAng, scale = Vector(1.00, 1.00, 1.00) },
 
             -- Armor Panels (Metal Plates 1x2)
             { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-48.00, -39.00, 40.80), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
@@ -214,12 +222,15 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
             { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  57.40, 45.00), ang = Angle(-165.00, 90.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Roof cowl (roof_spoiler) and hydraulic rams (reinforced_hydraulics).
-            -- Placed by the same offsets as the standard buggy, whose layout was
-            -- verified in game: roof at (midY - 29.2, sideZ + 47.2) laid flat with
-            -- metal_plate1, rams at (+/- maxX + 5.9, midY - 4.6, sideZ - 1.8).
-            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1.mdl", pos = Vector(  0.00,  -29.20,   88.00), ang = Angle(  0.00,   0.00, 168.50), scale = Vector(1.00, 1.00, 1.00) },
-            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  30.90,   -4.60,   39.00), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },
-            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -30.90,   -4.60,   39.00), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },
+            -- These three branches are NOT user-verified. An earlier version derived
+            -- them from offsets fitted to the buggy alone, and the jalopy export
+            -- disproved every one of them, so they are back to plain guesses. The
+            -- ram height is the exception: it is z = 30.0 on both verified vehicles
+            -- even though their side armour sits at 31.8 and 40.8, so 30 is used
+            -- here too.
+            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(   0.00,  -17.80,   67.50), ang = Angle(  6.90,  90.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },  -- user-verified in game
+            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  35.00,    0.00,   30.00), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },  -- user-verified in game
+            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -35.00,    0.00,   30.00), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Tactical Path Prediction Screen
             { id = "screen_radar", type = "radar_screen", name = "Path Prediction Screen", group = "interior", model = "models/kobilica/wiremonitorsmall.mdl", pos = Vector( 14.00,  14.00, 42.00), ang = Angle(10.00, -125.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
@@ -235,20 +246,23 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
 
             -- Heavy Anchor Array: two extra mounts, only used once
             -- heavy_cluster_spikes is unlocked (the count is capped without it).
-            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  51.00,   10.00, 0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
-            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -51.00,   10.00, 0.00), ang = leftSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  51.00,   10.00,    0.00), ang = rightOuterAng, scale = Vector(1.00, 1.00, 1.00) },  -- NOT user-verified
+            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -51.00,   10.00,    0.00), ang = leftOuterAng, scale = Vector(1.00, 1.00, 1.00) },
 
             { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-56.40,  -6.20, 49.20), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
             { id = "armor_sr", type = "armor_side",  name = "Right Metal Plate", group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector( 56.40,  -6.20, 49.20), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
             { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00, 106.70, 61.70), ang = Angle(-120.00, 90.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Roof cowl (roof_spoiler) and hydraulic rams (reinforced_hydraulics).
-            -- Placed by the same offsets as the standard buggy, whose layout was
-            -- verified in game: roof at (midY - 29.2, sideZ + 47.2) laid flat with
-            -- metal_plate1, rams at (+/- maxX + 5.9, midY - 4.6, sideZ - 1.8).
-            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1.mdl", pos = Vector(  0.00,  -19.20,   96.40), ang = Angle(  0.00,   0.00, 168.50), scale = Vector(1.00, 1.00, 1.00) },
-            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  40.90,    5.40,   47.40), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },
-            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -40.90,    5.40,   47.40), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },
+            -- These three branches are NOT user-verified. An earlier version derived
+            -- them from offsets fitted to the buggy alone, and the jalopy export
+            -- disproved every one of them, so they are back to plain guesses. The
+            -- ram height is the exception: it is z = 30.0 on both verified vehicles
+            -- even though their side armour sits at 31.8 and 40.8, so 30 is used
+            -- here too.
+            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1.mdl", pos = Vector(   0.00,  -19.20,   96.40), ang = Angle(  0.00,   0.00, 168.50), scale = Vector(1.00, 1.00, 1.00) },  -- NOT user-verified
+            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  35.00,   10.00,   30.00), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },  -- NOT user-verified
+            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -35.00,   10.00,   30.00), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Tactical Path Prediction Screen
             { id = "screen_radar", type = "radar_screen", name = "Path Prediction Screen", group = "interior", model = "models/kobilica/wiremonitorsmall.mdl", pos = Vector( 15.00,  52.00, 50.00), ang = Angle(10.00, -125.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
@@ -264,20 +278,23 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
 
             -- Heavy Anchor Array: two extra mounts, only used once
             -- heavy_cluster_spikes is unlocked (the count is capped without it).
-            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  44.00,    0.00, 0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
-            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -44.00,    0.00, 0.00), ang = leftSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  44.00,    0.00,    0.00), ang = rightOuterAng, scale = Vector(1.00, 1.00, 1.00) },  -- NOT user-verified
+            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -44.00,    0.00,    0.00), ang = leftOuterAng, scale = Vector(1.00, 1.00, 1.00) },
 
             { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-36.00, -10.00, 16.00), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
             { id = "armor_sr", type = "armor_side",  name = "Right Metal Plate", group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector( 36.00, -10.00, 16.00), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
             { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  70.00, 18.00), ang = Angle(-85.00, 90.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Roof cowl (roof_spoiler) and hydraulic rams (reinforced_hydraulics).
-            -- Placed by the same offsets as the standard buggy, whose layout was
-            -- verified in game: roof at (midY - 29.2, sideZ + 47.2) laid flat with
-            -- metal_plate1, rams at (+/- maxX + 5.9, midY - 4.6, sideZ - 1.8).
-            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1.mdl", pos = Vector(  0.00,  -29.20,   63.20), ang = Angle(  0.00,   0.00, 168.50), scale = Vector(1.00, 1.00, 1.00) },
-            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  33.90,   -4.60,   14.20), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },
-            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -33.90,   -4.60,   14.20), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },
+            -- These three branches are NOT user-verified. An earlier version derived
+            -- them from offsets fitted to the buggy alone, and the jalopy export
+            -- disproved every one of them, so they are back to plain guesses. The
+            -- ram height is the exception: it is z = 30.0 on both verified vehicles
+            -- even though their side armour sits at 31.8 and 40.8, so 30 is used
+            -- here too.
+            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1.mdl", pos = Vector(   0.00,  -29.20,   63.20), ang = Angle(  0.00,   0.00, 168.50), scale = Vector(1.00, 1.00, 1.00) },  -- NOT user-verified
+            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  35.00,    0.00,   30.00), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },  -- NOT user-verified
+            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -35.00,    0.00,   30.00), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Tactical Path Prediction Screen
             { id = "screen_radar", type = "radar_screen", name = "Path Prediction Screen", group = "interior", model = "models/kobilica/wiremonitorsmall.mdl", pos = Vector( 10.00,  20.00, 22.00), ang = Angle(10.00, -125.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
@@ -293,20 +310,23 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
 
             -- Heavy Anchor Array: two extra mounts, only used once
             -- heavy_cluster_spikes is unlocked (the count is capped without it).
-            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  56.00,    0.00, 0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
-            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -56.00,    0.00, 0.00), ang = leftSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  56.00,    0.00,    0.00), ang = rightOuterAng, scale = Vector(1.00, 1.00, 1.00) },  -- NOT user-verified
+            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -56.00,    0.00,    0.00), ang = leftOuterAng, scale = Vector(1.00, 1.00, 1.00) },
 
             { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-48.00, -20.00, 35.00), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
             { id = "armor_sr", type = "armor_side",  name = "Right Metal Plate", group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector( 48.00, -20.00, 35.00), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
             { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00, 105.00, 35.00), ang = Angle(-90.00, 90.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Roof cowl (roof_spoiler) and hydraulic rams (reinforced_hydraulics).
-            -- Placed by the same offsets as the standard buggy, whose layout was
-            -- verified in game: roof at (midY - 29.2, sideZ + 47.2) laid flat with
-            -- metal_plate1, rams at (+/- maxX + 5.9, midY - 4.6, sideZ - 1.8).
-            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1.mdl", pos = Vector(  0.00,  -29.20,   82.20), ang = Angle(  0.00,   0.00, 168.50), scale = Vector(1.00, 1.00, 1.00) },
-            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  45.90,   -4.60,   33.20), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },
-            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -45.90,   -4.60,   33.20), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },
+            -- These three branches are NOT user-verified. An earlier version derived
+            -- them from offsets fitted to the buggy alone, and the jalopy export
+            -- disproved every one of them, so they are back to plain guesses. The
+            -- ram height is the exception: it is z = 30.0 on both verified vehicles
+            -- even though their side armour sits at 31.8 and 40.8, so 30 is used
+            -- here too.
+            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1.mdl", pos = Vector(   0.00,  -29.20,   82.20), ang = Angle(  0.00,   0.00, 168.50), scale = Vector(1.00, 1.00, 1.00) },  -- NOT user-verified
+            { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  35.00,    0.00,   30.00), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },  -- NOT user-verified
+            { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -35.00,    0.00,   30.00), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Tactical Path Prediction Screen
             { id = "screen_radar", type = "radar_screen", name = "Path Prediction Screen", group = "interior", model = "models/kobilica/wiremonitorsmall.mdl", pos = Vector( 15.00,  25.00, 38.00), ang = Angle(10.00, -125.00, 0.00), scale = Vector(1.00, 1.00, 1.00) },
@@ -323,18 +343,21 @@ function TIV.CustomConfig.GetDefaultConfig(vehicleModel, hasAngledSpikes)
 
             -- Heavy Anchor Array: two extra mounts, only used once
             -- heavy_cluster_spikes is unlocked (the count is capped without it).
-            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  46.00,  -20.00, 0.00), ang = rightSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
-            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -46.00,  -20.00, 0.00), ang = leftSpikeAng, scale = Vector(1.00, 1.00, 1.00) },
+            { id = "spike_or", type = "spike", name = "Outer Right Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector(  46.00,  -20.00,    0.00), ang = rightOuterAng, scale = Vector(1.00, 1.00, 1.00) },  -- NOT user-verified
+            { id = "spike_ol", type = "spike", name = "Outer Left Spike", group = "mid", model = "models/props_junk/harpoon002a.mdl", pos = Vector( -46.00,  -20.00,    0.00), ang = leftOuterAng, scale = Vector(1.00, 1.00, 1.00) },
 
             { id = "armor_sl", type = "armor_side",  name = "Left Metal Plate",  group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(-43.50, -24.50, 31.80), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
             { id = "armor_sr", type = "armor_side",  name = "Right Metal Plate", group = "side",  model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector( 43.50, -24.50, 31.80), ang = Angle(-90.00, 90.00, 90.00), scale = Vector(1.00, 1.00, 1.00) },
             { id = "armor_fa", type = "armor_front", name = "Front Metal Plate", group = "front", model = "models/props_phx/construct/metal_plate1x2.mdl", pos = Vector(  0.00,  64.00, 31.80), ang = Angle(-95.30, 90.00,  0.00), scale = Vector(1.00, 1.00, 1.00) },
 
             -- Roof cowl (roof_spoiler) and hydraulic rams (reinforced_hydraulics).
-            -- Placed by the same offsets as the standard buggy, whose layout was
-            -- verified in game: roof at (midY - 29.2, sideZ + 47.2) laid flat with
-            -- metal_plate1, rams at (+/- maxX + 5.9, midY - 4.6, sideZ - 1.8).
-            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1.mdl", pos = Vector(  0.00,  -49.20,   79.00), ang = Angle(  0.00,   0.00, 168.50), scale = Vector(1.00, 1.00, 1.00) },  -- user-verified in game
+            -- These three branches are NOT user-verified. An earlier version derived
+            -- them from offsets fitted to the buggy alone, and the jalopy export
+            -- disproved every one of them, so they are back to plain guesses. The
+            -- ram height is the exception: it is z = 30.0 on both verified vehicles
+            -- even though their side armour sits at 31.8 and 40.8, so 30 is used
+            -- here too.
+            { id = "armor_roof", type = "armor_roof", name = "Roof Cowl", group = "roof", model = "models/props_phx/construct/metal_plate1.mdl", pos = Vector(   0.00,  -49.20,   79.00), ang = Angle(  0.00,   0.00, 168.50), scale = Vector(1.00, 1.00, 1.00) },  -- user-verified in game
             { id = "hyd_rl", type = "hydraulic_ram", name = "Right Hydraulic Ram", group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector(  35.90,  -24.60,   30.00), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },  -- user-verified in game
             { id = "hyd_ll", type = "hydraulic_ram", name = "Left Hydraulic Ram",  group = "hydraulics", model = "models/props_c17/TrapPropeller_Lever.mdl", pos = Vector( -35.90,  -24.60,   30.00), ang = Angle( 90.00,   0.00,   0.00), scale = Vector(1.00, 1.00, 1.00) },
 

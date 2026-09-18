@@ -469,11 +469,11 @@ for _, model in ipairs({ "models/buggy.mdl", "models/vehicle.mdl", "models/props
             or ("missing: " .. table.concat(missing, ", ")))
 end
 
-print("\n== the factory buggy layout matches the user's exported one ==")
+print("\n== the factory layouts match the user's exported ones ==")
 
 -- The user aligned these parts in the 3D editor and exported them, so their
--- values are ground truth. The factory defaults are derived from the same
--- offsets, so they must agree -- if someone re-guesses a coordinate this fails.
+-- values are ground truth. The factory defaults must agree, or a re-guessed
+-- coordinate silently ships.
 local function findComp(cfg, ctype, nth)
     local n = 0
     for _, c in ipairs(cfg.components or {}) do
@@ -484,48 +484,136 @@ local function findComp(cfg, ctype, nth)
     end
 end
 
-local factory = TIV.CustomConfig.GetDefaultConfig("models/buggy.mdl", false)
-local roofF, roofU = findComp(factory, "armor_roof"), findComp(raw, "armor_roof")
-check("factory roof position matches the exported one",
-    roofF and roofU
-        and math.abs(roofF.pos.x - roofU.pos.x) < 0.01
-        and math.abs(roofF.pos.y - roofU.pos.y) < 0.01
-        and math.abs(roofF.pos.z - roofU.pos.z) < 0.01,
-    string.format("factory (%.2f, %.2f, %.2f) vs exported (%.2f, %.2f, %.2f)",
-        roofF and roofF.pos.x or 0, roofF and roofF.pos.y or 0, roofF and roofF.pos.z or 0,
-        roofU and roofU.pos.x or 0, roofU and roofU.pos.y or 0, roofU and roofU.pos.z or 0))
-check("factory roof angle matches the exported one",
-    roofF and roofU and math.abs(roofF.ang.p - roofU.ang.p) < 0.01
-        and math.abs(roofF.ang.r - roofU.ang.r) < 0.01,
-    string.format("factory (%.2f, %.2f, %.2f) vs exported (%.2f, %.2f, %.2f)",
-        roofF and roofF.ang.p or 0, roofF and roofF.ang.y or 0, roofF and roofF.ang.r or 0,
-        roofU and roofU.ang.p or 0, roofU and roofU.ang.y or 0, roofU and roofU.ang.r or 0))
-check("factory roof uses the exported model", roofF and roofU and roofF.model == roofU.model,
-    tostring(roofF and roofF.model))
-
-local ramF, ramU = findComp(factory, "hydraulic_ram"), findComp(raw, "hydraulic_ram")
-check("factory ram position matches the exported one",
-    ramF and ramU and math.abs(math.abs(ramF.pos.x) - math.abs(ramU.pos.x)) < 0.01
-        and math.abs(ramF.pos.y - ramU.pos.y) < 0.01
-        and math.abs(ramF.pos.z - ramU.pos.z) < 0.01,
-    string.format("factory (+/-%.2f, %.2f, %.2f) vs exported (%.2f, %.2f, %.2f)",
-        math.abs(ramF and ramF.pos.x or 0), ramF and ramF.pos.y or 0, ramF and ramF.pos.z or 0,
-        ramU and ramU.pos.x or 0, ramU and ramU.pos.y or 0, ramU and ramU.pos.z or 0))
-
--- The six original mounts, the side panels, the front panel and the screen were
--- already identical to the export, so the export also pins them.
-local pins = { { "armor_side", 1 }, { "armor_side", 2 }, { "armor_front", 1 }, { "radar_screen", 1 } }
-local unpinned = {}
-for _, pn in ipairs(pins) do
-    local f, u = findComp(factory, pn[1], pn[2]), findComp(raw, pn[1], pn[2])
-    if not (f and u and math.abs(f.pos.x - u.pos.x) < 0.01
-              and math.abs(f.pos.y - u.pos.y) < 0.01
-              and math.abs(f.pos.z - u.pos.z) < 0.01) then
-        unpinned[#unpinned + 1] = pn[1] .. " #" .. pn[2]
-    end
+local function samePos(a, b)
+    return a and b and math.abs(a.x - b.x) < 0.01
+        and math.abs(a.y - b.y) < 0.01 and math.abs(a.z - b.z) < 0.01
 end
-check("the other exported parts still match the factory layout", #unpinned == 0,
-    #unpinned == 0 and "side x2, front, screen all agree" or ("drifted: " .. table.concat(unpinned, ", ")))
+
+local function sameAng(a, b)
+    return a and b and math.abs(a.p - b.p) < 0.01
+        and math.abs(a.y - b.y) < 0.01 and math.abs(a.r - b.r) < 0.01
+end
+
+local function spikeList(cfg)
+    local out = {}
+    for _, c in ipairs(cfg.components or {}) do
+        if c.type == "spike" then out[#out + 1] = c end
+    end
+    return out
+end
+
+--- Compares one factory branch against an exported layout.
+-- hasAngled is true because both exports came from fully upgraded vehicles, so
+-- the angled-spike orientations are the ones in force.
+local function compareAgainstExport(model, fixturePath, label)
+    local export = assert(loadfile(fixturePath))()
+    local factory = TIV.CustomConfig.GetDefaultConfig(model, true)
+
+    local roofF, roofU = findComp(factory, "armor_roof"), findComp(export, "armor_roof")
+    check(label .. ": roof position matches the export", samePos(roofF and roofF.pos, roofU and roofU.pos),
+        string.format("factory (%.2f, %.2f, %.2f) vs export (%.2f, %.2f, %.2f)",
+            roofF and roofF.pos.x or 0, roofF and roofF.pos.y or 0, roofF and roofF.pos.z or 0,
+            roofU and roofU.pos.x or 0, roofU and roofU.pos.y or 0, roofU and roofU.pos.z or 0))
+    check(label .. ": roof angle matches the export", sameAng(roofF and roofF.ang, roofU and roofU.ang),
+        string.format("factory (%.2f, %.2f, %.2f) vs export (%.2f, %.2f, %.2f)",
+            roofF and roofF.ang.p or 0, roofF and roofF.ang.y or 0, roofF and roofF.ang.r or 0,
+            roofU and roofU.ang.p or 0, roofU and roofU.ang.y or 0, roofU and roofU.ang.r or 0))
+    check(label .. ": roof model matches the export", roofF and roofU and roofF.model == roofU.model,
+        tostring(roofF and roofF.model))
+
+    -- The export carries one ram; the factory mirrors it, so compare |x|.
+    local ramF, ramU = findComp(factory, "hydraulic_ram"), findComp(export, "hydraulic_ram")
+    check(label .. ": ram position matches the export",
+        ramF and ramU and math.abs(math.abs(ramF.pos.x) - math.abs(ramU.pos.x)) < 0.01
+            and math.abs(ramF.pos.y - ramU.pos.y) < 0.01
+            and math.abs(ramF.pos.z - ramU.pos.z) < 0.01,
+        string.format("factory (+/-%.2f, %.2f, %.2f) vs export (%.2f, %.2f, %.2f)",
+            math.abs(ramF and ramF.pos.x or 0), ramF and ramF.pos.y or 0, ramF and ramF.pos.z or 0,
+            ramU and ramU.pos.x or 0, ramU and ramU.pos.y or 0, ramU and ramU.pos.z or 0))
+
+    -- Everything the export shares with the factory, mount by mount. The factory
+    -- order is fr, fl, mr, ml, rr, rl, or, ol; the export appends its extra
+    -- mounts last too, so the indices line up.
+    local fSpikes, uSpikes = spikeList(factory), spikeList(export)
+    local drift = {}
+    for i = 1, #uSpikes do
+        local f, u = fSpikes[i], uSpikes[i]
+        if not (f and samePos(f.pos, u.pos) and sameAng(f.ang, u.ang)) then
+            drift[#drift + 1] = string.format("#%d factory (%.2f, %.2f, %.2f)/(%.1f, %.1f, %.1f)"
+                .. " vs export (%.2f, %.2f, %.2f)/(%.1f, %.1f, %.1f)", i,
+                f and f.pos.x or 0, f and f.pos.y or 0, f and f.pos.z or 0,
+                f and f.ang.p or 0, f and f.ang.y or 0, f and f.ang.r or 0,
+                u and u.pos.x or 0, u and u.pos.y or 0, u and u.pos.z or 0,
+                u and u.ang.p or 0, u and u.ang.y or 0, u and u.ang.r or 0)
+        end
+    end
+    check(label .. string.format(": all %d exported mounts match the factory layout", #uSpikes),
+        #drift == 0, #drift == 0 and "position and angle agree" or table.concat(drift, "; "))
+
+    local pins = { { "armor_side", 1 }, { "armor_side", 2 }, { "armor_front", 1 }, { "radar_screen", 1 } }
+    local unpinned = {}
+    for _, pn in ipairs(pins) do
+        local f, u = findComp(factory, pn[1], pn[2]), findComp(export, pn[1], pn[2])
+        if not samePos(f and f.pos, u and u.pos) then
+            unpinned[#unpinned + 1] = pn[1] .. " #" .. pn[2]
+        end
+    end
+    check(label .. ": armor, front plate and screen match the export", #unpinned == 0,
+        #unpinned == 0 and "side x2, front, screen all agree" or ("drifted: " .. table.concat(unpinned, ", ")))
+
+    return export
+end
+
+-- The outer mounts get their own angle variables so they can mirror by yaw like
+-- the export does. They must still go vertical when angled_spikes is locked, or
+-- the upgrade would stop being the thing that tilts the anchors.
+for _, m in ipairs({ { "models/buggy.mdl", "buggy" }, { "models/vehicle.mdl", "jalopy" } }) do
+    local locked = TIV.CustomConfig.GetDefaultConfig(m[1], false)
+    local tilted = {}
+    for _, c in ipairs(spikeList(locked)) do
+        if math.abs(c.ang.p - 90.00) > 0.01 or math.abs(c.ang.y) > 0.01 then
+            tilted[#tilted + 1] = string.format("%s (%.1f, %.1f, %.1f)", c.id, c.ang.p, c.ang.y, c.ang.r)
+        end
+    end
+    check(m[2] .. ": all eight mounts are vertical with angled_spikes locked", #tilted == 0,
+        #tilted == 0 and "every mount at Angle(90, 0, 0)" or ("tilted: " .. table.concat(tilted, ", ")))
+end
+
+compareAgainstExport("models/buggy.mdl", here .. "/fixtures/buggy_fully_upgraded.lua", "buggy")
+local jalopyExport = compareAgainstExport("models/vehicle.mdl",
+    here .. "/fixtures/jalopy_fully_upgraded.lua", "jalopy")
+
+print("\n== migration leaves a config that already has eight alone ==")
+
+file.Exists = function(p) return p == TIV.CustomConfig.GetConfigFileName("models/vehicle.mdl") end
+local jfh = io.open(here .. "/fixtures/jalopy_fully_upgraded.lua", "r")
+local jalopyText = jfh and jfh:read("*a") or ""
+if jfh then jfh:close() end
+file.Read = function() return jalopyText end
+TIV.CustomConfig.VehicleConfigs = {}
+
+local jalopyLoaded = TIV.CustomConfig.GetSavedConfig("models/vehicle.mdl")
+local jCount = 0
+for _, c in ipairs(jalopyLoaded and jalopyLoaded.components or {}) do
+    if c.type == "spike" then jCount = jCount + 1 end
+end
+check("the exported jalopy layout already defines eight mounts", jCount == 8,
+    string.format("%d spike components", jCount))
+local migrated = 0
+for _, c in ipairs(jalopyLoaded and jalopyLoaded.components or {}) do
+    if c.type == "spike" and c.group == "migrated" then migrated = migrated + 1 end
+end
+check("migration adds nothing to it", migrated == 0,
+    string.format("%d mount(s) added", migrated))
+check("the export's own outer mounts are kept where the user put them",
+    jalopyLoaded and jalopyLoaded.components[13]
+        and math.abs(jalopyLoaded.components[13].pos.z - 10.00) < 0.01,
+    string.format("comp_13 z = %.2f", jalopyLoaded and jalopyLoaded.components[13]
+        and jalopyLoaded.components[13].pos.z or -1))
+
+file.Exists = function() return false end
+file.Read   = function() return nil end
+TIV.CustomConfig.VehicleConfigs = {}
 
 print(string.format("\nRESULT: %d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)
